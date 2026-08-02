@@ -18,12 +18,20 @@ node --test 'tests/*.test.mjs'
 ## Two faces, one deployment
 
 - `/` — the editor. Left panel of grouped design tokens (basemap, overlays,
-  marks & alerts, HUD & chrome), centre live preview with **Nav mode** and
-  **Plan mode** framing plus viewport chips (fill / portrait / landscape /
-  square), bottom test-drive bar (play, scrubber, speed multiplier, off-track
+  marks & alerts, HUD & chrome) with a ☀ Day / ☾ Night mode (night edits write
+  a partial overlay carried inside the scheme), centre live preview with
+  **Nav mode**, **Plan mode**, and **Multi-view** framing plus viewport chips,
+  bottom test-drive bar (play, scrubber, speed multiplier, off-track
   simulation, mute).
-- `/#demo` — public showcase: auto-plays the bundled Palm Dale sample ride with
-  the default scheme, no editing UI. Replaces DingoNav's built-in demo mode.
+- `/#demo` — public showcase: auto-plays the bundled Palm Dale sample ride
+  with the default scheme, no editing UI. Replaces DingoNav's built-in demo
+  mode. Takes `?scheme=<url>` and `&mode=night`.
+
+**Multi-view** (editor framing or #demo): one replay engine broadcasting to N
+simultaneous viewports — portrait / landscape / square, addable and removable,
+each a full independent Nav render with its own auto-zoom and HUD scale, and a
+per-view scheme dropdown (defaulting to the scheme being edited) that turns
+the demo into an A/B comparison rig: remix vs original, in motion.
 
 ## The `.dingoscheme` pack
 
@@ -47,6 +55,8 @@ js/cues.js        Nav's cue engine (ported) — real turn cues for test-drive
 js/replay.js      pure replay engine: track in → fixes out (play/pause/seek/rate)
 js/navview.js     one full independent Nav render per viewport (map + chrome +
                   onFix port: off-track, dir votes, beeps, HUD, auto-zoom)
+js/demogrid.js    multi-view grid: N NavViews on one engine, per-view schemes
+js/playback.js    shared playback-bar wiring (editor test-drive + #demo)
 js/editor.js      token panel, library (IndexedDB), .dingoscheme import/export
 js/main.js        boot: editor or #demo
 basemap/          central-coast.pmtiles + hillshade + fonts + sprites + layer files
@@ -63,11 +73,8 @@ reverses: each app owns its applier, and `sync-appliers.sh` copies them into
 Studio (same convention as vendored `maplibre-gl.js`). The applier-contract
 test in `tests/scheme.test.mjs` pins the mapping so drift fails loudly.
 
-## Multi-view demo (deferred)
+## Not here yet
 
-The replay engine already broadcasts to N sinks and `NavView` is per-viewport
-by construction; the multi-view demo grid (simultaneous portrait/landscape/
-square with per-view schemes for A/B) is rollout step 4 and not built yet.
-Also not here yet: publish-to-dingodirt (separate website spec), `.dingonav`
-track import for previewing your own rides, PWA offline (manifest + service
-worker).
+Publish-to-dingodirt (separate website spec), `.dingonav` track import for
+previewing your own rides, PWA offline (manifest + service worker), and the
+GitHub Pages deployment to `studio.dingodirt.com` (repo is private for now).

@@ -144,6 +144,29 @@
   .pc-stats{margin-top:auto; display:flex; gap:8px}
   .pc-stats span{flex:1; height:44px; border-radius:9px; background:color-mix(in srgb, var(--fg,#e8eef4) 8%, transparent)}
 
+  /* ---------- multi-view demo grid ---------- */
+  #dgWrap{display:none; flex:1; min-height:0}
+  #stage.multi #stageInner{display:none}
+  #stage.multi #dgWrap{display:flex}
+  .dg{flex:1; display:flex; flex-direction:column; min-height:0}
+  .dg-add{display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--sline)}
+  .dg-lbl{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--sdim)}
+  .dg-add button{padding:4px 12px; font-size:12.5px; border-radius:16px; text-transform:capitalize}
+  .dg-grid{flex:1; display:flex; gap:16px; align-items:center; justify-content:center; flex-wrap:wrap;
+    overflow:auto; padding:14px;
+    background:repeating-conic-gradient(var(--spanel) 0% 25%, var(--sbg) 0% 50%) 50%/24px 24px}
+  .dgv{display:flex; flex-direction:column; border-radius:12px; overflow:hidden;
+    box-shadow:0 8px 40px rgba(0,0,0,.55); background:var(--spanel)}
+  .dgv-bar{display:flex; align-items:center; gap:8px; padding:5px 8px; background:var(--spanel2)}
+  .dgv-scheme{flex:1; min-width:0; padding:3px 6px; font-size:12px; border-radius:6px}
+  .dgv-vp{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--sdim); flex:none}
+  .dgv-x{padding:2px 8px; font-size:12px; border:none; background:none; color:var(--sdim); flex:none}
+  .dgv-x:hover{color:var(--sfg)}
+  .dgv-frame{position:relative}
+  .dgv[data-vp=portrait] .dgv-frame{height:min(66vh,700px); aspect-ratio:9/19.5}
+  .dgv[data-vp=landscape] .dgv-frame{height:min(32vh,320px); aspect-ratio:19.5/9}
+  .dgv[data-vp=square] .dgv-frame{height:min(44vh,440px); aspect-ratio:1/1}
+
   /* ---------- bottom bar: test-drive ---------- */
   #bottom{display:flex; align-items:center; gap:12px; padding:11px 14px; border-top:1px solid var(--sline);
     background:var(--spanel)}
@@ -162,9 +185,11 @@
 
   /* ---------- #demo showcase ---------- */
   #demoFrame{display:none}
-  body.demo #topbar, body.demo #layout, body.demo #bottom{display:none}
-  body.demo #demoFrame{display:block; position:fixed; inset:0}
-  #demoStart{position:fixed; z-index:40; bottom:26px; left:50%; transform:translateX(-50%);
+  body.demo #topbar, body.demo #layout{display:none}
+  body.demo #demoFrame{display:flex; position:fixed; inset:0 0 62px 0}
+  body.demo #demoFrame .dg-grid{background:var(--sbg)}
+  body.demo #bottom{position:fixed; left:0; right:0; bottom:0; z-index:35}
+  #demoStart{position:fixed; z-index:40; bottom:80px; left:50%; transform:translateX(-50%);
     background:rgba(10,14,18,.8); border:1px solid #2a3540; border-radius:24px; padding:10px 20px; font-size:14px}
   body:not(.demo) #demoStart{display:none}
   .demoLink{position:fixed; z-index:40; top:12px; right:12px; font-size:12px; color:#cfe0ec;
@@ -210,11 +235,12 @@
     <div id="stageBar">
       <span class="seg" id="modeSeg"><button data-v="day" class="active">☀ Day</button><button data-v="night">☾ Night</button></span>
       <span class="lbl">Framing</span>
-      <span class="seg" id="framingSeg"><button data-v="nav" class="active">Nav mode</button><button data-v="plan">Plan mode</button></span>
+      <span class="seg" id="framingSeg"><button data-v="nav" class="active">Nav mode</button><button data-v="plan">Plan mode</button><button data-v="multi">Multi-view</button></span>
       <span class="lbl">Viewport</span>
       <span class="seg" id="vpSeg"><button data-v="fill" class="active">Fill</button><button data-v="portrait">Portrait</button><button data-v="landscape">Landscape</button><button data-v="square">Square</button></span>
     </div>
     <div id="stageInner"><div id="frame" data-vp="fill"></div></div>
+    <div id="dgWrap"></div>
   </main>
 </div>
 

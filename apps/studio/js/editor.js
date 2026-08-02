@@ -5,6 +5,8 @@ import { TOKEN_GROUPS, TOKEN_DEFS, tok, newScheme, validateScheme, resolveScheme
 import { BASE_MAP } from './applier-nav.js';
 import { NavView, BASE, SOUND, unlockAudio } from './navview.js';
 import { Replay } from './replay.js';
+import { DemoGrid } from './demogrid.js';
+import { wirePlayback } from './playback.js';
 import { idb } from './idb.js';
 
 const $ = id => document.getElementById(id);
@@ -15,9 +17,10 @@ export function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 3500);
   console.log('[studio]', msg);
 }
+window.__toast = toast; // playback bar reaches it without importing the editor
 
 export const ED = {
-  scheme: null, view: null, engine: new Replay(),
+  scheme: null, view: null, grid: null, engine: new Replay(),
   trk: null, heat: null, framing: 'nav', mode: 'day', dirty: false,
 };
 
@@ -46,6 +49,7 @@ export function setScheme(scheme, { rebuild = false } = {}) {
   buildPanel();
   saveDraft();
   if (ED.view) ED.view.setScheme(viewScheme(), { rebuild });
+  if (ED.grid) ED.grid.refreshCurrent().catch(console.error);
   document.title = scheme.name + ' — Dingo Studio';
 }
 
@@ -55,6 +59,7 @@ export function setMode(mode) {
   buildPanel();
   ED.view.setScheme(viewScheme())
     .catch(e => { console.error(e); toast('Preview update failed: ' + e.message); });
+  if (ED.grid) ED.grid.refreshAll().catch(console.error);
 }
 
 /* Day edits write the base tokens; Night edits write the night overlay, so a
@@ -67,6 +72,7 @@ function setToken(key, value) {
   const rebuild = key === 'basemap.base';
   ED.view.setScheme(viewScheme(), { rebuild })
     .catch(e => { console.error(e); toast('Preview update failed: ' + e.message); });
+  if (ED.grid) ED.grid.refreshCurrent().catch(console.error);
 }
 
 /* base style's own value for an inherit-mode basemap colour (placeholder swatch) */
@@ -247,7 +253,7 @@ export async function saveToLibrary(announce = true) {
   if (announce) toast('Saved "' + ED.scheme.name + '" to library');
 }
 let BUILTINS = null;
-async function builtinList() {
+export async function builtinList() {
   if (BUILTINS) return BUILTINS;
   try { BUILTINS = await (await fetch('schemes/index.json')).json(); }
   catch (e) { BUILTINS = []; }
@@ -274,33 +280,20 @@ export async function loadBuiltin(id) {
 }
 
 /* ---------------- test-drive bar ---------------- */
-function fmtKm(m) { return (m / 1000).toFixed(1) + ' km'; }
-
 function wireTestDrive() {
   const eng = ED.engine;
   eng.addSink((...a) => ED.view.onFix(...a));
-  eng.onState = () => {
-    $('playBtn').innerHTML = `<svg class="ic"><use href="#i-${eng.playing ? 'pause' : 'play'}"/></svg>`;
-    const sc = $('scrub');
-    if (eng.trk) { sc.max = Math.round(eng.trk.lengthM); if (!sc._drag) sc.value = Math.round(eng.d); }
-    $('scrubLbl').textContent = eng.trk ? fmtKm(eng.d) + ' / ' + fmtKm(eng.trk.lengthM) : '—';
-    if (eng.finished) { toast('Test drive finished'); ED.view.stopNav(); staticHud(); }
-  };
-  $('playBtn').onclick = () => {
-    unlockAudio();
-    if (!eng.playing && !ED.view.navving) { ED.view.startNav(); ED.view.clearTrail(); }
-    eng.toggle();
-  };
-  const sc = $('scrub');
-  sc.oninput = () => { sc._drag = true; eng.seek(parseFloat(sc.value)); };
-  sc.onchange = () => { sc._drag = false; };
-  $('rate').onchange = () => eng.setRate(parseFloat($('rate').value));
-  $('offBtn').onclick = () => { if (eng.playing) eng.simulateOffTrack(5); else toast('Press play first'); };
-  $('muteBtn').onclick = () => {
-    SOUND.on = !SOUND.on;
-    $('muteBtn').innerHTML = `<svg class="ic"><use href="#i-volume-${SOUND.on ? '2' : 'x'}"/></svg>`;
-    $('muteBtn').classList.toggle('off', !SOUND.on);
-  };
+  wirePlayback(eng, {
+    beforePlay() {
+      if (!ED.view.navving) { ED.view.startNav(); ED.view.clearTrail(); }
+      if (ED.grid) ED.grid.startNavAll();
+    },
+    onFinish() {
+      toast('Test drive finished');
+      ED.view.stopNav(); staticHud();
+      if (ED.grid) ED.grid.stopNavAll();
+    },
+  });
 }
 
 /* static HUD preview so the chrome is styleable without riding */
@@ -316,12 +309,24 @@ function staticHud() {
   v.$('.nv-speed').innerHTML = '34 <small>km/h</small>';
 }
 
-/* ---------------- framing (Nav mode / Plan mode) + viewport chips ---------------- */
+/* ---------------- framing (Nav / Plan / Multi-view) + viewport chips ---------------- */
+async function ensureGrid() {
+  if (ED.grid) return;
+  ED.grid = new DemoGrid($('dgWrap'), {
+    engine: ED.engine, trk: ED.trk, heat: ED.heat,
+    builtins: await builtinList(),
+    current: () => ED.scheme,
+    mode: () => ED.mode,
+  });
+  await ED.grid.addView('portrait', 'current'); // the demo doubles as an A/B rig — add views to compare
+}
 function setFraming(mode) {
   ED.framing = mode;
   $('stage').classList.toggle('plan', mode === 'plan');
+  $('stage').classList.toggle('multi', mode === 'multi');
   for (const b of $('framingSeg').children) b.classList.toggle('active', b.dataset.v === mode);
-  setTimeout(() => ED.view.map.resize(), 50);
+  if (mode === 'multi') ensureGrid().catch(e => { console.error(e); toast('Multi-view failed: ' + e.message); });
+  setTimeout(() => { ED.view.map.resize(); if (ED.grid) for (const v of ED.grid.views) v.nav.map && v.nav.map.resize(); }, 60);
 }
 function setViewport(v) {
   const f = $('frame');

@@ -5,8 +5,10 @@ import { parseGPX, processTrack, processHeatmap } from './geom.js';
 import { analyzeRoute } from './cues.js';
 import { initMapBase, BASE, NavView, unlockAudio } from './navview.js';
 import { Replay } from './replay.js';
+import { DemoGrid } from './demogrid.js';
+import { wirePlayback } from './playback.js';
 import { idb } from './idb.js';
-import { ED, setScheme, loadDraft, handleSchemeParam, initEditor, toast, parseSchemeFile } from './editor.js';
+import { ED, setScheme, loadDraft, handleSchemeParam, initEditor, toast, parseSchemeFile, builtinList } from './editor.js';
 
 const SAMPLE_GPX = 'sample-data/Palm_Dale_loop_23_kms_2.1_hrs_on_2020-02-19.gpx';
 const SAMPLE_HEAT = 'sample-data/heatmap-central-coast.geojson';
@@ -41,35 +43,39 @@ async function bootEditor() {
 }
 
 /* #demo — auto-plays the bundled sample ride, no editing UI. The link that
-   replaces DingoNav's built-in demo mode. */
+   replaces DingoNav's built-in demo mode. One portrait view by default; the
+   add-view chips + per-view scheme dropdowns make it the A/B comparison rig. */
 async function bootDemo() {
   document.body.classList.add('demo');
-  let scheme = null;
-  const p = new URLSearchParams(location.search).get('scheme');
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode') === 'night' ? 'night' : 'day';
+  let extra = null;
+  const p = params.get('scheme');
   if (p) {
-    try { const resp = await fetch(p.split(',')[0]); scheme = parseSchemeFile(await resp.arrayBuffer(), p); }
-    catch (e) { console.warn('demo scheme load failed', e); }
+    try {
+      const resp = await fetch(p.split(',')[0]);
+      const s = parseSchemeFile(await resp.arrayBuffer(), p);
+      extra = { label: s.name, scheme: s };
+    } catch (e) { console.warn('demo scheme load failed', e); }
   }
-  if (!scheme) {
-    try { scheme = validateScheme(await (await fetch('schemes/default.json')).json()); }
-    catch (e) { scheme = newScheme('Dingo default', 'Dingo'); }
-  }
-  const mode = new URLSearchParams(location.search).get('mode') === 'night' ? 'night' : 'day';
   const { trk, heat } = await loadSampleData();
-  const view = new NavView(document.getElementById('demoFrame'), { scheme: resolveScheme(scheme, mode), orient: 'course' });
-  await view.init();
-  view.setData({ trk, heat });
-  view.fitTrack();
+  await cuedTrack(trk, heat);
   const engine = new Replay();
   engine.setTrack(trk);
-  engine.addSink((...a) => view.onFix(...a));
-  engine.onState = () => { if (engine.finished) { engine.seek(0); engine.play(); } }; // loop the ride
-  await cuedTrack(trk, heat);
-  view.refreshAlerts();
-  view.startNav();
+  const grid = new DemoGrid(document.getElementById('demoFrame'), {
+    engine, trk, heat,
+    builtins: await builtinList(),
+    current: null, extra, mode: () => mode,
+  });
+  await grid.addView('portrait');
+  wirePlayback(engine, {
+    beforePlay: () => grid.startNavAll(),
+    onFinish: () => { engine.seek(0); engine.play(); }, // loop the ride
+  });
+  grid.startNavAll();
   engine.play();
   document.getElementById('demoStart').onclick = () => { unlockAudio(); document.getElementById('demoStart').remove(); };
-  window.__demo = { view, engine };
+  window.__demo = { grid, engine };
 }
 
 async function boot() {
