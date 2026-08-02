@@ -27,11 +27,27 @@ node --test 'tests/*.test.mjs'
   with the default scheme, no editing UI. Replaces DingoNav's built-in demo
   mode. Takes `?scheme=<url>` and `&mode=night`.
 
-**Multi-view** (editor framing or #demo): one replay engine broadcasting to N
-simultaneous viewports — portrait / landscape / square, addable and removable,
-each a full independent Nav render with its own auto-zoom and HUD scale, and a
-per-view scheme dropdown (defaulting to the scheme being edited) that turns
-the demo into an A/B comparison rig: remix vs original, in motion.
+**Multi-view** (Viewport → Multi-view, or #demo): one replay engine
+broadcasting to N simultaneous viewports — portrait / landscape / square,
+addable and removable, each a full independent Nav render with its own
+auto-zoom and HUD scale, and a per-view scheme dropdown (defaulting to the
+scheme being edited) that turns the demo into an A/B comparison rig: remix vs
+original, in motion. User pan/zoom in one viewport drives them all (same spot,
+different schemes); any view's dot button re-follows the ride.
+
+**Packs**: Import accepts `.dingonav` — the pack's heatmap and longest track
+replace the bundled sample as the preview data, so a pack author tunes a
+scheme against the terrain the pack covers. *Export pack* writes the chosen
+scheme back into `bundle.json` as the design's reference
+(`"scheme": { "name", "url" }`) — Nav offers it once per pack on import.
+
+**Plan styles** (second workspace in the top bar): the style-layers inspector
+moved out of Dingo Plan. Edits Plan's local MapLibre styles (dingo-topo etc.)
+on Studio's own MapTiler preview — layer list with zoom gantt + solo + flash,
+literal attrs, zoom-ramp formulas, style-wide palette recolours, auto night
+palettes, dingo:overlays heat colours — and saves the pristine JSON back
+through the Dingo daemon (`/api/styles`, key-leak guards intact). Needs the
+daemon running; opens read-only without it.
 
 ## The `.dingoscheme` pack
 
@@ -57,8 +73,10 @@ js/navview.js     one full independent Nav render per viewport (map + chrome +
                   onFix port: off-track, dir votes, beeps, HUD, auto-zoom)
 js/demogrid.js    multi-view grid: N NavViews on one engine, per-view schemes
 js/playback.js    shared playback-bar wiring (editor test-drive + #demo)
-js/editor.js      token panel, library (IndexedDB), .dingoscheme import/export
-js/main.js        boot: editor or #demo
+js/styleattrs.js  style attribute/palette/ramp/night vocabulary (from Plan)
+js/styleinspector.js  Plan-styles workspace: layer editor + daemon save
+js/editor.js      token panel, library (IndexedDB), scheme + pack import/export
+js/main.js        boot: editor or #demo; workspace switch
 basemap/          central-coast.pmtiles + hillshade + fonts + sprites + layer files
 sample-data/      Palm Dale loop GPX + heatmap GeoJSON
 schemes/          bundled default scheme

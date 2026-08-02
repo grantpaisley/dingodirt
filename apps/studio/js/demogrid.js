@@ -76,11 +76,15 @@ export class DemoGrid {
     this.gridEl.appendChild(panel);
     const view = { panel, sel, vp, nav: null, unsub: null };
     this.views.push(view);
-    const nav = new NavView(panel.querySelector('.dgv-frame'), { scheme: await this._resolve(sel), orient: 'course' });
+    const nav = new NavView(panel.querySelector('.dgv-frame'), {
+      scheme: await this._resolve(sel), orient: 'course',
+      onDot: () => this.refollow(), // any view's dot button re-follows the ride everywhere
+    });
     view.nav = nav;
     await nav.init();
     nav.setData({ trk: this.opts.trk, heat: this.opts.heat });
     nav.fitTrack();
+    this._wireSync(view);
     view.unsub = this.opts.engine.addSink((...a) => nav.onFix(...a));
     if (this.opts.engine.playing || this._navving) nav.startNav();
     panel.querySelector('.dgv-x').onclick = () => this.removeView(view);
@@ -89,6 +93,32 @@ export class DemoGrid {
       nav.setScheme(await this._resolve(view.sel)).catch(console.error);
     };
     return view;
+  }
+
+  /* User pan/zoom in one viewport drives them all — comparing schemes means
+     looking at the same spot. Only user gestures relay (originalEvent);
+     the ride's own followCamera eases stay per-view. Everyone drops out of
+     follow so the ride doesn't yank the maps back mid-inspection. */
+  _wireSync(view) {
+    const map = view.nav.map;
+    let userMoving = false;
+    map.on('movestart', e => { if (e.originalEvent) userMoving = true; });
+    map.on('moveend', () => { userMoving = false; });
+    map.on('move', () => {
+      if (!userMoving || this._syncing) return;
+      this._syncing = true;
+      const c = map.getCenter(), z = map.getZoom(), b = map.getBearing();
+      for (const v of this.views) {
+        if (v === view || !v.nav.ready) continue;
+        v.nav.follow = false;
+        v.nav.map.jumpTo({ center: c, zoom: z, bearing: b });
+      }
+      view.nav.follow = false;
+      this._syncing = false;
+    });
+  }
+  refollow() {
+    for (const v of this.views) if (v.nav.ready) { v.nav.follow = true; v.nav.lastEase = 0; }
   }
 
   removeView(view) {
@@ -109,6 +139,16 @@ export class DemoGrid {
   async refreshAll() {
     for (const v of this.views)
       v.nav.setScheme(await this._resolve(v.sel)).catch(console.error);
+  }
+
+  /* replace track + heatmap in every view (pack import) */
+  setData(trk, heat) {
+    this.opts.trk = trk; this.opts.heat = heat;
+    for (const v of this.views) if (v.nav.ready) {
+      v.nav.clearTrail();
+      v.nav.setData({ trk, heat });
+      v.nav.fitTrack();
+    }
   }
 
   startNavAll() {

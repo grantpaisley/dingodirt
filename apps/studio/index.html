@@ -116,7 +116,9 @@
   .nv-bigArrow.on{display:block}
   .nv-dot{position:absolute; right:.9em; bottom:1em; width:4.4em; height:4.4em; border-radius:1.3em;
     background:color-mix(in srgb, var(--panel) 55%, transparent); border:1px solid color-mix(in srgb, var(--fg) 22%, transparent);
-    display:flex; align-items:center; justify-content:center; font-size:1em; color:var(--fg); opacity:.5}
+    display:flex; align-items:center; justify-content:center; font-size:1em; color:var(--fg); opacity:.5;
+    pointer-events:auto; cursor:pointer}
+  .nv-dot:active{opacity:1}
   .nv-dot svg.ic{width:2em; height:2em}
   .maplibregl-ctrl-attrib{background:rgba(14,18,22,.5)!important; font-size:9px}
   .maplibregl-ctrl-attrib a{color:#8fa0b0!important}
@@ -177,6 +179,87 @@
   #bottom select{padding:6px 8px}
   #muteBtn.off{color:var(--sdim)}
 
+  /* ---------- workspaces: Schemes | Plan styles ---------- */
+  #wsSeg{flex:none}
+  #wsSeg button{white-space:nowrap}
+  #schemeTools{display:contents}
+  #styleStage{display:none}
+  #inspector{display:none}
+  body.ws-styles #schemeTools, body.ws-styles #stageBar, body.ws-styles #bottom,
+  body.ws-styles #stageInner, body.ws-styles #dgWrap, body.ws-styles #tokens{display:none}
+  body.ws-styles #wsGrow{display:block}
+  body.ws-styles #layout{height:calc(100% - 57px)}
+  body.ws-styles #styleStage{display:block; flex:1; position:relative}
+  body.ws-styles #inspector{display:block}
+  #styleMap{position:absolute; inset:0; background:#20242a}
+  #wsSeg [data-v=styles].active{background:#b48cf2; color:#26123f}
+
+  /* ---------- Plan-styles inspector (ported from Plan's StyleLayersPanel) ---------- */
+  .si{display:flex; flex-direction:column; min-height:100%}
+  .si-head{display:flex; align-items:center; gap:8px; padding:9px 12px 0}
+  #siStyle{flex:1; min-width:0; font-weight:700}
+  #siName{width:100%; font-size:13px}
+  .si-controls{display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--sline)}
+  .si-hid{font-size:12px; color:var(--sdim); display:flex; align-items:center; gap:5px}
+  .si-hid input{accent-color:var(--saccent)}
+  .si-zoomstep{margin-left:auto; display:flex; align-items:center; gap:2px}
+  .si-zoomstep button{padding:2px 9px; font-size:14px}
+  .si-zoomstep span{font-size:12.5px; font-variant-numeric:tabular-nums; min-width:44px; text-align:center; color:var(--sfg)}
+  .si-groups{display:flex; flex-wrap:wrap; gap:6px; padding:9px 12px}
+  .si-pill{padding:3px 10px; font-size:12px; border-radius:14px}
+  .si-pill span{color:var(--sdim); font-size:10.5px}
+  .si-pill.on{background:var(--saccent); color:#03252b; border-color:var(--saccent)}
+  .si-pill.on span{color:#03252b99}
+  .si-note{padding:6px 12px; font-size:11.5px; color:var(--sdim)}
+  .si-note:empty{display:none}
+  .si-axis{display:flex; align-items:center; padding:2px 12px 3px; border-bottom:1px solid var(--sline)}
+  .si-axis-pad{width:118px; flex:none}
+  .si-axis-scale{flex:1; display:flex; justify-content:space-between; font-size:9.5px; color:var(--sdim)}
+  .si-rows{flex:1; overflow-y:auto; min-height:120px; max-height:38vh}
+  .si-row{display:flex; align-items:center; gap:6px; padding:3px 12px; cursor:pointer; border-bottom:1px solid color-mix(in srgb, var(--sline) 40%, transparent)}
+  .si-row:hover{background:var(--spanel2)}
+  .si-row.dim{opacity:.45}
+  .si-row.sel{background:color-mix(in srgb, var(--saccent) 14%, var(--spanel))}
+  .si-eye{border:none; background:none; padding:0 2px; font-size:13px; color:var(--sdim); flex:none; cursor:pointer}
+  .si-eye.on{color:var(--saccent)}
+  .si-sample{flex:none; background:#20242a; border-radius:3px}
+  .si-lname{font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:118px; flex:none}
+  .si-gantt{position:relative; flex:1; height:8px; background:color-mix(in srgb, var(--sline) 45%, transparent); border-radius:4px; overflow:hidden}
+  .si-gantt-bar{position:absolute; top:0; bottom:0; background:var(--saccent); opacity:.55; border-radius:4px}
+  .si-gantt-bar.hid{background:var(--sdim); opacity:.3}
+  .si-gantt-cursor{position:absolute; top:-1px; bottom:-1px; width:2px; background:#fff; opacity:.8}
+  .si-editor{border-top:1px solid var(--sline)}
+  .si-editor:empty{display:none}
+  .si-ehead{display:flex; align-items:center; gap:8px; padding:9px 12px 5px; font-size:12.5px}
+  .si-etype{font-size:10px; text-transform:uppercase; color:var(--sdim); letter-spacing:.05em}
+  .si-x{margin-left:auto; border:none; background:none; color:var(--sdim); cursor:pointer; padding:2px 6px}
+  .si-x:hover{color:var(--sfg)}
+  .si-egrid{padding:0 12px 6px}
+  .si-erow{display:flex; align-items:flex-start; gap:8px; padding:4px 0}
+  .si-elabel{width:74px; flex:none; font-size:11.5px; color:var(--sdim); padding-top:4px}
+  .si-attr{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+  .si-alabel{font-size:10.5px; color:var(--sdim)}
+  .si-unset{color:var(--sdim)}
+  .si-num{width:58px; padding:3px 6px; font-size:12px}
+  .si-num.narrow{width:48px}
+  .si-dash{padding:3px 6px; font-size:12px; max-width:170px}
+  .si-fx{font-size:9.5px; padding:1px 5px; border-radius:4px; background:var(--spanel2); color:var(--sdim); border:1px solid var(--sline)}
+  .si-swatch{width:14px; height:14px; border-radius:4px; border:1px solid var(--sline); display:inline-block}
+  .si-palette{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex:1}
+  .si-swatch-pick{width:16px; height:16px; border-radius:4px; border:1px solid var(--sline); padding:0; cursor:pointer}
+  .si-swatch-pick.cur{outline:2px solid var(--saccent); outline-offset:1px}
+  .si-swatch-edit{width:20px; height:20px; padding:0 1px; border-radius:5px; border:1px solid var(--sline); background:none; cursor:pointer}
+  .si-swatch-add{position:relative; width:16px; height:16px; border:1px dashed var(--sdim); border-radius:4px; color:var(--sdim);
+    font-size:12px; line-height:14px; text-align:center; cursor:pointer}
+  .si-swatch-add input{position:absolute; inset:0; opacity:0; cursor:pointer}
+  .si-formula{display:flex; align-items:center; gap:6px; flex-wrap:wrap; flex:1}
+  .si-fstop{display:flex; align-items:center; gap:3px}
+  .si-fcurve{background:#20242a; border-radius:4px}
+  .si-foot{display:flex; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid var(--sline); margin-top:auto}
+  .si-err{flex:1; font-size:11px; color:#ff6b6b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  #siSave.primary{background:var(--saccent); color:#03252b; border:none; font-weight:700}
+  #siSave:disabled, #siRevert:disabled{opacity:.4; cursor:default}
+
   /* ---------- toast ---------- */
   #toast{position:fixed; bottom:80px; left:50%; transform:translateX(-50%); z-index:30;
     background:var(--spanel2); border:1px solid var(--sline); font-size:14px; padding:10px 18px;
@@ -217,27 +300,36 @@
 
 <header id="topbar">
   <div class="logo">Dingo <span>Studio</span></div>
-  <input id="schemeName" placeholder="Scheme name" title="Scheme name">
-  <input id="schemeAuthor" placeholder="Author" title="Author">
-  <div class="grow"></div>
-  <select id="library" title="Saved schemes"><option value="">Library…</option></select>
-  <button id="newBtn">New</button>
-  <button id="dupBtn">Duplicate</button>
-  <button id="importBtn"><svg class="ic"><use href="#i-upload"/></svg> Import</button>
-  <button id="saveBtn">Save</button>
-  <button id="exportBtn"><svg class="ic"><use href="#i-download"/></svg> Export</button>
+  <span class="seg" id="wsSeg" title="Workspace">
+    <button data-v="schemes" class="active">Schemes</button>
+    <button data-v="styles" title="Edit Dingo Plan's basemap styles (needs the daemon running)">Plan styles</button>
+  </span>
+  <span id="schemeTools">
+    <input id="schemeName" placeholder="Scheme name" title="Scheme name">
+    <input id="schemeAuthor" placeholder="Author" title="Author">
+    <div class="grow"></div>
+    <select id="library" title="Saved schemes"><option value="">Library…</option></select>
+    <button id="newBtn">New</button>
+    <button id="dupBtn">Duplicate</button>
+    <button id="importBtn"><svg class="ic"><use href="#i-upload"/></svg> Import</button>
+    <button id="saveBtn">Save</button>
+    <button id="exportBtn"><svg class="ic"><use href="#i-download"/></svg> Export</button>
+    <button id="packBtn" style="display:none">Export pack</button>
+  </span>
+  <div class="grow" id="wsGrow" style="display:none"></div>
   <a href="#demo" onclick="setTimeout(()=>location.reload())"><button title="Public showcase">Demo</button></a>
 </header>
 
 <div id="layout">
-  <aside id="panel"><div id="tokens"></div></aside>
+  <aside id="panel"><div id="tokens"></div><div id="inspector"></div></aside>
   <main id="stage">
+    <div id="styleStage"><div id="styleMap"></div></div>
     <div id="stageBar">
       <span class="seg" id="modeSeg"><button data-v="day" class="active">☀ Day</button><button data-v="night">☾ Night</button></span>
       <span class="lbl">Framing</span>
-      <span class="seg" id="framingSeg"><button data-v="nav" class="active">Nav mode</button><button data-v="plan">Plan mode</button><button data-v="multi">Multi-view</button></span>
+      <span class="seg" id="framingSeg"><button data-v="nav" class="active">Nav mode</button><button data-v="plan">Plan mode</button></span>
       <span class="lbl">Viewport</span>
-      <span class="seg" id="vpSeg"><button data-v="fill" class="active">Fill</button><button data-v="portrait">Portrait</button><button data-v="landscape">Landscape</button><button data-v="square">Square</button></span>
+      <span class="seg" id="vpSeg"><button data-v="fill" class="active">Fill</button><button data-v="portrait">Portrait</button><button data-v="landscape">Landscape</button><button data-v="square">Square</button><button data-v="multi">Multi-view</button></span>
     </div>
     <div id="stageInner"><div id="frame" data-vp="fill"></div></div>
     <div id="dgWrap"></div>
@@ -261,7 +353,7 @@
 <a class="demoLink" href="./" onclick="setTimeout(()=>location.reload())">Made with Dingo Studio — remix this scheme</a>
 
 <div id="toast"></div>
-<input type="file" id="fileInput" accept=".dingoscheme,.json,.zip,application/zip" style="display:none">
+<input type="file" id="fileInput" accept=".dingoscheme,.dingonav,.json,.zip,application/zip,application/octet-stream" style="display:none">
 
 <script src="vendor/maplibre-gl.js"></script>
 <script src="vendor/pmtiles.js"></script>

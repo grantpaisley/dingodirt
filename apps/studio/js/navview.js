@@ -171,6 +171,11 @@ export class NavView {
     container.appendChild(el);
     this.$ = s => el.querySelector(s);
     this.mapEl = this.$('.nv-map');
+    // dot button = re-follow (Nav's recentre grammar); grids override to re-follow every view
+    this.$('.nv-dot').onclick = () => {
+      if (this.opts.onDot) this.opts.onDot();
+      else { this.follow = true; this.lastEase = 0; }
+    };
     // HUD scaled to its frame: chrome sizes are em-based off this root font-size
     this.ro = new ResizeObserver(() => this._rescale());
     this.ro.observe(el);

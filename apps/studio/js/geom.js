@@ -8,6 +8,11 @@ export function setRef(lat, lon) {
   if (!isFinite(lat) || !isFinite(lon)) { console.warn('setRef ignored non-finite', lat, lon); return; }
   REF = { lat, lon, kx: R_LON * Math.cos(lat * Math.PI / 180) };
 }
+/* Replacing ALL loaded data (e.g. opening a pack from a different area) must
+   re-anchor the local-metre projection — the linear approximation degrades
+   with distance from REF. Every previously processed track is invalid after
+   this; callers replace everything. */
+export function resetRef() { REF = null; }
 export function toXY(lat, lon) { return [(lon - REF.lon) * REF.kx, (lat - REF.lat) * R_LAT]; }
 export function toLL(x, y) { return [y / R_LAT + REF.lat, x / REF.kx + REF.lon]; }
 export function dist(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); }

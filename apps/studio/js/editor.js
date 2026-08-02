@@ -3,6 +3,8 @@
 
 import { TOKEN_GROUPS, TOKEN_DEFS, tok, newScheme, validateScheme, resolveScheme, SCHEMA_VERSION } from './scheme.js';
 import { BASE_MAP } from './applier-nav.js';
+import { parseGPX, processTrack, processHeatmap, resetRef } from './geom.js';
+import { analyzeRoute } from './cues.js';
 import { NavView, BASE, SOUND, unlockAudio } from './navview.js';
 import { Replay } from './replay.js';
 import { DemoGrid } from './demogrid.js';
@@ -212,11 +214,77 @@ export function parseSchemeFile(buf, name) {
 
 export async function importSchemeFile(file) {
   try {
-    const scheme = parseSchemeFile(await file.arrayBuffer(), file.name);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // one Import button, two pack types: a zip with bundle.json is a .dingonav
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+      const files = fflate.unzipSync(bytes);
+      if (!files['scheme.json'] && files['bundle.json']) return await loadPack(files, file.name);
+    }
+    const scheme = parseSchemeFile(bytes.buffer, file.name);
     setScheme(scheme, { rebuild: true });
     await saveToLibrary(false);
     toast('Imported "' + scheme.name + '"' + (scheme.unknown.length ? ' (' + scheme.unknown.length + ' unknown tokens kept)' : ''));
   } catch (e) { toast('Import failed: ' + e.message); }
+}
+
+/* ---------------- .dingonav packs: preview data + scheme reference ----------------
+   Opening a pack replaces the bundled sample as the preview's "default values":
+   its heatmap and longest track become what every viewport renders, so a pack
+   author picks and tunes a scheme against the terrain the pack actually covers. */
+async function loadPack(files, filename) {
+  const bundle = JSON.parse(fflate.strFromU8(files['bundle.json']));
+  const gpxTracks = (bundle.tracks || []).filter(t => t && t.gpx);
+  if (!gpxTracks.length) throw new Error('No tracks in ' + filename);
+  resetRef(); // pack may be anywhere — re-anchor the local projection
+  const heat = bundle.heatmap ? processHeatmap(bundle.heatmap) : null;
+  let trk = null;
+  for (const t of gpxTracks) {
+    try {
+      const g = parseGPX(t.gpx, t.name || 'track');
+      const p = processTrack('pack-' + slug(g.name), g.name, g.pts);
+      if (!trk || p.lengthM > trk.lengthM) trk = p; // longest track = the showcase ride
+    } catch (e) { console.warn('pack track skipped', e); }
+  }
+  if (!trk) throw new Error('No readable tracks in ' + filename);
+  ED.pack = { name: bundle.bundleName || bundle.name || filename.replace(/\.(dingonav|zip)$/i, ''), files, bundle };
+  ED.trk = trk; ED.heat = heat;
+  ED.engine.setTrack(trk);
+  ED.view.clearTrail();
+  ED.view.setData({ trk, heat });
+  ED.view.fitTrack();
+  if (ED.grid) ED.grid.setData(trk, heat);
+  const pb = $('packBtn');
+  pb.style.display = ''; pb.title = 'Export "' + ED.pack.name + '" with this scheme referenced';
+  toast('Pack "' + ED.pack.name + '" open — ' + gpxTracks.length + ' tracks, previewing "' + trk.name + '"');
+  analyzeRoute(trk, BASE.pm, heat).then(() => {
+    ED.view.refreshAlerts();
+    if (trk.alerts.length) toast(trk.alerts.length + ' cues ready');
+  }).catch(e => console.warn('cue analysis failed', e));
+}
+
+/* Save the scheme choice back into the pack: bundle.json gains the design's
+   optional reference — { "scheme": { "name", "url" } } — and the pack re-zips.
+   Nav's importer will offer it once per pack ("This pack suggests …"). */
+export function exportPack() {
+  if (!ED.pack) return;
+  const url = window.prompt(
+    'URL for "' + ED.scheme.name + '" (a raw .dingoscheme link, e.g. from dingo-shares/schemes/).\n' +
+    'The pack stores a reference, not a copy — publish the scheme there first.\n' +
+    'Leave empty to remove any scheme reference.',
+    (ED.pack.bundle.scheme && ED.pack.bundle.scheme.url) || '');
+  if (url === null) return; // cancelled
+  const bundle = { ...ED.pack.bundle };
+  if (url.trim()) bundle.scheme = { name: ED.scheme.name, url: url.trim() };
+  else delete bundle.scheme;
+  ED.pack.bundle = bundle;
+  const files = { ...ED.pack.files, 'bundle.json': fflate.strToU8(JSON.stringify(bundle)) };
+  const zip = fflate.zipSync(files, { level: 6 });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+  a.download = slug(ED.pack.name) + '.dingonav';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(url.trim() ? 'Pack exported with scheme "' + ED.scheme.name + '" referenced' : 'Pack exported (no scheme reference)');
 }
 
 /* ?scheme=<url>[,<url>…] — install; the last one opens for editing (remix flow) */
@@ -323,16 +391,16 @@ async function ensureGrid() {
 function setFraming(mode) {
   ED.framing = mode;
   $('stage').classList.toggle('plan', mode === 'plan');
-  $('stage').classList.toggle('multi', mode === 'multi');
   for (const b of $('framingSeg').children) b.classList.toggle('active', b.dataset.v === mode);
-  if (mode === 'multi') ensureGrid().catch(e => { console.error(e); toast('Multi-view failed: ' + e.message); });
-  setTimeout(() => { ED.view.map.resize(); if (ED.grid) for (const v of ED.grid.views) v.nav.map && v.nav.map.resize(); }, 60);
+  setTimeout(() => ED.view.map.resize(), 60);
 }
 function setViewport(v) {
-  const f = $('frame');
-  f.dataset.vp = v;
+  const multi = v === 'multi';
+  $('stage').classList.toggle('multi', multi);
   for (const b of $('vpSeg').children) b.classList.toggle('active', b.dataset.v === v);
-  setTimeout(() => { ED.view.map.resize(); }, 260); // after the CSS transition
+  if (multi) ensureGrid().catch(e => { console.error(e); toast('Multi-view failed: ' + e.message); });
+  else $('frame').dataset.vp = v;
+  setTimeout(() => { ED.view.map.resize(); if (ED.grid) for (const gv of ED.grid.views) gv.nav.map && gv.nav.map.resize(); }, 260);
 }
 
 /* ---------------- boot ---------------- */
@@ -365,6 +433,7 @@ export async function initEditor({ trk, heat }) {
   $('importBtn').onclick = () => $('fileInput').click();
   $('fileInput').onchange = e => { if (e.target.files[0]) importSchemeFile(e.target.files[0]); e.target.value = ''; };
   $('exportBtn').onclick = exportScheme;
+  $('packBtn').onclick = exportPack;
   $('saveBtn').onclick = () => saveToLibrary();
   $('library').onchange = async e => {
     const v = e.target.value;

@@ -9,6 +9,7 @@ import { DemoGrid } from './demogrid.js';
 import { wirePlayback } from './playback.js';
 import { idb } from './idb.js';
 import { ED, setScheme, loadDraft, handleSchemeParam, initEditor, toast, parseSchemeFile, builtinList } from './editor.js';
+import { StyleInspector } from './styleinspector.js';
 
 const SAMPLE_GPX = 'sample-data/Palm_Dale_loop_23_kms_2.1_hrs_on_2020-02-19.gpx';
 const SAMPLE_HEAT = 'sample-data/heatmap-central-coast.geojson';
@@ -36,10 +37,33 @@ async function bootEditor() {
   await initEditor({ trk, heat });
   setScheme(ED.scheme); // sync panel + title (view already has it)
   await handleSchemeParam(); // installs + applies via setScheme when present
+  wireWorkspaces();
   cuedTrack(trk, heat).then(() => {
     ED.view.refreshAlerts();
     toast((trk.alerts || []).length + ' cues ready — hit play to test-drive');
   });
+}
+
+/* Schemes (the token editor) | Plan styles (the inspector moved out of Plan) */
+let inspector = null;
+function wireWorkspaces() {
+  const seg = document.getElementById('wsSeg');
+  seg.onclick = e => {
+    const ws = e.target.dataset.v;
+    if (!ws) return;
+    document.body.classList.toggle('ws-styles', ws === 'styles');
+    for (const b of seg.children) b.classList.toggle('active', b.dataset.v === ws);
+    if (ws === 'styles') {
+      ED.engine.pause();
+      if (!inspector) inspector = new StyleInspector({
+        panelEl: document.getElementById('inspector'),
+        mapEl: document.getElementById('styleMap'), toast });
+      inspector.open().catch(e2 => toast('Plan styles failed: ' + e2.message));
+    } else {
+      if (inspector) inspector.close();
+      setTimeout(() => ED.view.map.resize(), 60);
+    }
+  };
 }
 
 /* #demo — auto-plays the bundled sample ride, no editing UI. The link that
