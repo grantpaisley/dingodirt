@@ -49,8 +49,12 @@
   .cwrap{display:flex; align-items:center; gap:4px}
   .cwrap input[type=color]{width:44px; height:28px; padding:1px 2px; border-radius:7px; cursor:pointer}
   .cwrap.inherited input[type=color]{opacity:.45}
-  .cwrap .reset{padding:2px 7px; font-size:13px; border-radius:6px; background:none; border:none; color:var(--sdim)}
-  .cwrap .reset:hover{color:var(--sfg)}
+  .reset{padding:2px 7px; font-size:13px; border-radius:6px; background:none; border:none; color:var(--sdim)}
+  .reset:hover{color:var(--sfg)}
+  /* night mode: rows carrying a night override get a moon-blue tick on the label */
+  .trow.nightset label::after{content:' ☾'; color:#7c89ff; font-size:11px}
+  #modeSeg button.active{background:#7c89ff; color:#0b0e2a}
+  #modeSeg [data-v=day].active{background:#ffd769; color:#3a2c00}
   .seg{display:inline-flex; border:1px solid var(--sline); border-radius:9px; overflow:hidden}
   .seg button{border:none; border-radius:0; padding:5px 10px; font-size:12.5px; background:var(--spanel2)}
   .seg button.active{background:var(--saccent); color:#03252b; font-weight:700}
@@ -204,6 +208,7 @@
   <aside id="panel"><div id="tokens"></div></aside>
   <main id="stage">
     <div id="stageBar">
+      <span class="seg" id="modeSeg"><button data-v="day" class="active">☀ Day</button><button data-v="night">☾ Night</button></span>
       <span class="lbl">Framing</span>
       <span class="seg" id="framingSeg"><button data-v="nav" class="active">Nav mode</button><button data-v="plan">Plan mode</button></span>
       <span class="lbl">Viewport</span>

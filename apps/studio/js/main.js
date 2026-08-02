@@ -1,6 +1,6 @@
 /* Boot — editor by default, public showcase at #demo (replaces Nav's demo mode). */
 
-import { newScheme, validateScheme } from './scheme.js';
+import { newScheme, validateScheme, resolveScheme } from './scheme.js';
 import { parseGPX, processTrack, processHeatmap } from './geom.js';
 import { analyzeRoute } from './cues.js';
 import { initMapBase, BASE, NavView, unlockAudio } from './navview.js';
@@ -33,8 +33,7 @@ async function bootEditor() {
   ED.scheme = loadDraft() || newScheme('My scheme', '');
   await initEditor({ trk, heat });
   setScheme(ED.scheme); // sync panel + title (view already has it)
-  const installed = await handleSchemeParam();
-  if (installed) ED.view.setScheme(ED.scheme, { rebuild: true });
+  await handleSchemeParam(); // installs + applies via setScheme when present
   cuedTrack(trk, heat).then(() => {
     ED.view.refreshAlerts();
     toast((trk.alerts || []).length + ' cues ready — hit play to test-drive');
@@ -55,8 +54,9 @@ async function bootDemo() {
     try { scheme = validateScheme(await (await fetch('schemes/default.json')).json()); }
     catch (e) { scheme = newScheme('Dingo default', 'Dingo'); }
   }
+  const mode = new URLSearchParams(location.search).get('mode') === 'night' ? 'night' : 'day';
   const { trk, heat } = await loadSampleData();
-  const view = new NavView(document.getElementById('demoFrame'), { scheme, orient: 'course' });
+  const view = new NavView(document.getElementById('demoFrame'), { scheme: resolveScheme(scheme, mode), orient: 'course' });
   await view.init();
   view.setData({ trk, heat });
   view.fitTrack();

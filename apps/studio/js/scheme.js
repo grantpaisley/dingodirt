@@ -92,7 +92,16 @@ export function tok(scheme, key) {
 
 export function newScheme(name, author) {
   return { name: name || 'Untitled scheme', author: author || '', version: 1,
-    schemaVersion: SCHEMA_VERSION, tokens: defaultTokens() };
+    schemaVersion: SCHEMA_VERSION, tokens: defaultTokens(), night: {} };
+}
+
+/* A scheme carries one full token set (day) plus a partial `night` overlay.
+   Resolving flattens them so appliers and views never know about modes —
+   apps that predate `night` simply always resolve day. */
+export function resolveScheme(scheme, mode = 'day') {
+  const over = mode === 'night' && scheme.night ? scheme.night : {};
+  return { name: scheme.name, author: scheme.author, version: scheme.version,
+    schemaVersion: scheme.schemaVersion, tokens: { ...scheme.tokens, ...over } };
 }
 
 const COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -111,17 +120,19 @@ export function validateScheme(obj) {
     throw new Error(`Scheme needs schema v${major} — this app speaks v${SCHEMA_VERSION}. Update the app to use it.`);
   const out = { name: String(obj.name || 'Unnamed scheme').slice(0, 60),
     author: String(obj.author || '').slice(0, 60),
-    version: Number(obj.version) || 1, schemaVersion: sv, tokens: {}, unknown: [] };
-  const src = obj.tokens && typeof obj.tokens === 'object' ? obj.tokens : {};
-  for (const [k, v] of Object.entries(src)) {
-    const def = TOKEN_DEFS[k];
-    if (!def) { out.tokens[k] = v; out.unknown.push(k); continue; } // ignore-unknown: carried, unused
-    if (def.type === 'color' && (typeof v !== 'string' || !COLOR_RE.test(v))) continue;
-    if (def.type === 'number' && (typeof v !== 'number' || !isFinite(v))) continue;
-    if (def.type === 'bool' && typeof v !== 'boolean') continue;
-    if (def.type === 'select' && !def.opts.includes(v)) continue;
-    out.tokens[k] = def.type === 'number'
-      ? Math.max(def.min, Math.min(def.max, v)) : v;
-  }
+    version: Number(obj.version) || 1, schemaVersion: sv, tokens: {}, night: {}, unknown: [] };
+  const clean = (src, into) => {
+    for (const [k, v] of Object.entries(src)) {
+      const def = TOKEN_DEFS[k];
+      if (!def) { into[k] = v; out.unknown.push(k); continue; } // ignore-unknown: carried, unused
+      if (def.type === 'color' && (typeof v !== 'string' || !COLOR_RE.test(v))) continue;
+      if (def.type === 'number' && (typeof v !== 'number' || !isFinite(v))) continue;
+      if (def.type === 'bool' && typeof v !== 'boolean') continue;
+      if (def.type === 'select' && !def.opts.includes(v)) continue;
+      into[k] = def.type === 'number' ? Math.max(def.min, Math.min(def.max, v)) : v;
+    }
+  };
+  clean(obj.tokens && typeof obj.tokens === 'object' ? obj.tokens : {}, out.tokens);
+  clean(obj.night && typeof obj.night === 'object' ? obj.night : {}, out.night);
   return out;
 }

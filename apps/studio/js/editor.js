@@ -1,7 +1,7 @@
 /* Editor — token panel, scheme lifecycle (New/Duplicate/Import/Export/Save),
    .dingoscheme zip I/O, ?scheme= URL install (the remix flow), test-drive bar. */
 
-import { TOKEN_GROUPS, TOKEN_DEFS, tok, newScheme, validateScheme, SCHEMA_VERSION } from './scheme.js';
+import { TOKEN_GROUPS, TOKEN_DEFS, tok, newScheme, validateScheme, resolveScheme, SCHEMA_VERSION } from './scheme.js';
 import { BASE_MAP } from './applier-nav.js';
 import { NavView, BASE, SOUND, unlockAudio } from './navview.js';
 import { Replay } from './replay.js';
@@ -18,8 +18,11 @@ export function toast(msg) {
 
 export const ED = {
   scheme: null, view: null, engine: new Replay(),
-  trk: null, heat: null, framing: 'nav', dirty: false,
+  trk: null, heat: null, framing: 'nav', mode: 'day', dirty: false,
 };
+
+/* the flattened scheme the preview renders — day tokens + night overlay */
+const viewScheme = () => resolveScheme(ED.scheme, ED.mode);
 
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'scheme';
 
@@ -37,27 +40,39 @@ export function loadDraft() {
 
 export function setScheme(scheme, { rebuild = false } = {}) {
   ED.scheme = scheme;
+  if (!ED.scheme.night) ED.scheme.night = {};
   $('schemeName').value = scheme.name;
   $('schemeAuthor').value = scheme.author;
   buildPanel();
   saveDraft();
-  if (ED.view) ED.view.setScheme(scheme, { rebuild });
+  if (ED.view) ED.view.setScheme(viewScheme(), { rebuild });
   document.title = scheme.name + ' — Dingo Studio';
 }
 
+export function setMode(mode) {
+  ED.mode = mode;
+  for (const b of $('modeSeg').children) b.classList.toggle('active', b.dataset.v === mode);
+  buildPanel();
+  ED.view.setScheme(viewScheme())
+    .catch(e => { console.error(e); toast('Preview update failed: ' + e.message); });
+}
+
+/* Day edits write the base tokens; Night edits write the night overlay, so a
+   scheme carries both looks and apps can flip between them. */
 function setToken(key, value) {
-  if (value == null) delete ED.scheme.tokens[key];
-  else ED.scheme.tokens[key] = value;
+  const store = ED.mode === 'night' ? ED.scheme.night : ED.scheme.tokens;
+  if (value == null) delete store[key];
+  else store[key] = value;
   saveDraft();
   const rebuild = key === 'basemap.base';
-  ED.view.setScheme(ED.scheme, { rebuild })
+  ED.view.setScheme(viewScheme(), { rebuild })
     .catch(e => { console.error(e); toast('Preview update failed: ' + e.message); });
 }
 
 /* base style's own value for an inherit-mode basemap colour (placeholder swatch) */
 function baseValueFor(key) {
   const m = BASE_MAP[key];
-  const file = tok(ED.scheme, 'basemap.base') === 'light' ? 'layers-light.json' : 'layers.json';
+  const file = tok(viewScheme(), 'basemap.base') === 'light' ? 'layers-light.json' : 'layers.json';
   const layers = BASE.layerCache[file] || [];
   if (key === 'basemap.labelText' || key === 'basemap.labelHalo') {
     const l = layers.find(x => x.id === 'roads_labels_minor');
@@ -91,21 +106,34 @@ function buildPanel() {
 }
 
 function tokenRow(key, def) {
+  const night = ED.mode === 'night';
+  const dayVal = ED.scheme.tokens[key];
+  const overridden = night && key in ED.scheme.night;
+  const cur = night ? (overridden ? ED.scheme.night[key] : dayVal) : dayVal;
+
   const row = document.createElement('div');
-  row.className = 'trow';
+  row.className = 'trow' + (overridden ? ' nightset' : '');
   const lab = document.createElement('label'); lab.textContent = def.label;
   row.appendChild(lab);
-  const cur = ED.scheme.tokens[key];
+
+  // night mode: every row gets a ↺ back to the day value
+  const nightReset = () => {
+    const rst = document.createElement('button'); rst.className = 'reset'; rst.title = 'Back to day value';
+    rst.innerHTML = '&#8634;';
+    rst.onclick = () => { setToken(key, null); buildPanel(); };
+    return rst;
+  };
 
   if (def.type === 'color') {
     const inherit = def.def == null; // basemap colours can defer to the base style
     const wrap = document.createElement('span'); wrap.className = 'cwrap';
     const inp = document.createElement('input'); inp.type = 'color';
     inp.value = cur != null ? cur.slice(0, 7) : (inherit ? baseValueFor(key) : def.def);
-    if (inherit && cur == null) wrap.classList.add('inherited');
-    inp.oninput = () => { wrap.classList.remove('inherited'); setToken(key, inp.value); };
+    if ((inherit && cur == null) || (night && !overridden)) wrap.classList.add('inherited');
+    inp.oninput = () => { wrap.classList.remove('inherited'); row.classList.toggle('nightset', night); setToken(key, inp.value); };
     wrap.appendChild(inp);
-    if (inherit) {
+    if (night) wrap.appendChild(nightReset());
+    else if (inherit) {
       const rst = document.createElement('button'); rst.className = 'reset'; rst.title = 'Back to base style';
       rst.innerHTML = '&#8634;';
       rst.onclick = () => { setToken(key, null); inp.value = baseValueFor(key); wrap.classList.add('inherited'); };
@@ -117,23 +145,26 @@ function tokenRow(key, def) {
     inp.min = def.min; inp.max = def.max; inp.step = def.step;
     inp.value = cur != null ? cur : def.def;
     const val = document.createElement('span'); val.className = 'tval'; val.textContent = inp.value;
-    inp.oninput = () => { val.textContent = inp.value; setToken(key, parseFloat(inp.value)); };
+    inp.oninput = () => { val.textContent = inp.value; row.classList.toggle('nightset', night); setToken(key, parseFloat(inp.value)); };
     row.appendChild(inp); row.appendChild(val);
+    if (night) row.appendChild(nightReset());
   } else if (def.type === 'bool') {
     const inp = document.createElement('input'); inp.type = 'checkbox';
     inp.checked = cur != null ? cur : def.def;
-    inp.onchange = () => setToken(key, inp.checked);
+    inp.onchange = () => { row.classList.toggle('nightset', night); setToken(key, inp.checked); };
     row.appendChild(inp);
+    if (night) row.appendChild(nightReset());
   } else if (def.type === 'select') {
     const seg = document.createElement('span'); seg.className = 'seg';
     for (const o of def.opts) {
       const b = document.createElement('button'); b.textContent = o;
       b.classList.toggle('active', (cur != null ? cur : def.def) === o);
-      b.onclick = () => { setToken(key, o);
+      b.onclick = () => { row.classList.toggle('nightset', night); setToken(key, o);
         for (const x of seg.children) x.classList.toggle('active', x === b); };
       seg.appendChild(b);
     }
     row.appendChild(seg);
+    if (night) row.appendChild(nightReset());
   }
   return row;
 }
@@ -215,11 +246,31 @@ export async function saveToLibrary(announce = true) {
   await refreshLibrary();
   if (announce) toast('Saved "' + ED.scheme.name + '" to library');
 }
+let BUILTINS = null;
+async function builtinList() {
+  if (BUILTINS) return BUILTINS;
+  try { BUILTINS = await (await fetch('schemes/index.json')).json(); }
+  catch (e) { BUILTINS = []; }
+  return BUILTINS;
+}
 export async function refreshLibrary() {
+  const builtins = await builtinList();
   const recs = (await idb.all()).filter(r => r.kind === 'scheme').sort((a, b) => b.savedAt - a.savedAt);
   const sel = $('library');
   sel.innerHTML = '<option value="">Library…</option>' +
-    recs.map(r => `<option value="${r.id}">${r.scheme.name}${r.scheme.author ? ' — ' + r.scheme.author : ''}</option>`).join('');
+    '<optgroup label="Built-in">' +
+    builtins.map(b => `<option value="builtin:${b.id}">${b.label}</option>`).join('') +
+    '</optgroup>' +
+    (recs.length ? '<optgroup label="My library">' +
+      recs.map(r => `<option value="${r.id}">${r.scheme.name}${r.scheme.author ? ' — ' + r.scheme.author : ''}</option>`).join('') +
+      '</optgroup>' : '');
+}
+export async function loadBuiltin(id) {
+  const b = (await builtinList()).find(x => x.id === id);
+  if (!b) return;
+  const scheme = validateScheme(await (await fetch('schemes/' + b.file)).json());
+  setScheme(scheme, { rebuild: true });
+  toast('Loaded "' + scheme.name + '" — Save or Duplicate to make it yours');
 }
 
 /* ---------------- test-drive bar ---------------- */
@@ -283,7 +334,7 @@ function setViewport(v) {
 export async function initEditor({ trk, heat }) {
   ED.trk = trk; ED.heat = heat;
 
-  ED.view = new NavView($('frame'), { scheme: ED.scheme, orient: 'course' });
+  ED.view = new NavView($('frame'), { scheme: viewScheme(), orient: 'course' });
   await ED.view.init();
   ED.view.setData({ trk, heat });
   ED.view.fitTrack();
@@ -296,6 +347,7 @@ export async function initEditor({ trk, heat }) {
   wireTestDrive();
   $('framingSeg').onclick = e => { if (e.target.dataset.v) setFraming(e.target.dataset.v); };
   $('vpSeg').onclick = e => { if (e.target.dataset.v) setViewport(e.target.dataset.v); };
+  $('modeSeg').onclick = e => { if (e.target.dataset.v) setMode(e.target.dataset.v); };
 
   $('schemeName').onchange = () => { ED.scheme.name = $('schemeName').value; saveDraft(); };
   $('schemeAuthor').onchange = () => { ED.scheme.author = $('schemeAuthor').value; saveDraft(); };
@@ -310,10 +362,12 @@ export async function initEditor({ trk, heat }) {
   $('exportBtn').onclick = exportScheme;
   $('saveBtn').onclick = () => saveToLibrary();
   $('library').onchange = async e => {
-    if (!e.target.value) return;
-    const rec = await idb.get(e.target.value);
-    if (rec) { setScheme(validateScheme(rec.scheme), { rebuild: true }); toast('Loaded "' + rec.scheme.name + '"'); }
+    const v = e.target.value;
     e.target.value = '';
+    if (!v) return;
+    if (v.startsWith('builtin:')) return loadBuiltin(v.slice(8));
+    const rec = await idb.get(v);
+    if (rec) { setScheme(validateScheme(rec.scheme), { rebuild: true }); toast('Loaded "' + rec.scheme.name + '"'); }
   };
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => {
