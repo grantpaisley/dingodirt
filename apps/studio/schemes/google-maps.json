@@ -47,7 +47,18 @@
     "hud.warn": "#fbbc04",
     "hud.bad": "#d93025",
     "hud.arrow": "#1a73e8",
-    "hud.arrowOp": 0.7
+    "hud.arrowOp": 0.7,
+    "chrome.turnPanel": "card",
+    "chrome.turnPanelBg": "#188038",
+    "chrome.speedoStyle": "circle",
+    "chrome.speedoPos": "bottomLeft",
+    "chrome.etaStyle": "bar",
+    "chrome.limitSign": "rect",
+    "chrome.recentrePos": "bottomRight",
+    "chrome.recentreStyle": "circle",
+    "chrome.bigArrows": false,
+    "chrome.zoomButtons": false,
+    "chrome.scale": 1
   },
   "night": {
     "basemap.base": "dark",
@@ -81,6 +92,7 @@
     "hud.ok": "#81c995",
     "hud.warn": "#fdd663",
     "hud.bad": "#f28b82",
-    "hud.arrow": "#8ab4f8"
+    "hud.arrow": "#8ab4f8",
+    "chrome.turnPanelBg": "#144f2c"
   }
 }

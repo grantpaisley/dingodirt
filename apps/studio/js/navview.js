@@ -7,7 +7,8 @@
    same seam Nav's demo mode proved. */
 
 import { REF, setRef, toXY, toLL, dist, bearing, angDiff, nearestOnTrack } from './geom.js';
-import { SILENT_KINDS, kindOf, DANGER_FAR, DANGER_NEAR, MARKS } from './cues.js';
+import { SILENT_KINDS, kindOf, MARKS } from './cues.js';
+import { bv } from './behavior.js';
 import { applyScheme, basePaintOverrides, applyBaseOverrides, hillPaint } from './applier-nav.js';
 import { tok } from './scheme.js';
 
@@ -92,11 +93,13 @@ export const BEEP = {
   mark()     { if (!SOUND.on) return; tone(880, .2, 0); },
 };
 
-/* speed-scaled warn distances — enduro profile (Nav's default vehicle) */
-const VEH = { farMin: 60, farMax: 250, nearMin: 25, nearMax: 70, defSpd: 8, spans: [[0, 300], [8.3, 900], [19.4, 2500]] };
-const APPR_S = 15, APPR_MUL = 1.5, APPR_FLOOR = 250, OFF_M = 60, ON_M = 40, DEPART_M = 30;
+/* Warn distances, off-track hysteresis, camera spans etc. now come from the
+   .dingobehavior profile (js/behavior.js registry, defaults = Nav's classic
+   constants). Only the assumed-speed fallback stays hardcoded. */
+const VEH = { defSpd: 8 };
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
+const ORIENT = { northUp: 'north', courseUp: 'course', free: 'course' }; // followMode → map orientation
 const ICONS = { left: 'corner-up-left', right: 'corner-up-right', straight: 'arrow-up',
   danger: 'triangle-alert', obstacle: 'construction', gate: 'fence', creek: 'waves' };
 const LABELS = { left: 'Turn left', right: 'Turn right', straight: 'Straight ahead',
@@ -122,24 +125,44 @@ function markSquareImage(kind, col) {
   x.fillText(MARKS[kind].glyph || '', 18, 19);
   return x.getImageData(0, 0, 36, 36);
 }
-function navDartImage() {
+/* position marker variants (behaviour position.marker): dart (Dingo), solid
+   arrow, open chevron (Google-ish), plain dot */
+function navMarkerImage(style) {
   const c = document.createElement('canvas'); c.width = c.height = 56;
   const x = c.getContext('2d');
-  x.beginPath(); x.moveTo(28, 5); x.lineTo(47, 49); x.lineTo(28, 38); x.lineTo(9, 49); x.closePath();
-  x.fillStyle = '#4096ff'; x.strokeStyle = '#fff'; x.lineWidth = 4; x.lineJoin = 'round';
-  x.stroke(); x.fill();
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = '#4096ff'; x.strokeStyle = '#fff'; x.lineWidth = 4;
+  if (style === 'dot') {
+    x.beginPath(); x.arc(28, 28, 15, 0, Math.PI * 2);
+    x.stroke(); x.fill();
+  } else if (style === 'arrow') {
+    x.beginPath(); x.moveTo(28, 6); x.lineTo(48, 50); x.lineTo(8, 50); x.closePath();
+    x.stroke(); x.fill();
+  } else if (style === 'chevron') {
+    x.lineWidth = 9; x.strokeStyle = '#fff';
+    x.beginPath(); x.moveTo(10, 44); x.lineTo(28, 10); x.lineTo(46, 44); x.stroke();
+    x.lineWidth = 5; x.strokeStyle = '#4096ff';
+    x.beginPath(); x.moveTo(10, 44); x.lineTo(28, 10); x.lineTo(46, 44); x.stroke();
+  } else { // dart
+    x.beginPath(); x.moveTo(28, 5); x.lineTo(47, 49); x.lineTo(28, 38); x.lineTo(9, 49); x.closePath();
+    x.stroke(); x.fill();
+  }
   return x.getImageData(0, 0, 56, 56);
 }
 
 let seq = 0;
 
 export class NavView {
-  /* opts: { scheme, interactive:true, orient:'course'|'north', chrome:true } */
+  /* opts: { scheme, behavior, interactive:true, orient:'course'|'north', chrome:true }
+     behavior = validated .dingobehavior profile (null → registry defaults, i.e.
+     Nav's classic hardcoded feel); opts.orient is a legacy override the
+     profile's camera.followMode supersedes when a profile is set */
   constructor(container, opts = {}) {
     this.id = 'nv' + (++seq);
     this.opts = opts;
     this.scheme = opts.scheme;
-    this.orient = opts.orient || 'course';
+    this.behavior = opts.behavior || null;
+    this.orient = opts.behavior ? ORIENT[bv(opts.behavior, 'camera.followMode')] : (opts.orient || 'course');
     this.trk = null; this.heat = null;
     this.pos = null; this.courseBearing = null; this.navState = null;
     this.follow = true; this.navving = false;
@@ -166,6 +189,9 @@ export class NavView {
         <div class="nv-banner">OFF TRACK</div>
         <div class="nv-bigArrow nv-bigL">${icSvg('corner-up-left')}</div>
         <div class="nv-bigArrow nv-bigR">${icSvg('corner-up-right')}</div>
+        <div class="nv-limit"><span>60</span></div>
+        <div class="nv-eta"></div>
+        <div class="nv-zoom"><button class="nv-zin">+</button><button class="nv-zout">−</button></div>
         <div class="nv-dot">${icSvg('square')}</div>
       </div>`;
     container.appendChild(el);
@@ -176,30 +202,95 @@ export class NavView {
       if (this.opts.onDot) this.opts.onDot();
       else { this.follow = true; this.lastEase = 0; }
     };
+    this.$('.nv-zin').onclick = () => this.map && this.map.zoomIn();
+    this.$('.nv-zout').onclick = () => this.map && this.map.zoomOut();
     // HUD scaled to its frame: chrome sizes are em-based off this root font-size
     this.ro = new ResizeObserver(() => this._rescale());
     this.ro.observe(el);
     this._rescale();
+    this._applyChrome();
   }
   _rescale() {
     const w = this.el.clientWidth || 390;
-    this.el.style.fontSize = Math.max(6, 16 * Math.min(w / 390, (this.el.clientHeight || 700) / 700)) + 'px';
+    const scale = this.scheme ? tok(this.scheme, 'chrome.scale') : 1;
+    this.el.style.fontSize = Math.max(6, 16 * scale * Math.min(w / 390, (this.el.clientHeight || 700) / 700)) + 'px';
     if (this.map) this.map.resize();
+  }
+
+  /* behaviour params: profile value or registry default */
+  _b(k) { return bv(this.behavior, k); }
+  setBehavior(profile) {
+    this.behavior = profile || null;
+    this.orient = ORIENT[this._b('camera.followMode')];
+    if (this.ready) {
+      this.map.easeTo({ pitch: this._b('camera.pitch'), duration: 500 });
+      const style = this._b('position.marker');
+      if (this.map.getLayer('pos-arrow'))
+        this.map.setLayoutProperty('pos-arrow', 'icon-image', 'nav-marker-' + style);
+      if (!this.map.hasImage('nav-marker-' + style))
+        this.map.addImage('nav-marker-' + style, navMarkerImage(style), { pixelRatio: 2 });
+      if (!(this._b('offroute.guideLine') && this.navState && this.navState.off))
+        this.map.getSource('guide') && this.map.getSource('guide').setData(EMPTY);
+    }
+    this.lastEase = 0;
+    this._applyChrome();
+    if (this.navving) {
+      this.$('.nv-speed').classList.toggle('on', this._b('hud.speedo'));
+      this._renderSpeed();
+    }
+  }
+
+  /* Studio's objects workspace: show nav-gated chrome (eta, limit, speed) with
+     sample values so it can be styled without riding */
+  setChromePreview(on) {
+    this.chromePreview = !!on;
+    this._applyChrome();
+    if (on) this._renderEta(null);
+  }
+
+  /* chrome tokens (scheme ui facet) + behaviour visibility → classes/els */
+  _applyChrome() {
+    const el = this.el, t = k => this.scheme ? tok(this.scheme, k) : null;
+    if (!this.scheme) return;
+    el.dataset.turn = t('chrome.turnPanel');
+    el.dataset.speedo = t('chrome.speedoStyle');
+    el.dataset.speedopos = t('chrome.speedoPos');
+    el.dataset.eta = t('chrome.etaStyle');
+    el.dataset.recentre = t('chrome.recentrePos');
+    el.dataset.recentrestyle = t('chrome.recentreStyle');
+    el.style.setProperty('--turnBg', t('chrome.turnPanelBg') || '');
+    el.classList.toggle('turn-tinted', !!t('chrome.turnPanelBg'));
+    el.classList.toggle('no-bigarrows', !t('chrome.bigArrows'));
+    this.$('.nv-zoom').style.display = t('chrome.zoomButtons') ? '' : 'none';
+    const live = this.navving || this.chromePreview;
+    const limit = t('chrome.limitSign');
+    const limitEl = this.$('.nv-limit');
+    limitEl.dataset.shape = limit;
+    limitEl.style.display = limit !== 'none' && this._b('hud.speedLimit') && live ? '' : 'none';
+    const hudBox = this.$('.nv-hudBox');
+    const panel = this._b('hud.nextTurnPanel');
+    hudBox.classList.toggle('small', panel === 'small');
+    this.$('.nv-hud').classList.toggle('none', panel === 'off' || this._b('guidance.cueSource') === 'none');
+    const etaOn = this._b('hud.etaPanel') && live;
+    this.$('.nv-eta').style.display = etaOn ? '' : 'none';
+    el.classList.toggle('eta-on', etaOn && t('chrome.etaStyle') === 'bar');
+    if (this.chromePreview && !this.navving) this.$('.nv-speed').classList.toggle('on', this._b('hud.speedo'));
+    this._rescale();
   }
 
   async init() {
     const style = await buildStyle(this.scheme);
     this.map = new maplibregl.Map({
       container: this.mapEl, style,
-      center: [151.3, -33.3], zoom: 9,
-      maxPitch: 0, pitchWithRotate: false, dragRotate: false,
+      center: [151.3, -33.3], zoom: 9, pitch: this._b('camera.pitch'),
+      maxPitch: 60, pitchWithRotate: false, dragRotate: false,
       attributionControl: { compact: true },
       preserveDrawingBuffer: true, // preview.png capture
       interactive: this.opts.interactive !== false,
     });
     this.map.touchZoomRotate.disableRotation();
     this.map.keyboard.disableRotation();
-    this.map.on('dragstart', () => { this.follow = false; });
+    this.map.on('dragstart', () => { if (this._b('camera.pauseOnGesture')) this.follow = false; });
     await new Promise(res => {
       if (this.map.isStyleLoaded()) return res();
       const t = setInterval(() => { if (this.map.isStyleLoaded()) { clearInterval(t); res(); } }, 250);
@@ -227,14 +318,15 @@ export class NavView {
     // style and sometimes drops them — start from a clean slate either way,
     // or one surviving source throws and takes the whole ladder down with it
     for (const id of ['heat-halo', 'heat-core', 'trail-dots', 'sel-case', 'sel-core', 'dir-vs',
-      'alert-dots', 'mark-squares', 'pos-arrow'])
+      'alert-dots', 'mark-squares', 'guide-line', 'pos-arrow'])
       if (map.getLayer(id)) map.removeLayer(id);
-    for (const id of ['heat', 'selTrack', 'alerts', 'trail', 'pos'])
+    for (const id of ['heat', 'selTrack', 'alerts', 'trail', 'guide', 'pos'])
       if (map.getSource(id)) map.removeSource(id);
     map.addSource('heat', { type: 'geojson', data: this.heat ? this.heat.geojson : EMPTY });
     map.addSource('selTrack', { type: 'geojson', data: EMPTY });
     map.addSource('alerts', { type: 'geojson', data: EMPTY });
     map.addSource('trail', { type: 'geojson', data: EMPTY });
+    map.addSource('guide', { type: 'geojson', data: EMPTY });
     map.addSource('pos', { type: 'geojson', data: EMPTY });
 
     map.addLayer({ id: 'heat-halo', type: 'line', source: 'heat',
@@ -273,9 +365,12 @@ export class NavView {
       filter: ['!=', ['get', 'k'], 'turn'],
       layout: { 'icon-image': ['concat', 'mark-', ['get', 'k']],
         'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-    if (!map.hasImage('nav-dart')) map.addImage('nav-dart', navDartImage(), { pixelRatio: 2 });
+    map.addLayer({ id: 'guide-line', type: 'line', source: 'guide',
+      paint: { 'line-color': tok(this.scheme, 'marks.banner'), 'line-opacity': 0.75, 'line-width': 3, 'line-dasharray': [2, 1.6] } });
+    const mk = this._b('position.marker');
+    if (!map.hasImage('nav-marker-' + mk)) map.addImage('nav-marker-' + mk, navMarkerImage(mk), { pixelRatio: 2 });
     map.addLayer({ id: 'pos-arrow', type: 'symbol', source: 'pos',
-      layout: { 'icon-image': 'nav-dart', 'icon-size': 1.5, 'icon-rotate': ['get', 'heading'],
+      layout: { 'icon-image': 'nav-marker-' + mk, 'icon-size': 1.5, 'icon-rotate': ['get', 'heading'],
         'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
   }
 
@@ -285,6 +380,7 @@ export class NavView {
     this.scheme = scheme;
     this._advCache = null;
     this._applyCss();
+    this._applyChrome();
     if (!this.ready) return;
     if (rebuild || baseChanged) {
       this.map.setStyle(await buildStyle(scheme));
@@ -353,6 +449,7 @@ export class NavView {
     setL('dir-vs', 'text-size', Math.max(1, this._adv('chevSize')));
     setL('dir-vs', 'visibility', this._adv('chevSize') > 0 ? 'visible' : 'none');
     const marks = applyScheme(this.scheme).marks;
+    set('guide-line', 'line-color', tok(this.scheme, 'marks.banner'));
     set('alert-dots', 'circle-color', ['case', ['get', 'manual'], marks.turn, marks.autoTurn]);
     for (const k in MARKS) if (k !== 'turn') {
       if (map.hasImage('mark-' + k)) map.removeImage('mark-' + k);
@@ -389,12 +486,13 @@ export class NavView {
   startNav() {
     this.navState = { idx: -1, dir: 1, dirVotes: 0, off: false, lastOffBeep: 0, alertStates: new Map(),
       avgSpd: null, lastFixT: 0, confirmAt: null, lastNext: null, approach: false, apprArmed: false };
-    this.navving = true; this.follow = true;
+    this.navving = true; this.follow = this._b('camera.followMode') !== 'free';
     this.trail = []; this.trailLast = null;
     this.camOffX = this.camOffY = 0;
     this.el.classList.add('navving');
     this.$('.nv-hud').classList.add('on');
-    this.$('.nv-speed').classList.add('on');
+    this.$('.nv-speed').classList.toggle('on', this._b('hud.speedo'));
+    this._applyChrome(); // eta / limit visibility is nav-gated
   }
   stopNav() {
     this.navving = false;
@@ -403,6 +501,8 @@ export class NavView {
     this.$('.nv-speed').classList.remove('on');
     this.$('.nv-banner').classList.remove('on');
     this._setBig(null);
+    if (this.ready) this.map.getSource('guide').setData(EMPTY);
+    this._applyChrome();
   }
 
   onFix(lat, lon, acc, speed, heading) {
@@ -414,6 +514,13 @@ export class NavView {
     if ((spd == null || isNaN(spd)) && this.pos && t > this.pos.t) spd = dist(x, y, this.pos.x, this.pos.y) / ((t - this.pos.t) / 1000);
     let hdg = heading;
     if ((hdg == null || isNaN(hdg)) && this.pos && dist(x, y, this.pos.x, this.pos.y) > 3) hdg = bearing(this.pos.x, this.pos.y, x, y);
+    // wall-clock ground velocity (replay can run at Nx real speed) — feeds the
+    // camera's dead-reckoning so close zooms don't trail the rider off-screen
+    if (this.pos && t > this.pos.t) {
+      const dt = (t - this.pos.t) / 1000, vx = (x - this.pos.x) / dt, vy = (y - this.pos.y) / dt;
+      this.velXY = Math.hypot(vx, vy) < 250 ? [vx, vy] : null; // seek jump — drop it
+      this._fixGap = Math.min(3, dt);
+    }
     this.pos = { x, y, acc: acc || 0, speed: spd || 0, heading: hdg, t };
     if (hdg != null && !isNaN(hdg) && (spd || 0) > 2)
       this.courseBearing = this.courseBearing == null ? hdg : this.courseBearing + angDiff(this.courseBearing, hdg) * 0.4;
@@ -425,23 +532,42 @@ export class NavView {
 
     const trk = this.trk;
     const near = nearestOnTrack(trk, x, y, ns.idx);
-    if (ns.idx >= 0 && near.d < OFF_M) {
+    const offM = this._b('offroute.detectM'), onM = this._b('offroute.rejoinM');
+    const vmode = this._b('voice.mode');
+    const snd = full => vmode === 'silent' ? false : vmode === 'alertsOnly' ? !full : true;
+    if (ns.idx >= 0 && near.d < offM) {
       const delta = near.idx - ns.idx;
       if (delta !== 0) ns.dirVotes = Math.max(-8, Math.min(8, ns.dirVotes + Math.sign(delta)));
       const newDir = ns.dirVotes <= -4 ? -1 : ns.dirVotes >= 4 ? 1 : ns.dir;
       if (newDir !== ns.dir) { ns.dir = newDir; ns.confirmAt = null; }
     }
     ns.idx = near.idx;
+    ns.snapXY = near.d < offM ? [trk.xy[near.idx * 2], trk.xy[near.idx * 2 + 1]] : null;
 
-    if (near.d > OFF_M && !ns.off) ns.off = true;
-    if (near.d < ON_M && ns.off) { ns.off = false; BEEP.back(); this.$('.nv-banner').classList.remove('on'); }
-    if (ns.off) {
-      const bn = this.$('.nv-banner');
-      bn.textContent = 'Off track · ' + Math.round(near.d) + ' m'; bn.classList.add('on');
-      if (t - ns.lastOffBeep > 30e3) { BEEP.off(); ns.lastOffBeep = t; }
-      ns.confirmAt = null;
-      this._setHud(null); return;
+    if (near.d > offM && !ns.off) ns.off = true;
+    if (near.d < onM && ns.off) {
+      ns.off = false;
+      if (this._b('offroute.alert') !== 'none' && snd(false)) BEEP.back();
+      this.$('.nv-banner').classList.remove('on');
+      this.map.getSource('guide').setData(EMPTY);
     }
+    if (ns.off) {
+      if (this._b('offroute.banner')) {
+        const bn = this.$('.nv-banner');
+        bn.textContent = 'Off track · ' + Math.round(near.d) + ' m'; bn.classList.add('on');
+      }
+      if (this._b('offroute.alert') !== 'none' && snd(false)
+        && t - ns.lastOffBeep > this._b('offroute.repeatSecs') * 1000) { BEEP.off(); ns.lastOffBeep = t; }
+      if (this._b('offroute.guideLine')) { // Locus: beeline to the nearest route point
+        const [pla, plo] = toLL(x, y);
+        const [nla, nlo] = toLL(trk.xy[near.idx * 2], trk.xy[near.idx * 2 + 1]);
+        this.map.getSource('guide').setData({ type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [[plo, pla], [nlo, nla]] } });
+      }
+      ns.confirmAt = null;
+      this._setHud(null); this._renderEta(null); return;
+    }
+    if (this._b('position.snapToRoute')) this._refreshPos(); // re-render at the snapped point
 
     const s = trk.cum[near.idx];
     const dts = ns.lastFixT ? Math.min(5, (t - ns.lastFixT) / 1000) : 0;
@@ -449,43 +575,84 @@ export class NavView {
     if ((spd || 0) > 1) ns.avgSpd = ns.avgSpd == null ? spd : ns.avgSpd * 0.98 + spd * 0.02;
 
     const aSpd = ns.avgSpd || VEH.defSpd;
-    let farM = Math.min(VEH.farMax, Math.max(VEH.farMin, aSpd * APPR_S));
-    let nearM = Math.min(VEH.nearMax, Math.max(VEH.nearMin, aSpd * 5));
+    let farM = Math.min(this._b('cues.farMaxM'), Math.max(this._b('cues.farMinM'), aSpd * this._b('cues.farSecs')));
+    let nearM = Math.min(this._b('cues.nearMaxM'), Math.max(this._b('cues.nearMinM'), aSpd * this._b('cues.nearSecs')));
+    const density = this._b('voice.density');
     let next = null, dTo = Infinity;
-    if (trk.alerts) {
+    if (trk.alerts && this._b('guidance.cueSource') !== 'none') {
       if (ns.dir > 0) { for (const a of trk.alerts) if (a.at > s + 5 && !SILENT_KINDS[kindOf(a)]) { next = a; dTo = a.at - s; break; } }
       else { for (let i = trk.alerts.length - 1; i >= 0; i--) { const a = trk.alerts[i]; if (a.at < s - 5 && !SILENT_KINDS[kindOf(a)]) { next = a; dTo = s - a.at; break; } } }
     }
     const nextDanger = next && kindOf(next) === 'danger';
-    if (nextDanger) { farM = Math.max(farM, DANGER_FAR); nearM = DANGER_NEAR; }
+    if (nextDanger) { farM = Math.max(farM, this._b('cues.dangerFarM')); nearM = this._b('cues.dangerNearM'); }
+    const confirmM = this._b('cues.confirmAfterM');
     if (ns.lastNext && next !== ns.lastNext && !ns.off) {
       const p = ns.lastNext, st = ns.alertStates.get(p);
       if (st && !st.near && !st.done) { st.done = true;
-        ns.confirmAt = ns.dir > 0 ? p.at + DEPART_M : p.at - DEPART_M; }
+        ns.confirmAt = ns.dir > 0 ? p.at + confirmM : p.at - confirmM; }
     }
     ns.lastNext = next;
     if (ns.confirmAt != null && (ns.dir > 0 ? s >= ns.confirmAt : s <= ns.confirmAt)) {
-      ns.confirmAt = null; this._flashCommit(); BEEP.done();
+      ns.confirmAt = null; this._flashCommit(); if (snd(true)) BEEP.done();
     }
-    ns.approach = !!next && dTo <= Math.max(farM * APPR_MUL, APPR_FLOOR);
+    ns.approach = !!next && dTo <= Math.max(farM * this._b('camera.approachMul'), this._b('camera.approachFloorM'));
     this._setHud(next, dTo, ns.dir, farM);
+    this._renderEta(s);
     if (next) {
       let st = ns.alertStates.get(next); if (!st) ns.alertStates.set(next, st = { far: true, near: true });
       if (dTo > farM + 80) { st.far = true; st.near = true; st.done = false; }
       const k = kindOf(next);
       let ty = next.type; if (ns.dir < 0) ty = ty === 'left' ? 'right' : 'left';
-      if (dTo <= farM && dTo > nearM && st.far) { st.far = false; nextDanger ? BEEP.danger() : BEEP.appr(ty); }
+      if (dTo <= farM && dTo > nearM && st.far) {
+        st.far = false;
+        if (nextDanger) { if (snd(false)) BEEP.danger(); }
+        else if (snd(true) && density !== 'none' && density !== 'low') BEEP.appr(ty);
+      }
       if (dTo <= nearM && st.near) {
         st.near = false; st.far = false;
-        if (k === 'danger') BEEP.danger();
-        else if (k !== 'turn') BEEP.mark();
-        else ty === 'straight' ? BEEP.straight() : BEEP.now(ty);
+        if (k === 'danger') { if (snd(false)) BEEP.danger(); }
+        else if (snd(true) && density !== 'none') {
+          if (k !== 'turn') BEEP.mark();
+          else ty === 'straight' ? BEEP.straight() : BEEP.now(ty);
+        }
       }
     }
   }
 
+  /* ETA / stats panel (behaviour hud.etaPanel; chrome.etaStyle shapes it) */
+  _renderEta(s) {
+    if (!this._b('hud.etaPanel') || !(this.navving || this.chromePreview)) return;
+    const el = this.$('.nv-eta');
+    let remain, aSpd;
+    if (s == null || !this.trk || !this.navState) {
+      if (!this.chromePreview) { el.innerHTML = '<span class="nv-etaMain">—</span>'; return; }
+      remain = 21200; aSpd = 8.5; // static sample — the styleable placeholder
+    } else {
+      const ns = this.navState;
+      const total = this.trk.cum[this.trk.n - 1];
+      remain = Math.max(0, ns.dir > 0 ? total - s : s);
+      aSpd = ns.avgSpd || VEH.defSpd;
+    }
+    const mins = remain / aSpd / 60;
+    const imperial = this._b('hud.units') === 'imperial';
+    const distTxt = imperial ? (remain / 1609.34).toFixed(1) + ' mi' : (remain / 1000).toFixed(1) + ' km';
+    const minTxt = mins >= 90 ? Math.floor(mins / 60) + ' h ' + Math.round(mins % 60) + ' min' : Math.round(mins) + ' min';
+    const arrive = new Date(Date.now() + mins * 60000);
+    const clock = arrive.getHours() + ':' + String(arrive.getMinutes()).padStart(2, '0');
+    if (tok(this.scheme, 'chrome.etaStyle') === 'cells') {
+      const spd = Math.round((this.pos ? this.pos.speed : aSpd) * (imperial ? 2.237 : 3.6));
+      el.innerHTML = `<span class="nv-cell"><b>${spd}</b><small>${imperial ? 'mph' : 'km/h'}</small></span>` +
+        `<span class="nv-cell"><b>${distTxt}</b><small>left</small></span>` +
+        `<span class="nv-cell"><b>${minTxt}</b><small>eta</small></span>` +
+        `<span class="nv-cell"><b>${clock}</b><small>arrive</small></span>`;
+    } else {
+      el.innerHTML = `<span class="nv-etaMain">${minTxt}</span><span class="nv-etaSub">${distTxt} · ${clock}</span>`;
+    }
+  }
+
   _trailPush(x, y) {
-    if (this.trailLast && dist(x, y, this.trailLast[0], this.trailLast[1]) < 20) return;
+    if (!this._b('position.breadcrumb')) return;
+    if (this.trailLast && dist(x, y, this.trailLast[0], this.trailLast[1]) < this._b('position.breadcrumbSpacingM')) return;
     this.trailLast = [x, y];
     const [lat, lon] = toLL(x, y);
     this.trail.push([lon, lat]);
@@ -498,7 +665,9 @@ export class NavView {
   }
   _refreshPos() {
     if (!this.ready || !this.pos) return;
-    const [lat, lon] = toLL(this.pos.x, this.pos.y);
+    const ns = this.navState;
+    const snap = this.navving && ns && !ns.off && ns.snapXY && this._b('position.snapToRoute') ? ns.snapXY : null;
+    const [lat, lon] = toLL(snap ? snap[0] : this.pos.x, snap ? snap[1] : this.pos.y);
     this.map.getSource('pos').setData({ type: 'Feature',
       geometry: { type: 'Point', coordinates: [lon, lat] },
       properties: { heading: this.courseBearing || 0 } }); // dart points travel direction on the map, any orientation
@@ -509,14 +678,30 @@ export class NavView {
     const h = this.mapEl.clientHeight || 700;
     return Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) * h / span);
   }
+  /* cruise span from the behaviour's speed→span curve (linear between points) */
+  _cruiseSpan(spdKmh) {
+    const curve = this._b('camera.zoomCurve');
+    if (spdKmh <= curve[0][0]) return curve[0][1];
+    for (let i = 1; i < curve.length; i++) {
+      if (spdKmh <= curve[i][0]) {
+        const [s0, v0] = curve[i - 1], [s1, v1] = curve[i];
+        return v0 + (v1 - v0) * (spdKmh - s0) / (s1 - s0 || 1);
+      }
+    }
+    return curve[curve.length - 1][1];
+  }
   _followCamera() {
     if (!this.ready || !this.pos || !this.follow || !this.navving) return;
-    const now = Date.now(); if (now - this.lastEase < 800) return;
+    const easeMs = this._b('camera.easeMs');
+    const now = Date.now(); if (now - this.lastEase < Math.min(800, easeMs * 0.9)) return;
     this.lastEase = now;
-    const [la, lo] = toLL(this.pos.x, this.pos.y);
+    // aim where the rider will be when the ease lands (ease time + fix latency)
+    const lead = this.velXY ? easeMs / 1000 + (this._fixGap || 0) / 2 : 0;
+    const [la, lo] = toLL(this.pos.x + (lead ? this.velXY[0] * lead : 0),
+      this.pos.y + (lead ? this.velXY[1] * lead : 0));
     const ns = this.navState;
     const vw = this.el.clientWidth, vh = this.el.clientHeight;
-    let tx = 0, ty = Math.round(vh * 0.15);
+    let tx = 0, ty = Math.round(vh * this._b('camera.lookAhead'));
     if (this.orient === 'north') {
       if (this.courseBearing != null && this.pos.speed >= 1.5) {
         const R = Math.min(vw, vh) * 0.18, r = this.courseBearing * Math.PI / 180;
@@ -524,12 +709,15 @@ export class NavView {
       } else { tx = this.camOffX; ty = this.camOffY; }
     }
     this.camOffX += (tx - this.camOffX) * 0.18; this.camOffY += (ty - this.camOffY) * 0.18;
-    const opts = { center: [lo, la], duration: 900, easing: t => t,
+    const opts = { center: [lo, la], duration: easeMs, easing: t => t,
       offset: [Math.round(this.camOffX), Math.round(this.camOffY)] };
-    if (!(ns && ns.off)) { // off track: freeze the zoom, keep centring
-      const spans = VEH.spans;
-      const span = ns && ns.approach ? spans[0][1] : spans[spans.length - 1][1];
-      opts.zoom = this._zoomForSpan(span, la);
+    if (this._b('camera.autoZoom') && !(ns && ns.off)) { // off track: freeze the zoom, keep centring
+      const curve = this._b('camera.zoomCurve');
+      const dive = ns && ns.approach && this._b('camera.approachZoom');
+      const span = dive ? curve[0][1]
+        : this._b('camera.zoomMode') === 'speed' ? this._cruiseSpan((this.pos.speed || 0) * 3.6)
+        : curve[curve.length - 1][1]; // cruise: Nav's grammar — hold the max span
+      opts.zoom = Math.min(this._b('camera.maxZoom'), this._zoomForSpan(span, la));
     }
     if (this.orient === 'course' && this.courseBearing != null) opts.bearing = this.courseBearing;
     else if (this.orient === 'north') opts.bearing = 0;
@@ -539,7 +727,9 @@ export class NavView {
   /* ---------------- HUD chrome ---------------- */
   _renderSpeed() {
     const el = this.$('.nv-speed');
-    el.innerHTML = Math.round((this.pos ? this.pos.speed : 0) * 3.6) + ' <small>km/h</small>';
+    const imperial = this._b('hud.units') === 'imperial';
+    el.innerHTML = Math.round((this.pos ? this.pos.speed : 0) * (imperial ? 2.237 : 3.6))
+      + ' <small>' + (imperial ? 'mph' : 'km/h') + '</small>';
   }
   _flashCommit() {
     const box = this.$('.nv-hudBox');
@@ -553,15 +743,25 @@ export class NavView {
   _setHud(alert, dTo, dir, farM) {
     const box = this.$('.nv-hudBox'), fill = this.$('.nv-hudFill');
     const arrow = this.$('.nv-hudArrow'), distEl = this.$('.nv-hudDist'), typeEl = this.$('.nv-hudType');
-    const win = Math.max((farM || 160) * APPR_MUL, APPR_FLOOR);
-    const show = !!alert && dTo <= win;
+    const win = Math.max((farM || 160) * this._b('camera.approachMul'), this._b('camera.approachFloorM'));
+    const show = !!alert && dTo <= win && this._b('hud.nextTurnPanel') !== 'off';
     box.style.visibility = show || box.classList.contains('commit') ? '' : 'hidden';
     if (!show) { fill.style.width = '0'; this._setBig(null); return; }
     let type = alert.type;
     if (dir < 0 && type === 'left') type = 'right'; else if (dir < 0 && type === 'right') type = 'left';
     this._setBig(type === 'left' || type === 'right' ? type : null);
     const from = dir > 0 ? alert.from : alert.onto, onto = dir > 0 ? alert.onto : alert.from;
-    const ontoTxt = onto && onto !== from ? ' · onto ' + ((dir > 0 && alert.name) || onto) : '';
+    let ontoTxt = onto && onto !== from ? ' · onto ' + ((dir > 0 && alert.name) || onto) : '';
+    if (this._b('guidance.stackCues') && this.trk && this.trk.alerts) {
+      // "then" preview when the following cue is hard on this one's heels
+      const after = dir > 0
+        ? this.trk.alerts.find(a => a.at > alert.at + 5 && !SILENT_KINDS[kindOf(a)])
+        : [...this.trk.alerts].reverse().find(a => a.at < alert.at - 5 && !SILENT_KINDS[kindOf(a)]);
+      if (after && Math.abs(after.at - alert.at) < 250) {
+        let ty2 = after.type; if (dir < 0) ty2 = ty2 === 'left' ? 'right' : ty2 === 'right' ? 'left' : ty2;
+        ontoTxt += ' · then ' + (LABELS[ty2] || 'turn').toLowerCase();
+      }
+    }
     if ((type === 'left' || type === 'right' || type === 'straight') && this.orient === 'north' && alert.outBrg != null) {
       const exit = dir > 0 ? alert.outBrg : (alert.inBrg + 180) % 360;
       setIc(arrow, 'arrow-up'); arrow.className = 'nv-hudArrow ' + type; arrow.style.transform = 'rotate(' + exit + 'deg)';

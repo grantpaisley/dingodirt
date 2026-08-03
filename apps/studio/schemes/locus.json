@@ -49,7 +49,17 @@
     "hud.warn": "#f9a825",
     "hud.bad": "#d32f2f",
     "hud.arrow": "#f47d20",
-    "hud.arrowOp": 0.6
+    "hud.arrowOp": 0.6,
+    "chrome.turnPanel": "bar",
+    "chrome.speedoStyle": "bare",
+    "chrome.speedoPos": "topLeft",
+    "chrome.etaStyle": "bar",
+    "chrome.limitSign": "none",
+    "chrome.recentrePos": "bottomRight",
+    "chrome.recentreStyle": "square",
+    "chrome.bigArrows": false,
+    "chrome.zoomButtons": true,
+    "chrome.scale": 1
   },
   "night": {
     "basemap.base": "dark",

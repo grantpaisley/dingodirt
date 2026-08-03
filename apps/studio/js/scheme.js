@@ -60,6 +60,21 @@ export const TOKEN_GROUPS = [
     'marks.banner':   { type: 'color', def: '#ff4545', label: 'Off-track banner' },
     'marks.flash':    { type: 'color', def: '#ffb020', label: 'Approach flash' },
   } },
+  { key: 'chrome', label: 'Chrome layout', tokens: {
+    /* ui facet: where elements sit and what shape they take. Colours stay in
+       the hud group; visibility/dynamics live in .dingobehavior. */
+    'chrome.turnPanel':     { type: 'select', opts: ['bar', 'card'], def: 'bar', label: 'Turn panel shape' },
+    'chrome.turnPanelBg':   { type: 'color', def: null, label: 'Turn panel fill (null = panel)' },
+    'chrome.speedoStyle':   { type: 'select', opts: ['bare', 'circle', 'card', 'cell'], def: 'bare', label: 'Speedo style' },
+    'chrome.speedoPos':     { type: 'select', opts: ['topLeft', 'bottomLeft', 'bottomRight'], def: 'topLeft', label: 'Speedo position' },
+    'chrome.etaStyle':      { type: 'select', opts: ['bar', 'pill', 'cells'], def: 'bar', label: 'ETA panel style' },
+    'chrome.limitSign':     { type: 'select', opts: ['none', 'circle', 'rect'], def: 'none', label: 'Speed limit sign' },
+    'chrome.recentrePos':   { type: 'select', opts: ['bottomRight', 'bottomLeft'], def: 'bottomRight', label: 'Re-centre position' },
+    'chrome.recentreStyle': { type: 'select', opts: ['square', 'circle'], def: 'square', label: 'Re-centre shape' },
+    'chrome.bigArrows':     { type: 'bool', def: true, label: 'Big side arrows' },
+    'chrome.zoomButtons':   { type: 'bool', def: false, label: 'Zoom buttons' },
+    'chrome.scale':         { type: 'number', min: 0.7, max: 1.4, step: 0.05, def: 1, label: 'Chrome scale' },
+  } },
   { key: 'hud', label: 'HUD & chrome', tokens: {
     'hud.bg':       { type: 'color', def: '#0e1216', label: 'App background' },
     'hud.panel':    { type: 'color', def: '#161c22', label: 'Panels' },

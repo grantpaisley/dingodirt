@@ -7,6 +7,7 @@
 
 import { NavView } from './navview.js';
 import { validateScheme, resolveScheme } from './scheme.js';
+import { validateBehavior } from './behavior.js';
 
 const VPS = ['portrait', 'landscape', 'square'];
 
@@ -34,6 +35,35 @@ export class DemoGrid {
       if (e.target.dataset.vp) this.addView(e.target.dataset.vp).catch(console.error);
     };
     this._schemeCache = new Map(); // builtin id → validated scheme
+    this._behCache = new Map();    // behaviour id → validated profile
+    this._behList = null;          // behaviors/index.json entries
+  }
+
+  /* ------- behaviour profiles (the "acts like" half of a preset) ------- */
+  async _behaviors() {
+    if (!this._behList) {
+      try { this._behList = await (await fetch('behaviors/index.json')).json(); }
+      catch (e) { this._behList = []; }
+    }
+    return this._behList;
+  }
+  /* 'auto' pairs the behaviour with the scheme preset by id (google scheme →
+     google behaviour) so one dropdown pick = the whole app feel; anything else
+     is an explicit mix-and-match override */
+  async _resolveBeh(view) {
+    const list = await this._behaviors();
+    let id = view.bsel;
+    if (id === 'auto') {
+      // 'current' scheme pairs with the behaviour being edited — the full "editing now" profile
+      if (view.sel === 'current' && this.opts.currentBeh) return this.opts.currentBeh();
+      const sid = view.sel.startsWith('builtin:') ? view.sel.slice(8) : 'default';
+      id = list.some(b => b.id === sid) ? sid : 'default';
+    }
+    const b = list.find(x => x.id === id);
+    if (!b) return null; // null → NavView falls back to registry defaults
+    if (!this._behCache.has(id))
+      this._behCache.set(id, validateBehavior(await (await fetch('behaviors/' + b.file)).json()));
+    return this._behCache.get(id);
   }
 
   _defaultSel() {
@@ -61,23 +91,28 @@ export class DemoGrid {
     throw new Error('unknown scheme selector ' + sel);
   }
 
-  async addView(vp = 'portrait', sel = this._defaultSel()) {
+  async addView(vp = 'portrait', sel = this._defaultSel(), bsel = 'auto') {
+    const behs = await this._behaviors();
     const panel = document.createElement('div');
     panel.className = 'dgv';
     panel.dataset.vp = vp;
     panel.innerHTML = `
       <div class="dgv-bar">
-        <select class="dgv-scheme">${this._options().map(([v, l]) =>
+        <select class="dgv-scheme" title="Look — colour scheme">${this._options().map(([v, l]) =>
           `<option value="${v}"${v === sel ? ' selected' : ''}>${l}</option>`).join('')}</select>
+        <select class="dgv-beh" title="Feel — behaviour profile">
+          <option value="auto">⛓ matched</option>
+          ${behs.map(b => `<option value="${b.id}"${b.id === bsel ? ' selected' : ''}>${b.label}</option>`).join('')}
+        </select>
         <span class="dgv-vp">${vp}</span>
         <button class="dgv-x" title="Remove view">✕</button>
       </div>
       <div class="dgv-frame"></div>`;
     this.gridEl.appendChild(panel);
-    const view = { panel, sel, vp, nav: null, unsub: null };
+    const view = { panel, sel, bsel, vp, nav: null, unsub: null };
     this.views.push(view);
     const nav = new NavView(panel.querySelector('.dgv-frame'), {
-      scheme: await this._resolve(sel), orient: 'course',
+      scheme: await this._resolve(sel), behavior: await this._resolveBeh(view),
       onDot: () => this.refollow(), // any view's dot button re-follows the ride everywhere
     });
     view.nav = nav;
@@ -91,6 +126,11 @@ export class DemoGrid {
     panel.querySelector('.dgv-scheme').onchange = async e => {
       view.sel = e.target.value;
       nav.setScheme(await this._resolve(view.sel)).catch(console.error);
+      if (view.bsel === 'auto') nav.setBehavior(await this._resolveBeh(view)); // profile pairing follows the scheme
+    };
+    panel.querySelector('.dgv-beh').onchange = async e => {
+      view.bsel = e.target.value;
+      nav.setBehavior(await this._resolveBeh(view));
     };
     return view;
   }
@@ -130,6 +170,13 @@ export class DemoGrid {
     view.panel.remove();
   }
 
+  /* live behaviour edits: re-apply to views pairing with the edited profile */
+  refreshCurrentBeh() {
+    if (!this.opts.currentBeh) return;
+    for (const v of this.views)
+      if (v.bsel === 'auto' && v.sel === 'current' && v.nav.ready)
+        v.nav.setBehavior(this.opts.currentBeh());
+  }
   /* live edits: re-apply to views tracking the edited scheme */
   async refreshCurrent() {
     for (const v of this.views) if (v.sel === 'current')

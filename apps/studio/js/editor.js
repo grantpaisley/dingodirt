@@ -2,6 +2,7 @@
    .dingoscheme zip I/O, ?scheme= URL install (the remix flow), test-drive bar. */
 
 import { TOKEN_GROUPS, TOKEN_DEFS, tok, newScheme, validateScheme, resolveScheme, SCHEMA_VERSION } from './scheme.js';
+import { newBehavior, validateBehavior } from './behavior.js';
 import { BASE_MAP } from './applier-nav.js';
 import { parseGPX, processTrack, processHeatmap, resetRef } from './geom.js';
 import { analyzeRoute } from './cues.js';
@@ -22,8 +23,9 @@ export function toast(msg) {
 window.__toast = toast; // playback bar reaches it without importing the editor
 
 export const ED = {
-  scheme: null, view: null, grid: null, engine: new Replay(),
+  scheme: null, behavior: null, view: null, grid: null, engine: new Replay(),
   trk: null, heat: null, framing: 'nav', mode: 'day', dirty: false,
+  onBehavior: null, // objects workspace hook — re-render on behaviour swap
 };
 
 /* the flattened scheme the preview renders — day tokens + night overlay */
@@ -66,7 +68,7 @@ export function setMode(mode) {
 
 /* Day edits write the base tokens; Night edits write the night overlay, so a
    scheme carries both looks and apps can flip between them. */
-function setToken(key, value) {
+export function setToken(key, value) {
   const store = ED.mode === 'night' ? ED.scheme.night : ED.scheme.tokens;
   if (value == null) delete store[key];
   else store[key] = value;
@@ -113,7 +115,7 @@ function buildPanel() {
   }
 }
 
-function tokenRow(key, def) {
+export function tokenRow(key, def) {
   const night = ED.mode === 'night';
   const dayVal = ED.scheme.tokens[key];
   const overridden = night && key in ED.scheme.night;
@@ -177,6 +179,71 @@ function tokenRow(key, def) {
   return row;
 }
 
+/* ---------------- behaviour profile lifecycle (objects workspace) ----------------
+   Same shape as the scheme lifecycle: draft in localStorage, library in IDB
+   (kind 'behavior'), zip I/O as .dingobehavior. The behaviour is the OTHER half
+   of a profile — multi-view 'matched' pairs it with the scheme being edited. */
+function saveBehDraft() {
+  localStorage.setItem('dingostudio-behavior-draft', JSON.stringify(ED.behavior));
+}
+export function loadBehDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem('dingostudio-behavior-draft') || 'null');
+    if (d) return validateBehavior(d);
+  } catch (e) {}
+  return null;
+}
+export function setBehaviorProfile(p, announce) {
+  ED.behavior = p;
+  saveBehDraft();
+  if (ED.view) ED.view.setBehavior(p);
+  if (ED.grid && ED.grid.refreshCurrentBeh) ED.grid.refreshCurrentBeh();
+  if (ED.onBehavior) ED.onBehavior();
+  if (announce) toast('Behaviour "' + p.name + '" active');
+}
+export function setParam(key, value) {
+  if (value == null) delete ED.behavior.params[key];
+  else ED.behavior.params[key] = value;
+  saveBehDraft();
+  ED.view.setBehavior(ED.behavior);
+  if (ED.grid && ED.grid.refreshCurrentBeh) ED.grid.refreshCurrentBeh();
+}
+function behaviorJson() {
+  const { unknown, ...b } = ED.behavior;
+  return JSON.stringify(b, null, 2);
+}
+export async function saveBehaviorToLibrary(announce = true) {
+  await idb.put({ id: 'behavior-' + slug(ED.behavior.name), kind: 'behavior',
+    behavior: JSON.parse(behaviorJson()), savedAt: Date.now() });
+  if (announce) toast('Saved behaviour "' + ED.behavior.name + '" to library');
+}
+export async function behaviorLibrary() {
+  let builtins = [];
+  try { builtins = await (await fetch('behaviors/index.json')).json(); } catch (e) {}
+  const recs = (await idb.all()).filter(r => r.kind === 'behavior').sort((a, b) => b.savedAt - a.savedAt);
+  return { builtins, recs };
+}
+export async function loadBehavior(sel) {
+  if (sel.startsWith('builtin:')) {
+    const list = (await behaviorLibrary()).builtins;
+    const b = list.find(x => x.id === sel.slice(8));
+    if (!b) return;
+    setBehaviorProfile(validateBehavior(await (await fetch('behaviors/' + b.file)).json()), true);
+  } else {
+    const rec = await idb.get(sel);
+    if (rec) setBehaviorProfile(validateBehavior(rec.behavior), true);
+  }
+}
+export function exportBehavior() {
+  const zip = fflate.zipSync({ 'behavior.json': fflate.strToU8(behaviorJson()) }, { level: 6 });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+  a.download = slug(ED.behavior.name) + '.dingobehavior';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Exported ' + a.download);
+}
+
 /* ---------------- .dingoscheme I/O ---------------- */
 function schemeJson() {
   const { unknown, ...s } = ED.scheme;
@@ -220,6 +287,19 @@ export async function importSchemeFile(file) {
     if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
       const files = fflate.unzipSync(bytes);
       if (files['bundle.json']) return await loadPack(files, file.name);
+      if (files['behavior.json'] && !files['scheme.json']) {
+        const b = validateBehavior(JSON.parse(fflate.strFromU8(files['behavior.json'])));
+        setBehaviorProfile(b, true);
+        await saveBehaviorToLibrary(false);
+        return;
+      }
+    } else {
+      const obj = JSON.parse(new TextDecoder().decode(bytes));
+      if (obj && obj.params && !obj.tokens) { // bare behavior.json
+        setBehaviorProfile(validateBehavior(obj), true);
+        await saveBehaviorToLibrary(false);
+        return;
+      }
     }
     const scheme = parseSchemeFile(bytes.buffer, file.name);
     setScheme(scheme, { rebuild: true });
@@ -401,6 +481,7 @@ async function ensureGrid() {
     engine: ED.engine, trk: ED.trk, heat: ED.heat,
     builtins: await builtinList(),
     current: () => ED.scheme,
+    currentBeh: () => ED.behavior,
     mode: () => ED.mode,
   });
   await ED.grid.addView('portrait', 'current'); // the demo doubles as an A/B rig — add views to compare
@@ -423,8 +504,9 @@ function setViewport(v) {
 /* ---------------- boot ---------------- */
 export async function initEditor({ trk, heat }) {
   ED.trk = trk; ED.heat = heat;
+  ED.behavior = loadBehDraft() || newBehavior('Untitled behaviour');
 
-  ED.view = new NavView($('frame'), { scheme: viewScheme(), orient: 'course' });
+  ED.view = new NavView($('frame'), { scheme: viewScheme(), behavior: ED.behavior });
   await ED.view.init();
   ED.view.setData({ trk, heat });
   ED.view.fitTrack();

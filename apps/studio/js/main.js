@@ -10,6 +10,7 @@ import { wirePlayback } from './playback.js';
 import { idb } from './idb.js';
 import { ED, setScheme, loadDraft, handleSchemeParam, initEditor, toast, parseSchemeFile, builtinList } from './editor.js';
 import { StyleInspector } from './styleinspector.js';
+import { NavObjects } from './navobjects.js';
 
 const SAMPLE_GPX = 'sample-data/Palm_Dale_loop_23_kms_2.1_hrs_on_2020-02-19.gpx';
 const SAMPLE_HEAT = 'sample-data/heatmap-central-coast.geojson';
@@ -44,23 +45,31 @@ async function bootEditor() {
   });
 }
 
-/* Schemes (the token editor) | Plan styles (the inspector moved out of Plan) */
-let inspector = null;
+/* Schemes (the token editor) | Nav objects (object-first) | Plan styles (from Plan) */
+let inspector = null, navObjects = null;
 function wireWorkspaces() {
   const seg = document.getElementById('wsSeg');
   seg.onclick = e => {
     const ws = e.target.dataset.v;
     if (!ws) return;
     document.body.classList.toggle('ws-styles', ws === 'styles');
+    document.body.classList.toggle('ws-objects', ws === 'objects');
     for (const b of seg.children) b.classList.toggle('active', b.dataset.v === ws);
     if (ws === 'styles') {
       ED.engine.pause();
+      if (navObjects) navObjects.close();
       if (!inspector) inspector = new StyleInspector({
         panelEl: document.getElementById('inspector'),
         mapEl: document.getElementById('styleMap'), toast });
       inspector.open().catch(e2 => toast('Plan styles failed: ' + e2.message));
+    } else if (ws === 'objects') {
+      if (inspector) inspector.close();
+      if (!navObjects) navObjects = new NavObjects();
+      navObjects.open();
+      setTimeout(() => ED.view.map.resize(), 60);
     } else {
       if (inspector) inspector.close();
+      if (navObjects) navObjects.close();
       setTimeout(() => ED.view.map.resize(), 60);
     }
   };
