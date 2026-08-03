@@ -37,9 +37,11 @@ different schemes); any view's dot button re-follows the ride.
 
 **Packs**: Import accepts `.dingonav` — the pack's heatmap and longest track
 replace the bundled sample as the preview data, so a pack author tunes a
-scheme against the terrain the pack covers. *Export pack* writes the chosen
-scheme back into `bundle.json` as the design's reference
-(`"scheme": { "name", "url" }`) — Nav offers it once per pack on import.
+scheme against the terrain the pack covers; a pack carrying a scheme opens
+with it applied. *Export pack* saves the scheme back both ways: **embedded**
+as `scheme.json` inside the zip (self-contained offline) and, optionally,
+**referenced** in `bundle.json` (`"scheme": { "name", "url"? }`) for apps to
+offer updates. Nav's importer offers the pack's scheme once per pack.
 
 **Plan styles** (second workspace in the top bar): the style-layers inspector
 moved out of Dingo Plan. Edits Plan's local MapLibre styles (dingo-topo etc.)

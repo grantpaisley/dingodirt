@@ -215,10 +215,11 @@ export function parseSchemeFile(buf, name) {
 export async function importSchemeFile(file) {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    // one Import button, two pack types: a zip with bundle.json is a .dingonav
+    // one Import button, two pack types. bundle.json wins the sniff: a
+    // .dingonav may ALSO carry an embedded scheme.json — it's still a pack.
     if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
       const files = fflate.unzipSync(bytes);
-      if (!files['scheme.json'] && files['bundle.json']) return await loadPack(files, file.name);
+      if (files['bundle.json']) return await loadPack(files, file.name);
     }
     const scheme = parseSchemeFile(bytes.buffer, file.name);
     setScheme(scheme, { rebuild: true });
@@ -254,37 +255,53 @@ async function loadPack(files, filename) {
   ED.view.fitTrack();
   if (ED.grid) ED.grid.setData(trk, heat);
   const pb = $('packBtn');
-  pb.style.display = ''; pb.title = 'Export "' + ED.pack.name + '" with this scheme referenced';
+  pb.style.display = ''; pb.title = 'Export "' + ED.pack.name + '" with this scheme embedded + referenced';
   toast('Pack "' + ED.pack.name + '" open — ' + gpxTracks.length + ' tracks, previewing "' + trk.name + '"');
+  // a pack carrying an embedded scheme opens with it — the pack's look IS the default values
+  if (files['scheme.json']) {
+    try {
+      const s = validateScheme(JSON.parse(fflate.strFromU8(files['scheme.json'])));
+      setScheme(s, { rebuild: true });
+      toast('Pack scheme "' + s.name + '" applied — remix away');
+    } catch (e) { console.warn('embedded scheme skipped:', e.message); }
+  }
   analyzeRoute(trk, BASE.pm, heat).then(() => {
     ED.view.refreshAlerts();
     if (trk.alerts.length) toast(trk.alerts.length + ' cues ready');
   }).catch(e => console.warn('cue analysis failed', e));
 }
 
-/* Save the scheme choice back into the pack: bundle.json gains the design's
-   optional reference — { "scheme": { "name", "url" } } — and the pack re-zips.
-   Nav's importer will offer it once per pack ("This pack suggests …"). */
+/* Save the scheme choice back into the pack, both ways the design allows:
+   - EMBEDDED: the scheme.json goes inside the zip, so the pack is
+     self-contained offline (Nav prefers this copy when present).
+   - REFERENCE: bundle.json gains { "scheme": { "name", "url"? } } — the URL
+     is optional and only useful once the scheme is published (dingo-shares /
+     dingodirt); Nav's importer offers the scheme once per pack either way. */
 export function exportPack() {
   if (!ED.pack) return;
   const url = window.prompt(
-    'URL for "' + ED.scheme.name + '" (a raw .dingoscheme link, e.g. from dingo-shares/schemes/).\n' +
-    'The pack stores a reference, not a copy — publish the scheme there first.\n' +
-    'Leave empty to remove any scheme reference.',
+    'Optional URL for "' + ED.scheme.name + '" (a raw .dingoscheme link, e.g. from dingo-shares/schemes/).\n' +
+    'The scheme is embedded in the pack either way — the URL just lets apps offer updates.\n' +
+    'Leave empty for embedded-only.',
     (ED.pack.bundle.scheme && ED.pack.bundle.scheme.url) || '');
   if (url === null) return; // cancelled
+  ED.scheme.name = $('schemeName').value.trim() || ED.scheme.name;
   const bundle = { ...ED.pack.bundle };
-  if (url.trim()) bundle.scheme = { name: ED.scheme.name, url: url.trim() };
-  else delete bundle.scheme;
+  bundle.scheme = { name: ED.scheme.name };
+  if (url.trim()) bundle.scheme.url = url.trim();
   ED.pack.bundle = bundle;
-  const files = { ...ED.pack.files, 'bundle.json': fflate.strToU8(JSON.stringify(bundle)) };
+  const files = { ...ED.pack.files,
+    'bundle.json': fflate.strToU8(JSON.stringify(bundle)),
+    'scheme.json': fflate.strToU8(schemeJson()),
+  };
+  ED.pack.files = files;
   const zip = fflate.zipSync(files, { level: 6 });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
   a.download = slug(ED.pack.name) + '.dingonav';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  toast(url.trim() ? 'Pack exported with scheme "' + ED.scheme.name + '" referenced' : 'Pack exported (no scheme reference)');
+  toast('Pack exported with "' + ED.scheme.name + '" embedded' + (url.trim() ? ' + referenced' : ''));
 }
 
 /* ?scheme=<url>[,<url>…] — install; the last one opens for editing (remix flow) */
