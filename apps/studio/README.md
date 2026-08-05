@@ -15,6 +15,17 @@ node serve.js          # http://localhost:8138
 node --test 'tests/*.test.mjs'
 ```
 
+## Preset sync
+
+`schemes/` and `behaviors/` are canonical here and vendored into the apps.
+`sync-appliers.sh` copies them to sibling checkouts by hand; the
+`sync-appliers` workflow does it automatically — any push to `main` touching
+the presets syncs DingoNav (with an SW cache bump) and Dingo via auto-merged
+PRs. It needs a fine-grained PAT (Contents + Pull requests read/write on both
+app repos) stored as the `SYNC_APPLIERS_TOKEN` Actions secret; the job fails
+loudly until that exists. Translated appliers (Nav inline, Plan TS) stay
+hand-aligned — see the header in `js/applier-nav.js`.
+
 ## Two faces, one deployment
 
 - `/` — the editor. Left panel of grouped design tokens (basemap, overlays,
