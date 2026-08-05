@@ -1,9 +1,14 @@
 /* DingoNav token applier — THE deliberately shared piece (design 2026-08-02).
    applyScheme(scheme, baseLayers) maps design tokens onto Nav's base style
    lineage (basemap/layers.json) plus the knobs Nav reads at runtime.
-   Canonical copy: authored here first; Nav/Plan adopt it, then Studio vendors
-   their copies back via sync-appliers.sh. Keep it small, keep it boring —
-   Studio preview breakage is low-stakes, Nav breaking on a ride is not.
+   Canonical copy for the ES-module form: authored here first. DingoNav
+   adopted it 2026-08-05 (PR #53) as a hand-translation into its inline
+   single-file runtime — Nav's naming: `overlays.breadcrumb` lands on its
+   colCrumb knob; day tokens only until Nav grows a day/night schema mode.
+   Grow the vocabulary HERE first, then align the app translations by hand
+   (sync-appliers.sh syncs the preset JSONs, not translated appliers).
+   Keep it small, keep it boring — Studio preview breakage is low-stakes,
+   Nav breaking on a ride is not.
 
    Returns { layers, hill, adv, marks, css } — each app consumes the pieces it
    understands. Missing tokens fall back to the base style / app defaults;

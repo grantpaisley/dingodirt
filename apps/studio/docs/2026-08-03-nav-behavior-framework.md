@@ -111,6 +111,36 @@ Not yet implemented anywhere (schema is forward-looking, per the ignore-unknown 
 3. **Pack embedding** — `bundle.json.behavior = {name,url}` reference + embedded copy, same as schemes gained on 2026-08-03.
 4. **Push to Plan/Nav** — behaviour applier becomes canonical here first (like `applier-nav.js`), reverses direction when the apps adopt it; daemon `PUT /api/behaviors/{id}` mirrors the styles endpoint.
 
+## Update (2026-08-05): DingoNav adopted schemes + behaviours
+
+Nav shipped its schema selector (DingoNav PR #53, design
+`DingoNav/docs/plans/2026-08-05-ride-schema-selector-design.md`) — the first
+step-4 adoption:
+
+- **Entry**: ☰ glove-menu **Schema** tile → full-screen selector of the preset
+  pairs vendored from this repo (`schemes/` + `behaviors/`, SW-precached).
+  Look and Behaviour rows with the multi-view "⛓ matched" pairing semantic;
+  an explicit behaviour pick is mix-and-match.
+- **Apply semantics**: reset-then-apply — Nav's settings return to factory
+  defaults, then the preset lands on top. Identity/pairing keys survive.
+- **Scheme applier**: `applier-nav.js` translated into Nav's inline runtime
+  (single-file app, no modules) — basemap overrides splice into `buildStyle()`
+  via a dynamic map-style entry (incl. the `__labels` symbol sentinel),
+  overlay tokens land on Nav's ADV knobs (`overlays.breadcrumb` → Nav's
+  `colCrumb`), mark tokens on the `MARKS` table, hud tokens on the shared CSS
+  variables. **Day tokens only** — Nav has no day/night schema mode yet, so
+  `night` overlays wait.
+- **Behaviour params with Nav homes today**: `camera.followMode/autoZoom/
+  easeMs/approachSecs/approachMul/approachFloorM/zoomCurve` (curve span ends →
+  Nav's min/max zoom presets), `offroute.detectM/rejoinM`, `position.
+  breadcrumb/breadcrumbSpacingM`, `voice.mode` (silent → sound off). The rest
+  (`reroute.*`, `pitch`, lane guidance, TTS, `chrome.*` ui tokens) are skipped
+  per the ignore-unknown contract — Nav's chrome doesn't read the ui facet yet.
+- **Vendoring direction**: Nav's copy is a *translation*, not a verbatim
+  vendor, so this repo's `applier-nav.js` stays canonical for the module form;
+  `sync-appliers.sh` (added alongside this note) pushes appliers + presets out
+  to sibling checkouts.
+
 ## Open questions
 
 - Google/Waze announcement-distance tiers and reroute thresholds (unverified — worth a hands-on drive capture before trusting those preset numbers).
