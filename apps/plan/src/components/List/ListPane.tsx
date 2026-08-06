@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bike, Boxes, Copy, Crosshair, FolderTree, Link2, List, ListChecks, Map, Package, PackageMinus, PackagePlus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
+import { Bike, Boxes, Crosshair, FolderTree, Link2, List, ListChecks, Map, Package, PackageMinus, PackagePlus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImportDialog } from '../Import/ImportDialog'
 import {
     useRides, useRidesByIds, useAllRideMeta, usePacks, createPack, publishPack,
-    deleteOrphanShare, useCoverageEstimate, type Bounds, type LayerCoverage,
+    useCoverageEstimate, type Bounds, type LayerCoverage,
 } from '../../api/hooks'
 import { useSettings, useBasket, useUiState, rideMatchesFilters, COVERAGE_SHAPE_COLORS } from '../../store'
 
@@ -39,7 +39,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
     const basket = useBasket()
     const queryClient = useQueryClient()
 
-    // Packs view: saved bundles + pre-packs orphan shares from the repo.
+    // Packs view: saved bundles (published ones live on dingodirt.com).
     const { data: packList } = usePacks(listView === 'packs')
     // Sequential refresh state: the pack being re-published now, per-row errors.
     const [refreshingId, setRefreshingId] = useState<string | null>(null)
@@ -351,7 +351,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                 <div className="list-count">
                     <span>
                         {packList
-                            ? `${packList.packs.length} pack${packList.packs.length === 1 ? '' : 's'}${packList.orphans.length ? ` · ${packList.orphans.length} unclaimed` : ''}`
+                            ? `${packList.packs.length} pack${packList.packs.length === 1 ? '' : 's'}`
                             : 'Loading…'}
                     </span>
                     {stalePacks.length > 0 && (
@@ -465,10 +465,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
 
             {listView === 'packs' ? (
                 <div className="list-items">
-                    {packList?.repo_error && (
-                        <div className="export-warning" style={{ margin: 8 }}>{packList.repo_error}</div>
-                    )}
-                    {packList && packList.packs.length === 0 && packList.orphans.length === 0 && !packList.repo_error && (
+                    {packList && packList.packs.length === 0 && (
                         <div className="empty-state" style={{ padding: 16 }}>
                             <p>No packs yet</p>
                             <p style={{ fontSize: 12, marginTop: 8 }}>
@@ -517,40 +514,6 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                             )}
                         </div>
                     ))}
-                    {packList && packList.orphans.length > 0 && (
-                        <>
-                            <div className="list-count"><span>Unclaimed shares (no recipe — link/delete only)</span></div>
-                            {packList.orphans.map(o => (
-                                <div key={o.file} className="list-item" style={{ opacity: 0.75 }}>
-                                    <div className="list-item-icon"><Link2 size={14} /></div>
-                                    <div className="list-item-content">
-                                        <div className="list-item-name">{o.name}</div>
-                                        <div className="list-item-meta">
-                                            {o.bytes > 1024 * 1024 ? `${(o.bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(o.bytes / 1024)} KB`}
-                                        </div>
-                                    </div>
-                                    <button
-                                        className="list-item-basket"
-                                        onClick={() => navigator.clipboard?.writeText(o.share_url)}
-                                        title="Copy the DingoNav link"
-                                    ><Copy size={13} /></button>
-                                    <button
-                                        className="list-item-basket"
-                                        onClick={async () => {
-                                            if (!window.confirm(`Delete the shared file "${o.name}"? Its link will stop working.`)) return
-                                            try {
-                                                await deleteOrphanShare(o.file)
-                                                queryClient.invalidateQueries({ queryKey: ['packs'] })
-                                            } catch (e) {
-                                                window.alert(e instanceof Error ? e.message : String(e))
-                                            }
-                                        }}
-                                        title="Delete this share from the repo"
-                                    ><Trash2 size={13} /></button>
-                                </div>
-                            ))}
-                        </>
-                    )}
                 </div>
             ) : listView === 'places' ? (
                 <div className="list-items">

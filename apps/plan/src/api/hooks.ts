@@ -896,39 +896,32 @@ export async function exportHeatmapTiles(req: {
 
 // ---- Packs: persisted, refreshable share bundles ----
 
+/** The site's visibility states. "pending" = public requested, in the
+ *  review queue (the link already works like unlisted). */
+export type PackVisibility = 'private' | 'unlisted' | 'pending' | 'public'
+
 /** One pack row in the Packs list. A pack is a saved recipe — an ordered ride
- *  list + layer options; "shared" is its published state (slug frozen at first
- *  publish, live `?b=` link that re-publishing updates in place). */
+ *  list + layer options; publishing uploads it to dingodirt.com, whose live
+ *  `?b=<share token>` link re-publishing updates in place. */
 export interface PackSummary {
     id: string
     name: string
     description: string
-    slug: string | null            // null = never published (draft)
-    published_at: string | null
+    published_at: string | null    // null = never published (draft)
     published_bytes: number | null
     /** Publish counter carried in the bundle — DingoNav's vN badge. 0 = draft. */
     revision: number
     ride_count: number
     /** Recipe or member rides changed since the last publish */
     stale: boolean
-    share_url: string | null       // live DingoNav link: <nav>/?b=<slug>
-    file_url: string | null        // the published file on github.com
-}
-
-/** A pre-packs share file in the repo that no pack claims — link/delete only. */
-export interface PackOrphan {
-    name: string
-    file: string
-    bytes: number
-    share_url: string
-    file_url: string
+    /** Site visibility as of the last publish; null = draft */
+    visibility: PackVisibility | null
+    share_url: string | null       // live DingoNav link: <nav>/?b=<token>
+    file_url: string | null        // the pack's page on dingodirt.com
 }
 
 export interface PackList {
     packs: PackSummary[]
-    orphans: PackOrphan[]
-    /** Set when the shares repo can't be listed (gh missing, env unset…) */
-    repo_error: string | null
 }
 
 /** A pack member ride, in pack order (position 0 = DingoNav's default track). */
@@ -1031,19 +1024,64 @@ export async function deletePack(id: string, unpublish: boolean): Promise<void> 
 export interface PublishResult {
     share_url: string
     file_url: string
-    slug: string
+    share_token: string
+    visibility: PackVisibility
+    /** The site's version counter (bumps per upload) */
+    site_version: number
     replaced: boolean
     bytes: number
     revision: number
     manifest: DingoNavManifest
 }
 
-/** Publish (first time) or refresh (after) the pack's `.dingonav` in the
- *  shares repo. The live `?b=` link picks the new content up within ~5 min. */
-export async function publishPack(id: string): Promise<PublishResult> {
+/** Publish (first time) or refresh (after) the pack on dingodirt.com. The
+ *  live `?b=` link serves the new content immediately. Omitting `visibility`
+ *  (the refresh buttons) keeps the site pack's current visibility. */
+export async function publishPack(
+    id: string,
+    visibility?: 'unlisted' | 'public',
+): Promise<PublishResult> {
     const res = await fetch(`${API_BASE}/packs/${id}/publish`, {
         method: 'POST',
-        headers: WEB_HEADER,
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify(visibility ? { visibility } : {}),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+// ---- dingodirt.com connection (Settings) ----
+
+export interface DingodirtStatus {
+    connected: boolean
+    name?: string
+    email?: string
+    trusted?: boolean
+    /** "ddt_…abcd" — enough to recognise the token, never the whole thing */
+    token_suffix?: string
+    site?: string
+    /** Why a stored token no longer works (revoked, site unreachable…) */
+    error?: string
+}
+
+export function useDingodirtStatus() {
+    return useQuery({
+        queryKey: ['dingodirt-status'],
+        queryFn: async (): Promise<DingodirtStatus> => {
+            const res = await fetch(`${API_BASE}/settings/dingodirt`)
+            if (!res.ok) throw new Error(await res.text())
+            return res.json()
+        },
+    })
+}
+
+/** Store a pasted API token (validated against the site first) or, with
+ *  null, disconnect. Returns the resulting status. */
+export async function setDingodirtToken(token: string | null): Promise<DingodirtStatus> {
+    const res = await fetch(`${API_BASE}/settings/dingodirt`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ token }),
     })
     if (!res.ok) throw new Error(await res.text())
     return res.json()
@@ -1122,15 +1160,6 @@ export async function setMarkStatus(id: string, markId: string, status: 'accepte
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
         body: JSON.stringify({ status }),
-    })
-    if (!res.ok) throw new Error(await res.text())
-}
-
-/** Delete a pre-packs orphan share file from the repo. */
-export async function deleteOrphanShare(file: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/packs/orphans/${encodeURIComponent(file)}`, {
-        method: 'DELETE',
-        headers: WEB_HEADER,
     })
     if (!res.ok) throw new Error(await res.text())
 }

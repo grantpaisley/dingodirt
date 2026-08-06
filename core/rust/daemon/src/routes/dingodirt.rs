@@ -186,18 +186,20 @@ pub async fn upload_pack(
     token: &str,
     filename: &str,
     bytes: Vec<u8>,
-    visibility: &str,
+    visibility: Option<&str>,
     site_pack_id: Option<&str>,
 ) -> Result<SitePack, ApiError> {
-    let mut form = reqwest::multipart::Form::new()
-        .part(
-            "file",
-            reqwest::multipart::Part::bytes(bytes)
-                .file_name(filename.to_string())
-                .mime_str("application/zip")
-                .map_err(internal)?,
-        )
-        .text("visibility", visibility.to_string());
+    let mut form = reqwest::multipart::Form::new().part(
+        "file",
+        reqwest::multipart::Part::bytes(bytes)
+            .file_name(filename.to_string())
+            .mime_str("application/zip")
+            .map_err(internal)?,
+    );
+    // No visibility field → the site keeps the pack's current visibility.
+    if let Some(v) = visibility {
+        form = form.text("visibility", v.to_string());
+    }
     if let Some(id) = site_pack_id {
         form = form.text("packId", id.to_string());
     }
@@ -286,7 +288,7 @@ mod tests {
         // Test-only env mutation; nothing else in this process reads it.
         unsafe { std::env::set_var("DINGO_SITE_URL", format!("http://{addr}")) };
 
-        let got = upload_pack("ddt_secret", "Kandos.dingonav", vec![80, 75, 3, 4], "public", Some("site-id-1"))
+        let got = upload_pack("ddt_secret", "Kandos.dingonav", vec![80, 75, 3, 4], Some("public"), Some("site-id-1"))
             .await
             .expect("upload should succeed");
         assert_eq!(got.id, "site-id-1");

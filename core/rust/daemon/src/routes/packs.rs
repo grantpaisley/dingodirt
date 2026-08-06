@@ -350,22 +350,13 @@ async fn get_pack(
 
 // ---- Publish / refresh ----
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct PublishBody {
-    /// "unlisted" (link only) or "public" (site review queue). Plan always
-    /// sends one; the default keeps a bare POST working.
-    #[serde(default = "default_visibility")]
-    visibility: String,
-}
-
-fn default_visibility() -> String {
-    "unlisted".to_string()
-}
-
-impl Default for PublishBody {
-    fn default() -> Self {
-        Self { visibility: default_visibility() }
-    }
+    /// "unlisted" (link only) or "public" (site review queue). Omitted —
+    /// the refresh buttons — keeps the site pack's current visibility, so a
+    /// refresh can never demote an approved public pack.
+    #[serde(default)]
+    visibility: Option<String>,
 }
 
 /// Build the pack's `.dingonav` and upload it to dingodirt.com. First publish
@@ -377,8 +368,10 @@ async fn publish_pack(
     body: Option<Json<PublishBody>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let Json(publish) = body.unwrap_or_default();
-    if publish.visibility != "unlisted" && publish.visibility != "public" {
-        return Err(bad_request("visibility must be 'unlisted' or 'public'"));
+    if let Some(v) = &publish.visibility {
+        if v != "unlisted" && v != "public" {
+            return Err(bad_request("visibility must be 'unlisted' or 'public'"));
+        }
     }
     let token = dingodirt::require_token(&pool).await?;
     let row = sqlx::query("SELECT * FROM packs WHERE id = $1")
@@ -482,7 +475,7 @@ async fn publish_pack(
         &token,
         &format!("{bundle_name}.dingonav"),
         build.zip.clone(),
-        &publish.visibility,
+        publish.visibility.as_deref(),
         site_pack_id.as_deref(),
     )
     .await?;

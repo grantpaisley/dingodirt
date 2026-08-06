@@ -5,6 +5,7 @@ import {
 } from '../../store'
 import { useSchemeIndex } from '../../scheme/scheme'
 import { pickRideScheme } from '../../scheme/useRideScheme'
+import { DingodirtConnect } from './DingodirtConnect'
 
 /** One "Heat colors" row: swatch picker + label */
 function HeatColorRow({ label, title, value, onChange }: {
@@ -127,6 +128,9 @@ export function SettingsPaneContent() {
                 value={heatColorPlanned}
                 onChange={setHeatColorPlanned}
             />
+
+            {/* Publishing packs goes through dingodirt.com — connect once. */}
+            <DingodirtConnect />
         </div>
     )
 }
