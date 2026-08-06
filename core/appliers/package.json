@@ -1,0 +1,6 @@
+{
+  "name": "@dingodirt/appliers",
+  "private": true,
+  "type": "module",
+  "description": "Canonical applier + token registry. Scoped here rather than at the repo root because apps/nav/serve.js is CommonJS and a root-level type:module would break it."
+}

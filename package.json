@@ -3,8 +3,8 @@
   "private": true,
   "description": "Repo-level checks. Each app under apps/ has its own package.json (or none, for the no-build apps).",
   "scripts": {
-    "test": "node --test 'tests/*.test.mjs'",
-    "test:nav": "node --test 'apps/nav/tests/*.test.mjs'",
-    "test:studio": "node --test 'apps/studio/tests/*.test.mjs'"
+    "test": "node --test tests/*.test.mjs",
+    "test:nav": "node --test apps/nav/tests/*.test.mjs",
+    "test:studio": "node --test apps/studio/tests/*.test.mjs"
   }
 }

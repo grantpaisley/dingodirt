@@ -1,0 +1,250 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. force-pushes to a PR branch).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Which parts of the monorepo did this change touch? Every app job is gated
+  # on this so a Nav-only PR doesn't compile Rust.
+  #
+  # core/schemes, core/behaviors and core/appliers deliberately fan out to ALL
+  # app jobs: they are the one shared copy, so a change there can break any
+  # consumer, and the whole point of Phase 2 was that you can no longer tell
+  # from the diff which app is affected.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      plan: ${{ steps.filter.outputs.plan }}
+      studio: ${{ steps.filter.outputs.studio }}
+      nav: ${{ steps.filter.outputs.nav }}
+      site: ${{ steps.filter.outputs.site }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Written out longhand rather than with YAML anchors: an anchor on a
+          # list splats as a nested list here, which paths-filter does not
+          # accept. Repetition is the readable, correct option for CI config.
+          filters: |
+            rust:
+              - '.github/workflows/ci.yml'
+              - 'core/rust/**'
+              - 'server/migrations/**'
+            plan:
+              - '.github/workflows/ci.yml'
+              - 'core/schemes/**'
+              - 'core/behaviors/**'
+              - 'core/appliers/**'
+              - 'apps/plan/**'
+            studio:
+              - '.github/workflows/ci.yml'
+              - 'core/schemes/**'
+              - 'core/behaviors/**'
+              - 'core/appliers/**'
+              - 'apps/studio/**'
+            nav:
+              - '.github/workflows/ci.yml'
+              - 'core/schemes/**'
+              - 'core/behaviors/**'
+              - 'core/appliers/**'
+              - 'apps/nav/**'
+              - 'tools/assemble-app.sh'
+            site:
+              - '.github/workflows/ci.yml'
+              - 'apps/site/**'
+
+  # Unconditional and cheap. This is the guard that stops core/ being vendored
+  # back into an app — gating it on paths would let the very change it exists
+  # to catch slip through under a path filter that didn't match.
+  repo:
+    name: Repo — preset drift guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # No dependencies at the repo root, so no npm ci — node --test is built in.
+      - run: node --test tests/*.test.mjs
+
+  rust:
+    name: Rust — check & test
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core/rust
+
+    # The workspace uses sqlx compile-time-checked `query!` macros against a live
+    # database (there is no committed .sqlx offline cache), so a PostGIS instance
+    # must be up with the schema applied BEFORE anything is compiled.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: dingo
+          POSTGRES_PASSWORD: dingo
+          POSTGRES_DB: dingo
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U dingo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://dingo:dingo@localhost:5433/dingo
+      # Full debuginfo is the single biggest contributor to target-dir size and is
+      # useless here — nothing debugs a CI run interactively, and panics still carry
+      # file/line with line-tables. Guards against the disk exhaustion that red-lined
+      # this job historically; CI-only, so local `cargo build` is unaffected.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apply migrations with psql (preinstalled on the runner) rather than
+      # sqlx-cli, so we don't pay to compile the CLI just to create the schema.
+      # The first migration enables the postgis/uuid-ossp extensions.
+      - name: Apply migrations
+        working-directory: .
+        run: |
+          for f in server/migrations/*.sql; do
+            echo "→ $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/rust
+
+      - name: Check (all targets)
+        run: cargo check --workspace --all-targets
+
+      - name: Test
+        run: cargo test --workspace
+
+  plan:
+    name: Plan — type-check & build
+    needs: changes
+    if: needs.changes.outputs.plan == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/plan/package-lock.json
+      - run: npm ci
+      # `npm run build` runs `tsc -b && vite build`, so this covers type-checking.
+      - run: npm run build
+      # public/schemes is a symlink into core/; Vite dereferences it when copying
+      # publicDir. If that ever stops being true, Plan ships with no basemap
+      # schemes and nothing else in this job would notice.
+      - name: Presets reached dist/
+        run: |
+          test -s dist/schemes/index.json || { echo "::error::dist/schemes missing — the core/ symlink did not survive the build"; exit 1; }
+          echo "dist/schemes: $(find dist/schemes -name '*.json' | wc -l) files"
+
+  studio:
+    name: Studio — tests
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Studio has no dependencies — vendored libs, no build step, on purpose.
+      - run: node --test apps/studio/tests/*.test.mjs
+      # The applier and token registry are symlinks into core/. Node resolves ESM
+      # specifiers against the realpath, so a broken link fails at import time
+      # rather than producing a wrong result — assert they resolve.
+      - name: core/ symlinks resolve
+        run: |
+          node -e "import('./apps/studio/js/applier-nav.js').then(m=>{if(!m.applyScheme)throw new Error('applyScheme missing');console.log('applier ok')})"
+          node -e "import('./apps/studio/js/scheme.js').then(m=>{if(!m.SCHEMA_VERSION)throw new Error('SCHEMA_VERSION missing');console.log('scheme ok, v'+m.SCHEMA_VERSION)})"
+
+  nav:
+    name: Nav — corridor tests & artefact
+    needs: changes
+    if: needs.changes.outputs.nav == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test apps/nav/tests/*.test.mjs
+      # Nav is deployed by dereferencing its core/ symlinks into real files and
+      # hashing the presets into the SW cache name. Exercise that here so a
+      # broken assembly is caught on the PR, not at the Phase 4 cutover — Nav's
+      # cache-first SW makes a bad deploy linger on riders' phones.
+      - name: Deploy assembly
+        run: |
+          tools/assemble-app.sh nav "$RUNNER_TEMP/nav"
+          grep -qE "dingonav-v[0-9]+-[0-9a-f]{8}" "$RUNNER_TEMP/nav/sw.js" \
+            || { echo "::error::SW cache name was not content-hashed"; exit 1; }
+
+  site:
+    name: Site — tests
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/site/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  # Single required status check. Path-filtered jobs report "skipped", which
+  # branch protection treats as never-completed and blocks on; this gate turns
+  # the whole matrix into one check that passes when nothing actually failed.
+  #
+  # `changes` is in needs on purpose: if it fails, every app job skips, and a
+  # gate that accepts "skipped" would report green over a broken run.
+  ci:
+    name: CI
+    if: always()
+    needs: [changes, repo, rust, plan, studio, nav, site]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "job results: $results"
+          for r in $results; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::a required job reported '$r'"; exit 1 ;;
+            esac
+          done
+          echo "all good"
