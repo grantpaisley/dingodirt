@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashToken, newTokenSecret, TOKEN_PREFIX } from "./tokens";
+import { hashToken, newTokenSecret, TOKEN_PREFIX } from "./token-crypto";
 
 describe("api token secrets", () => {
   it("mints prefixed, unique, url-safe secrets", () => {

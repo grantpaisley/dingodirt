@@ -1,20 +1,10 @@
-import { createHash, randomBytes } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { apiTokens, users, allowlist } from "@/db/schema";
 import { currentUser, type Role, type SessionUser } from "@/lib/membership";
+import { TOKEN_PREFIX, hashToken, newTokenSecret } from "@/lib/token-crypto";
 
-// The prefix makes a leaked secret grep-able and tells the daemon it's
-// looking at a dingodirt token rather than random noise.
-export const TOKEN_PREFIX = "ddt_";
-
-export function hashToken(secret: string): string {
-  return createHash("sha256").update(secret).digest("hex");
-}
-
-export function newTokenSecret(): string {
-  return TOKEN_PREFIX + randomBytes(24).toString("base64url");
-}
+export { TOKEN_PREFIX, hashToken, newTokenSecret };
 
 export async function listApiTokens(userId: string) {
   return db
