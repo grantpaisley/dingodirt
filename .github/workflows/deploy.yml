@@ -8,11 +8,13 @@ name: Deploy
 #                                            /studio/
 #                                            /plan/
 #
-# Nav's legacy URL (grantpaisley.github.io/DingoNav/) is kept alive by a
-# mirror workflow IN the DingoNav repo, which checks this repo out and runs
-# the same assembly. That direction was chosen deliberately: this repo is
-# public, so DingoNav needs no credential to read it, and its own GITHUB_TOKEN
-# deploys its own Pages. No cross-repo PAT — the thing Phase 2 retired.
+# Nav's CANONICAL home is nav.dingodirt.com — the DingoNav repo's Pages site,
+# rebuilt from this repo by a mirror workflow IN that repo (it checks this repo
+# out and runs the same assembly). That direction was chosen deliberately: this
+# repo is public, so DingoNav needs no credential to read it, and its own
+# GITHUB_TOKEN deploys its own Pages. No cross-repo PAT — the thing Phase 2
+# retired. The old grantpaisley.github.io/DingoNav/ URL 301s to the custom
+# domain, so pre-2026-08-06 share links still resolve.
 
 on:
   push:
