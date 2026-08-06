@@ -71,6 +71,21 @@ export const allowlist = pgTable("allowlist", {
   addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// Machine credentials for publishing from local apps (Plan / Studio). The
+// plaintext ddt_… secret is shown once at creation; only its hash is stored.
+export const apiTokens = pgTable("api_tokens", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { mode: "date" }),
+});
 
 // Nestable, dashboard-only organization (no folder-level sharing).
 export const folders = pgTable("folders", {
