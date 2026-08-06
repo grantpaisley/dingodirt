@@ -1,0 +1,109 @@
+name: Deploy
+
+# One Pages site for the three STATIC apps. apps/site is Next.js with auth and
+# a database, so it cannot go on Pages — it needs Vercel or similar and is
+# deployed separately (see apps/site/GO-LIVE.md).
+#
+#   https://grantpaisley.github.io/dingodirt/nav/
+#                                            /studio/
+#                                            /plan/
+#
+# Nav's legacy URL (grantpaisley.github.io/DingoNav/) is kept alive by a
+# mirror workflow IN the DingoNav repo, which checks this repo out and runs
+# the same assembly. That direction was chosen deliberately: this repo is
+# public, so DingoNav needs no credential to read it, and its own GITHUB_TOKEN
+# deploys its own Pages. No cross-repo PAT — the thing Phase 2 retired.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer commit supersede a queued one, but
+# never cancel a deploy that is already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build artefacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/plan/package-lock.json
+
+      # Nav and Studio reach core/schemes etc. through symlinks, which do not
+      # survive a static host. assemble-app.sh dereferences them and, for Nav,
+      # hashes the presets into the service-worker cache name.
+      - name: Assemble nav
+        run: tools/assemble-app.sh nav _site/nav
+
+      - name: Assemble studio
+        run: tools/assemble-app.sh studio _site/studio
+
+      # Plan is served from a subpath here, so it must be built with a matching
+      # base — a root-relative build 404s on every asset under /dingodirt/.
+      - name: Build plan
+        working-directory: apps/plan
+        env:
+          VITE_BASE: /dingodirt/plan/
+        run: |
+          npm ci
+          npm run build
+
+      - name: Collect plan
+        run: |
+          mkdir -p _site/plan
+          cp -R apps/plan/dist/. _site/plan/
+
+      - name: Landing page
+        run: cp .github/pages-index.html _site/index.html
+
+      # Assert what the apps would otherwise fail at silently. Plan's scheme
+      # and style fetches degrade to an empty list rather than throwing, so a
+      # missing preset shows as "no schemes" with no error anywhere.
+      - name: Verify artefacts
+        run: |
+          set -e
+          for a in nav studio plan; do
+            test -f "_site/$a/index.html" || { echo "::error::$a/index.html missing"; exit 1; }
+          done
+          for a in nav studio; do
+            test -s "_site/$a/schemes/index.json" || { echo "::error::$a schemes missing"; exit 1; }
+            test -s "_site/$a/behaviors/index.json" || { echo "::error::$a behaviors missing"; exit 1; }
+          done
+          test -s _site/plan/schemes/index.json || { echo "::error::plan schemes missing"; exit 1; }
+          grep -q '/dingodirt/plan/assets/' _site/plan/index.html \
+            || { echo "::error::plan was not built for the /dingodirt/plan/ subpath"; exit 1; }
+          grep -qE 'dingonav-v[0-9]+-[0-9a-f]{8}' _site/nav/sw.js \
+            || { echo "::error::nav SW cache name is not content-hashed"; exit 1; }
+          if find _site -type l | grep -q .; then
+            echo "::error::symlinks survived into the artefact — they 404 on Pages"; exit 1
+          fi
+          echo "artefact sizes:"; du -sh _site/*
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
