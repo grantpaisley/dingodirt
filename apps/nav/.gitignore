@@ -1,0 +1,14 @@
+# personal GPS data (real tracks + heatmap exports from Dingo)
+sample-data/
+bundle.json
+
+# basemap extracts — regenerate with the pmtiles CLI (see README).
+# central-coast is committed (33MB, under GitHub's 100MB blob cap) so the
+# GitHub Pages deploy can auto-download it on first open.
+basemap/*.pmtiles
+!basemap/central-coast.pmtiles
+# hillshade DEM for the same area (8 MB) — committed for the same reason
+!basemap/hillshade.pmtiles
+
+node_modules/
+.DS_Store
