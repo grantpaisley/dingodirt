@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dingodirt</title>
+<style>
+  :root { color-scheme: light dark; --fg:#111; --muted:#666; --line:#e3e3e3; --card:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8e8e8; --muted:#9a9a9a; --line:#2a2a2a; --card:#161616; }
+    body { background:#0d0d0d; }
+  }
+  body { font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         color:var(--fg); max-width:44rem; margin:0 auto; padding:3rem 1.25rem; }
+  h1 { font-size:1.6rem; margin:0 0 .25rem; letter-spacing:-.02em; }
+  .sub { color:var(--muted); margin:0 0 2rem; }
+  a.app { display:block; border:1px solid var(--line); border-radius:10px; background:var(--card);
+          padding:1rem 1.1rem; margin:.6rem 0; text-decoration:none; color:inherit; }
+  a.app:hover { border-color:var(--muted); }
+  a.app b { display:block; font-size:1.05rem; }
+  a.app span { color:var(--muted); font-size:.92rem; }
+  footer { margin-top:2.5rem; color:var(--muted); font-size:.9rem; border-top:1px solid var(--line); padding-top:1.25rem; }
+  code { background:color-mix(in srgb, var(--fg) 8%, transparent); padding:.1em .35em; border-radius:4px; font-size:.9em; }
+</style>
+
+<h1>dingodirt</h1>
+<p class="sub">Open-source tools for off-road riding.</p>
+
+<a class="app" href="./nav/">
+  <b>Nav →</b>
+  <span>Offline GPX track follower. Install it as a PWA and ride with it.</span>
+</a>
+
+<a class="app" href="./studio/">
+  <b>Studio →</b>
+  <span>Design map schemes, test-drive them at speed, publish them.</span>
+</a>
+
+<a class="app" href="./plan/">
+  <b>Plan →</b>
+  <span>Route planning over the segment network. Needs a backend — see the repo.</span>
+</a>
+
+<footer>
+  These are built from
+  <a href="https://github.com/grantpaisley/dingodirt">grantpaisley/dingodirt</a>, MIT licensed.
+  The <code>dingodirt.com</code> site is deployed separately — it needs a database and auth,
+  which GitHub Pages can't host.
+</footer>

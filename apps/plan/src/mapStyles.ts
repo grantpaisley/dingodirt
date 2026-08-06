@@ -30,10 +30,24 @@ export interface LocalStyleEntry {
 
 let manifestPromise: Promise<LocalStyleEntry[]> | null = null
 
+/** Resolve a manifest `url` against the app's base path.
+ *
+ *  Manifest entries are authored as site-absolute ("/styles/foo.json") and the
+ *  daemon writes that file too, so the format stays as-is; served from a
+ *  subpath (GitHub Pages: /dingodirt/plan/) a leading slash would resolve
+ *  against the domain root instead. Full URLs are left alone so a manifest can
+ *  point at a style hosted elsewhere. */
+function rebase(url: string): string {
+    if (/^[a-z]+:\/\//i.test(url)) return url
+    return import.meta.env.BASE_URL + url.replace(/^\//, '')
+}
+
 /** Local style manifest, fetched once per session. Missing or malformed
  *  manifest degrades to "no local styles" rather than an error. */
 export function fetchStyleManifest(): Promise<LocalStyleEntry[]> {
-    manifestPromise ??= fetch('/styles/index.json')
+    // BASE_URL — see the note in scheme.ts; this manifest is served from the
+    // same subpath and silently degrades to "no local styles" if it 404s.
+    manifestPromise ??= fetch(`${import.meta.env.BASE_URL}styles/index.json`)
         .then(r => (r.ok ? r.json() : []))
         .then((entries: unknown) => (Array.isArray(entries) ? entries : [])
             .filter((e): e is LocalStyleEntry =>
@@ -74,7 +88,7 @@ export async function getLocalStyle(id: string): Promise<CachedStyle> {
     const entry = (await fetchStyleManifest()).find(e => e.id === id)
     if (!entry) throw new Error(`unknown local style '${id}'`)
     // Cache-bust: after a save/invalidate the browser cache may be stale.
-    const res = await fetch(`${entry.url}?v=${Date.now()}`)
+    const res = await fetch(`${rebase(entry.url)}?v=${Date.now()}`)
     if (!res.ok) throw new Error(`failed to load style '${id}': ${res.status}`)
     return cacheStyle(id, await res.text())
 }

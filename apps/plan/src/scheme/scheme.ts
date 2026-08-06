@@ -47,7 +47,10 @@ let indexPromise: Promise<SchemeEntry[]> | null = null
  *  degrades to "no schemes" rather than an error (same shape as the local
  *  style manifest in mapStyles.ts). */
 export function fetchSchemeIndex(): Promise<SchemeEntry[]> {
-    indexPromise ??= fetch('/schemes/index.json')
+    // BASE_URL, not a leading slash: Plan is served from a subpath on GitHub
+    // Pages (/dingodirt/plan/) and '/schemes/…' would resolve against the
+    // domain root. Vite sets BASE_URL from `base` and it always ends in '/'.
+    indexPromise ??= fetch(`${import.meta.env.BASE_URL}schemes/index.json`)
         .then(r => (r.ok ? r.json() : []))
         .then((entries: unknown) => (Array.isArray(entries) ? entries : [])
             .filter((e): e is SchemeEntry =>
@@ -65,7 +68,7 @@ export async function getScheme(id: string): Promise<DingoScheme> {
     if (cached) return cached
     const entry = (await fetchSchemeIndex()).find(e => e.id === id)
     if (!entry) throw new Error(`unknown scheme '${id}'`)
-    const res = await fetch(`/schemes/${entry.file}`)
+    const res = await fetch(`${import.meta.env.BASE_URL}schemes/${entry.file}`)
     if (!res.ok) throw new Error(`failed to load scheme '${id}': ${res.status}`)
     const scheme = await res.json() as DingoScheme
     const major = parseInt(String(scheme.schemaVersion ?? ''), 10)

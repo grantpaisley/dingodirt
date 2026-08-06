@@ -31,3 +31,6 @@ Thumbs.db
 
 # Agent worktrees
 .claude/worktrees/
+
+# Pages build output
+_site/
