@@ -21,7 +21,7 @@ import {
   replaceColorGlobal, sortPalette, withAlpha,
 } from './styleattrs.js';
 
-const MAPTILER_KEY = '06lVX1x8kIF770KpPdW0'; // public key from Plan's repo; styles store only the placeholder
+const MAPTILER_KEY = 'BWXJWQgUr60zDTSCSOwr'; // public, domain-restricted key from Plan's repo; styles store only the placeholder
 export const DAEMON = 'http://localhost:3000';
 const MAX_ZOOM = 24, AXIS_MAX = 16;
 const DINGO_GROUP = 'Dingo';
