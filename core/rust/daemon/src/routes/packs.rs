@@ -2,10 +2,10 @@
 //!
 //! A pack is a named recipe — an ordered ride list + layer options + notes
 //! (Docs/plans/2026-07-15-packs-design.md). Publishing builds the `.dingonav`
-//! and commits it to `DINGO_SHARE_REPO` at `shares/<slug>.dingonav`; the live
-//! link is `<nav>/?b=<slug>`, which DingoNav resolves against the repo's HEAD,
-//! so re-publishing (refresh) updates links already handed out. The slug is
-//! frozen at first publish; the display name stays freely editable.
+//! and uploads it to dingodirt.com (docs/plans/2026-08-06-plan-publish-to-
+//! dingodirt-design.md); the site owns share links, versioning and
+//! moderation. The live link is `<nav>/?b=<share_token>`; re-publishing
+//! (refresh) bumps the same site pack, so handed-out links stay live.
 
 use axum::http::StatusCode;
 use axum::{
@@ -17,11 +17,12 @@ use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use dingo_export::{sanitize, sanitize_filename};
+use dingo_export::sanitize;
 
+use super::dingodirt::{self, site_base};
 use super::export::{
     ApiError, DingoNavOpts, HeatmapFilters, LayerCoverage, bad_request, build_dingonav,
-    default_true, gh_api, internal, map_gh_err, nav_base, percent_encode_component, share_repo,
+    default_true, internal, nav_base, percent_encode_component,
 };
 
 pub fn routes() -> Router {
@@ -32,8 +33,18 @@ pub fn routes() -> Router {
             get(get_pack).patch(update_pack).delete(delete_pack),
         )
         .route("/{id}/publish", post(publish_pack))
-        .route("/orphans/{file}", axum::routing::delete(delete_orphan))
         .merge(super::marks::routes())
+}
+
+/// Live `?b=` link + site pack page for a published pack.
+fn share_urls(share_token: &Option<String>) -> (Option<String>, Option<String>) {
+    match share_token {
+        Some(t) => (
+            Some(format!("{}?b={}", nav_base(), percent_encode_component(t))),
+            Some(format!("{}/p/{t}", site_base())),
+        ),
+        None => (None, None),
+    }
 }
 
 // ---- Create / update ----
@@ -230,7 +241,8 @@ async fn list_packs(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let rows = sqlx::query(&format!(
         r#"
-        SELECT p.id, p.name, p.description, p.slug, p.published_at, p.published_bytes, p.revision,
+        SELECT p.id, p.name, p.description, p.share_token, p.site_visibility,
+               p.published_at, p.published_bytes, p.revision,
                (SELECT count(*) FROM pack_rides pr WHERE pr.pack_id = p.id) AS ride_count,
                {STALE_SQL} AS stale
         FROM packs p
@@ -241,81 +253,28 @@ async fn list_packs(
     .await
     .map_err(internal)?;
 
-    let nav = nav_base();
-    let repo = share_repo().ok();
     let packs: Vec<serde_json::Value> = rows
         .iter()
         .map(|r| {
-            let slug: Option<String> = r.get("slug");
-            let published: Option<chrono::DateTime<chrono::Utc>> = r.get("published_at");
-            let share_url = match (&slug, published) {
-                (Some(s), Some(_)) => {
-                    Some(format!("{nav}?b={}", percent_encode_component(s)))
-                }
-                _ => None,
-            };
-            let file_url = match (&slug, published, &repo) {
-                (Some(s), Some(_), Some(repo)) => {
-                    Some(format!("https://github.com/{repo}/blob/HEAD/shares/{s}.dingonav"))
-                }
-                _ => None,
-            };
+            let share_token: Option<String> = r.get("share_token");
+            let (share_url, file_url) = share_urls(&share_token);
             serde_json::json!({
                 "id": r.get::<Uuid, _>("id"),
                 "name": r.get::<String, _>("name"),
                 "description": r.get::<String, _>("description"),
-                "slug": slug,
-                "published_at": published,
+                "published_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("published_at"),
                 "published_bytes": r.get::<Option<i64>, _>("published_bytes"),
                 "revision": r.get::<i32, _>("revision"),
                 "ride_count": r.get::<i64, _>("ride_count"),
                 "stale": r.get::<bool, _>("stale"),
+                "visibility": r.get::<Option<String>, _>("site_visibility"),
                 "share_url": share_url,
                 "file_url": file_url,
             })
         })
         .collect();
 
-    // Orphans: repo files no pack claims (pre-packs shares). Best-effort — a
-    // missing repo/gh must not break the list, so errors are reported inline.
-    let mut orphans: Vec<serde_json::Value> = Vec::new();
-    let mut repo_error: Option<String> = None;
-    match share_repo() {
-        Err((_, msg)) => repo_error = Some(msg),
-        Ok(repo) => {
-            let slugs: std::collections::HashSet<String> = rows
-                .iter()
-                .filter_map(|r| r.get::<Option<String>, _>("slug"))
-                .collect();
-            match gh_api("GET", &format!("/repos/{repo}/contents/shares"), None).await {
-                Ok(serde_json::Value::Array(files)) => {
-                    for f in &files {
-                        let Some(file) = f.get("name").and_then(|n| n.as_str()) else { continue };
-                        let Some(stem) = file.strip_suffix(".dingonav") else { continue };
-                        if slugs.contains(stem) {
-                            continue;
-                        }
-                        orphans.push(serde_json::json!({
-                            "name": stem,
-                            "file": file,
-                            "bytes": f.get("size").and_then(|s| s.as_u64()).unwrap_or(0),
-                            "share_url": format!("{nav}?b={}", percent_encode_component(stem)),
-                            "file_url": format!("https://github.com/{repo}/blob/HEAD/shares/{file}"),
-                        }));
-                    }
-                }
-                Ok(_) => {}
-                Err(e) if e.contains("404") || e.contains("Not Found") => {}
-                Err(e) => repo_error = Some(e),
-            }
-        }
-    }
-
-    Ok(Json(serde_json::json!({
-        "packs": packs,
-        "orphans": orphans,
-        "repo_error": repo_error,
-    })))
+    Ok(Json(serde_json::json!({ "packs": packs })))
 }
 
 async fn get_pack(
@@ -361,18 +320,12 @@ async fn get_pack(
         })
         .collect();
 
-    let nav = nav_base();
-    let slug: Option<String> = row.get("slug");
-    let published: Option<chrono::DateTime<chrono::Utc>> = row.get("published_at");
-    let share_url = match (&slug, published) {
-        (Some(s), Some(_)) => Some(format!("{nav}?b={}", percent_encode_component(s))),
-        _ => None,
-    };
+    let share_token: Option<String> = row.get("share_token");
+    let (share_url, file_url) = share_urls(&share_token);
     Ok(Json(serde_json::json!({
         "id": row.get::<Uuid, _>("id"),
         "name": row.get::<String, _>("name"),
         "description": row.get::<String, _>("description"),
-        "slug": slug,
         "include_tracks": row.get::<bool, _>("include_tracks"),
         "include_heatmap": row.get::<bool, _>("include_heatmap"),
         "include_strava": row.get::<bool, _>("include_strava"),
@@ -383,11 +336,13 @@ async fn get_pack(
         "privacy": row.get::<bool, _>("privacy"),
         "heatmap_filters": row.get::<Option<serde_json::Value>, _>("heatmap_filters"),
         "coverage": row.get::<Option<serde_json::Value>, _>("coverage"),
-        "published_at": published,
+        "published_at": row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("published_at"),
         "published_bytes": row.get::<Option<i64>, _>("published_bytes"),
         "revision": row.get::<i32, _>("revision"),
         "stale": row.get::<bool, _>("stale"),
+        "visibility": row.get::<Option<String>, _>("site_visibility"),
         "share_url": share_url,
+        "file_url": file_url,
         "ride_name": row.get::<Option<String>, _>("ride_name"),
         "rides": rides,
     })))
@@ -395,15 +350,37 @@ async fn get_pack(
 
 // ---- Publish / refresh ----
 
-/// Build the pack's `.dingonav` and commit it to `shares/<slug>.dingonav` in
-/// `DINGO_SHARE_REPO`. First publish freezes the slug from the current name
-/// (409 when a pack or an existing repo file already owns it); every later
-/// call is a refresh — same path, new content, live `?b=` links pick it up.
+#[derive(Debug, Deserialize)]
+struct PublishBody {
+    /// "unlisted" (link only) or "public" (site review queue). Plan always
+    /// sends one; the default keeps a bare POST working.
+    #[serde(default = "default_visibility")]
+    visibility: String,
+}
+
+fn default_visibility() -> String {
+    "unlisted".to_string()
+}
+
+impl Default for PublishBody {
+    fn default() -> Self {
+        Self { visibility: default_visibility() }
+    }
+}
+
+/// Build the pack's `.dingonav` and upload it to dingodirt.com. First publish
+/// creates the site pack (share token minted there); every later call is a
+/// version bump of the same pack — live `?b=` links pick the new content up.
 async fn publish_pack(
     Extension(pool): Extension<PgPool>,
     AxumPath(id): AxumPath<Uuid>,
+    body: Option<Json<PublishBody>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let repo = share_repo()?;
+    let Json(publish) = body.unwrap_or_default();
+    if publish.visibility != "unlisted" && publish.visibility != "public" {
+        return Err(bad_request("visibility must be 'unlisted' or 'public'"));
+    }
+    let token = dingodirt::require_token(&pool).await?;
     let row = sqlx::query("SELECT * FROM packs WHERE id = $1")
         .bind(id)
         .fetch_optional(&pool)
@@ -434,37 +411,6 @@ async fn publish_pack(
         .get::<Option<serde_json::Value>, _>("coverage")
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
-
-    // Slug: frozen once set; derived from the name on first publish.
-    let existing_slug: Option<String> = row.get("slug");
-    let slug = match &existing_slug {
-        Some(s) => s.clone(),
-        None => {
-            let s = sanitize_filename(&bundle_name).replace([' ', '.'], "-");
-            let s = if s.is_empty() { "pack".to_string() } else { s };
-            let taken = sqlx::query("SELECT 1 AS one FROM packs WHERE slug = $1 AND id <> $2")
-                .bind(&s)
-                .bind(id)
-                .fetch_optional(&pool)
-                .await
-                .map_err(internal)?
-                .is_some();
-            let orphan_taken = gh_api(
-                "GET",
-                &format!("/repos/{repo}/contents/shares/{s}.dingonav"),
-                None,
-            )
-            .await
-            .is_ok();
-            if taken || orphan_taken {
-                return Err((
-                    StatusCode::CONFLICT,
-                    format!("share name '{s}' is already taken — rename the pack first"),
-                ));
-            }
-            s
-        }
-    };
 
     // Ride name (group channel): minted at first publish, frozen forever —
     // re-deriving would move the group to a new ntfy topic mid-conversation.
@@ -527,47 +473,31 @@ async fn publish_pack(
     };
     let build = build_dingonav(&pool, &ride_ids, &bundle_name, &opts).await?;
 
-    // Upload: with DINGO_SHARE_CLONE set (path to a local clone of the share
-    // repo), the bundle is committed and pushed through git — the contents
-    // API rejects payloads past ~40 MB of file, while git takes files to
-    // 100 MB. Without the env, the old contents-API PUT. Either way, old
-    // links pinned to a commit sha stay readable from git history; `?b=`
-    // links track HEAD and pick this up (raw CDN lag is ~5 minutes).
-    let path = format!("shares/{slug}.dingonav");
-    let replaced = if let Ok(clone) = std::env::var("DINGO_SHARE_CLONE") {
-        let (rel, msg, bytes) =
-            (path.clone(), format!("publish pack: {bundle_name}"), build.zip.clone());
-        tokio::task::spawn_blocking(move || {
-            publish_via_clone(std::path::Path::new(&clone), &rel, &bytes, &msg)
-        })
-        .await
-        .map_err(internal)?
-        .map_err(|e| bad_request(&format!("share clone push failed: {e}")))?
-    } else {
-        let existing_sha = gh_api("GET", &format!("/repos/{repo}/contents/{path}"), None)
-            .await
-            .ok()
-            .and_then(|v| v.get("sha").and_then(|s| s.as_str()).map(String::from));
-        let content_b64 =
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &build.zip);
-        let mut payload = serde_json::json!({
-            "message": format!("publish pack: {bundle_name}"),
-            "content": content_b64,
-        });
-        if let Some(sha) = &existing_sha {
-            payload["sha"] = serde_json::json!(sha);
-        }
-        gh_api("PUT", &format!("/repos/{repo}/contents/{path}"), Some(&payload))
-            .await
-            .map_err(|e| map_gh_err(e, &repo))?;
-        existing_sha.is_some()
-    };
+    // Upload. The bundle's filename carries the display name — the site
+    // derives the pack name from it / bundle.json; site_pack_id pins the
+    // version bump so a rename here updates the site pack instead of
+    // forking a new one.
+    let site_pack_id: Option<String> = row.get("site_pack_id");
+    let site = dingodirt::upload_pack(
+        &token,
+        &format!("{bundle_name}.dingonav"),
+        build.zip.clone(),
+        &publish.visibility,
+        site_pack_id.as_deref(),
+    )
+    .await?;
 
     sqlx::query(
-        "UPDATE packs SET slug = $2, published_at = now(), published_bytes = $3, revision = $4, ride_name = $5 WHERE id = $1",
+        r#"
+        UPDATE packs SET site_pack_id = $2, share_token = $3, site_visibility = $4,
+               published_at = now(), published_bytes = $5, revision = $6, ride_name = $7
+        WHERE id = $1
+        "#,
     )
     .bind(id)
-    .bind(&slug)
+    .bind(&site.id)
+    .bind(&site.share_token)
+    .bind(&site.visibility)
     .bind(build.zip.len() as i64)
     .bind(revision)
     .bind(&ride_name)
@@ -575,72 +505,19 @@ async fn publish_pack(
     .await
     .map_err(internal)?;
 
-    let nav = nav_base();
+    let (share_url, file_url) = share_urls(&Some(site.share_token.clone()));
     let m = &build.manifest;
     Ok(Json(serde_json::json!({
-        "share_url": format!("{nav}?b={}", percent_encode_component(&slug)),
-        "file_url": format!("https://github.com/{repo}/blob/HEAD/shares/{slug}.dingonav"),
-        "slug": slug,
-        "replaced": replaced,
+        "share_url": share_url,
+        "file_url": file_url,
+        "share_token": site.share_token,
+        "visibility": site.visibility,
+        "site_version": site.version,
+        "replaced": !site.is_new,
         "bytes": build.zip.len(),
         "revision": revision,
         "manifest": m,
     })))
-}
-
-/// Commit + push one file through a local clone of the share repo. The clone
-/// is fast-forwarded to origin first (the contents-API path and other
-/// machines also write this repo); a dirty clone or a diverged branch is an
-/// error rather than anything destructive. Returns whether the file already
-/// existed (the "replaced" flag). Blocking — call from spawn_blocking.
-fn publish_via_clone(
-    clone: &std::path::Path,
-    rel_path: &str,
-    bytes: &[u8],
-    message: &str,
-) -> Result<bool, String> {
-    if !clone.join(".git").exists() {
-        return Err(format!("{} is not a git clone", clone.display()));
-    }
-    let git = |args: &[&str]| -> Result<String, String> {
-        let out = std::process::Command::new("git")
-            .arg("-C")
-            .arg(clone)
-            .args(args)
-            .env("GIT_TERMINAL_PROMPT", "0") // fail, don't hang, on missing auth
-            .output()
-            .map_err(|e| format!("git not runnable: {e}"))?;
-        if out.status.success() {
-            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-        } else {
-            Err(format!(
-                "git {}: {}",
-                args.first().unwrap_or(&""),
-                String::from_utf8_lossy(&out.stderr).trim()
-            ))
-        }
-    };
-    if !git(&["status", "--porcelain"])?.trim().is_empty() {
-        return Err("clone has uncommitted changes — commit or stash them first".into());
-    }
-    git(&["fetch", "origin"])?;
-    let branch = git(&["rev-parse", "--abbrev-ref", "HEAD"])?.trim().to_string();
-    git(&["merge", "--ff-only", &format!("origin/{branch}")])?;
-
-    let target = clone.join(rel_path);
-    let replaced = target.exists();
-    if let Some(dir) = target.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&target, bytes).map_err(|e| e.to_string())?;
-    git(&["add", rel_path])?;
-    // Identical bytes re-published → nothing to commit; that's success.
-    if git(&["status", "--porcelain"])?.trim().is_empty() {
-        return Ok(replaced);
-    }
-    git(&["commit", "-m", message])?;
-    git(&["push", "origin", &branch])?;
-    Ok(replaced)
 }
 
 // ---- Delete ----
@@ -656,25 +533,23 @@ async fn delete_pack(
     AxumPath(id): AxumPath<Uuid>,
     Query(q): Query<DeleteQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let row = sqlx::query("SELECT slug, published_at FROM packs WHERE id = $1")
+    let row = sqlx::query("SELECT site_pack_id FROM packs WHERE id = $1")
         .bind(id)
         .fetch_optional(&pool)
         .await
         .map_err(internal)?
         .ok_or((StatusCode::NOT_FOUND, format!("no pack {id}")))?;
-    let slug: Option<String> = row.get("slug");
-    let published: Option<chrono::DateTime<chrono::Utc>> = row.get("published_at");
+    let site_pack_id: Option<String> = row.get("site_pack_id");
 
+    // Soft-delete on the site kills the ?b= link immediately (blobs linger
+    // 30 days server-side). A real site failure blocks the local delete so
+    // the pack doesn't quietly stay live under a link Plan forgot about.
     let mut unpublished = false;
     if q.unpublish {
-        if let (Some(slug), Some(_)) = (&slug, published) {
-            // Best-effort: an already-deleted repo file must not block the row
-            // delete, but a real API failure should surface.
-            match delete_repo_share(&format!("{slug}.dingonav")).await {
-                Ok(_) => unpublished = true,
-                Err((StatusCode::NOT_FOUND, _)) => {}
-                Err(e) => return Err(e),
-            }
+        if let Some(site_id) = &site_pack_id {
+            let token = dingodirt::require_token(&pool).await?;
+            dingodirt::delete_site_pack(&token, site_id).await?;
+            unpublished = true;
         }
     }
     sqlx::query("DELETE FROM packs WHERE id = $1")
@@ -683,42 +558,6 @@ async fn delete_pack(
         .await
         .map_err(internal)?;
     Ok(Json(serde_json::json!({ "deleted": id, "unpublished": unpublished })))
-}
-
-/// Delete a pre-packs share file no pack claims (read-only orphans in the UI).
-async fn delete_orphan(
-    AxumPath(file): AxumPath<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    if file.contains('/') || file.contains("..") {
-        return Err(bad_request("bad share file name"));
-    }
-    let file = if file.ends_with(".dingonav") { file } else { format!("{file}.dingonav") };
-    delete_repo_share(&file).await?;
-    Ok(Json(serde_json::json!({ "deleted": file })))
-}
-
-/// Remove `shares/<file>` from DINGO_SHARE_REPO. Links already handed out pin
-/// a commit sha and stay fetchable from git history; `?b=` links go dead.
-async fn delete_repo_share(file: &str) -> Result<(), ApiError> {
-    let repo = share_repo()?;
-    let meta = gh_api("GET", &format!("/repos/{repo}/contents/shares/{file}"), None)
-        .await
-        .map_err(|e| {
-            if e.contains("404") || e.contains("Not Found") {
-                (StatusCode::NOT_FOUND, format!("no share named {file}"))
-            } else {
-                map_gh_err(e, &repo)
-            }
-        })?;
-    let sha = meta
-        .get("sha")
-        .and_then(|s| s.as_str())
-        .ok_or_else(|| internal("GitHub API returned no blob sha"))?;
-    let payload = serde_json::json!({ "message": format!("delete share: {file}"), "sha": sha });
-    gh_api("DELETE", &format!("/repos/{repo}/contents/shares/{file}"), Some(&payload))
-        .await
-        .map_err(|e| map_gh_err(e, &repo))?;
-    Ok(())
 }
 
 /// The bundled rides' derived turn cues in DingoNav's mark wire shape —

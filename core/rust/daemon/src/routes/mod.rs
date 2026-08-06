@@ -1,6 +1,7 @@
 //! API route handlers
 
 pub mod areas;
+pub mod dingodirt;
 pub mod export;
 pub mod heat;
 pub mod heatmap;
@@ -32,4 +33,5 @@ pub fn api_routes() -> Router {
         .nest("/pois", pois::routes())
         .nest("/collections", pois::collection_routes())
         .nest("/styles", styles::routes())
+        .nest("/settings/dingodirt", dingodirt::routes())
 }

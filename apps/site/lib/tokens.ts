@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { apiTokens, users, allowlist } from "@/db/schema";
-import type { Role, SessionUser } from "@/lib/membership";
+import { currentUser, type Role, type SessionUser } from "@/lib/membership";
 
 // The prefix makes a leaked secret grep-able and tells the daemon it's
 // looking at a dingodirt token rather than random noise.
@@ -53,6 +53,17 @@ export async function revokeApiToken(userId: string, id: string) {
  * produces, so everything downstream of the upload route is agnostic to how
  * the caller authenticated. Returns null for unknown/revoked tokens.
  */
+/** Bearer token when present, session cookie otherwise. */
+export async function requestUser(req: {
+  headers: { get(name: string): string | null };
+}): Promise<SessionUser | null> {
+  const auth = req.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    return userForToken(auth.slice(7)).catch(() => null);
+  }
+  return currentUser();
+}
+
 export async function userForToken(
   secret: string,
 ): Promise<SessionUser | null> {
