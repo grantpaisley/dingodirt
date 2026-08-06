@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       # No dependencies at the repo root, so no npm ci — node --test is built in.
       - run: node --test tests/*.test.mjs
 
@@ -152,7 +152,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: apps/plan/package-lock.json
       - run: npm ci
@@ -175,7 +175,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       # Studio has no dependencies — vendored libs, no build step, on purpose.
       - run: node --test apps/studio/tests/*.test.mjs
       # The applier and token registry are symlinks into core/. Node resolves ESM
@@ -195,7 +195,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - run: node --test apps/nav/tests/*.test.mjs
       # Nav is deployed by dereferencing its core/ symlinks into real files and
       # hashing the presets into the SW cache name. Exercise that here so a
@@ -219,7 +219,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: apps/site/package-lock.json
       - run: npm ci
