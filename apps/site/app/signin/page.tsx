@@ -40,19 +40,22 @@ export default async function SignInPage() {
               Continue with Google
             </button>
           </form>
-          <form
-            action={async () => {
-              "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/" });
-            }}
-          >
-            <button
-              type="submit"
-              className="w-full rounded border border-line bg-ink-2 px-4 py-3 font-medium transition-colors hover:border-clay hover:text-clay-hot"
+          {/* Only offered when the Entra app exists — see the note in auth.ts. */}
+          {process.env.AUTH_MICROSOFT_ENTRA_ID_ID && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("microsoft-entra-id", { redirectTo: "/" });
+              }}
             >
-              Continue with Microsoft
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="w-full rounded border border-line bg-ink-2 px-4 py-3 font-medium transition-colors hover:border-clay hover:text-clay-hot"
+              >
+                Continue with Microsoft
+              </button>
+            </form>
+          )}
         </div>
         <p className="mt-6 text-sm text-bone-dim">
           Signing in just gives you a place to publish —{" "}

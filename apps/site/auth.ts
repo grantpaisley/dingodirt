@@ -20,7 +20,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  providers: [Google, MicrosoftEntraID],
+  // Microsoft is optional: it only exists so Outlook/Hotmail folk can sign in
+  // without a Google account, and setting it up needs an Azure tenant. With
+  // its env vars absent the provider (and its button on /signin) disappears;
+  // add AUTH_MICROSOFT_ENTRA_ID_ID/_SECRET/_ISSUER later to light it up.
+  providers: [
+    Google,
+    ...(process.env.AUTH_MICROSOFT_ENTRA_ID_ID ? [MicrosoftEntraID] : []),
+  ],
   trustHost: true,
   ...(cookieDomain
     ? {
