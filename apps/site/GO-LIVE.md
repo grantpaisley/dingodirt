@@ -120,7 +120,7 @@ redirect. Worth deciding deliberately rather than assuming it just works.
 
 1. dingodirt.com → landing renders, Analytics starts counting.
 2. Sign in with Google → Admin link appears (you're in `allowlist`).
-3. `/publish` → drop a `.dingonav` from `~/Desktop/Projects/dingo-shares/shares/`
+3. `/publish` → drop a `.dingonav` (export one from Plan: Export → download)
    → lands on its pack page.
 4. Dashboard → **Link only** → Copy link → open in a private window →
    download works and the count ticks up.
