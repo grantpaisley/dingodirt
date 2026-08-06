@@ -1,0 +1,1217 @@
+:root {
+  --pane-width: 320px;
+  --pane-bg: #1a1a2e;
+  --bg-dark: #0f0f1a;
+  --accent: #4f7cff;
+  --accent-hover: #6a93ff;
+  --text-primary: #e8e8f0;
+  --text-secondary: #8a8a9a;
+  --border-color: #2a2a3e;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Panes */
+.left-pane,
+.right-pane {
+  background: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width 0.2s ease;
+}
+
+.left-pane.open,
+.right-pane.open {
+  width: 320px;
+  /* Default, overridden by inline style */
+  flex-shrink: 0;
+}
+
+.left-pane.collapsed,
+.right-pane.collapsed {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* Resize Handles */
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.resize-handle:hover {
+  background: var(--accent);
+}
+
+.resize-handle:active {
+  background: var(--accent-hover);
+}
+
+.pane-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 8px 4px;
+  cursor: pointer;
+  z-index: 10;
+  font-size: 12px;
+}
+
+.pane-toggle.left {
+  right: -12px;
+  border-radius: 0 4px 4px 0;
+}
+
+.pane-toggle.right {
+  left: -12px;
+  border-radius: 4px 0 0 4px;
+}
+
+.pane-toggle:hover {
+  color: var(--accent);
+}
+
+/* Map Container */
+.map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: rgba(26, 26, 46, 0.9);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.stats-bar-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.stats-bar-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stats-bar-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.stats-bar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+}
+
+.stats-bar-selection {
+  color: var(--accent);
+}
+
+.stats-bar-selection .stats-bar-value {
+  color: var(--accent);
+}
+
+/* Places tree (location folder navigation) */
+.places-tree {
+  padding: 2px 0;
+}
+
+.places-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.places-caret {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.places-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.places-label:hover {
+  background: rgba(79, 124, 255, 0.12);
+}
+
+.places-label.active {
+  background: rgba(79, 124, 255, 0.2);
+  color: var(--accent-hover);
+}
+
+.places-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.places-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.places-spin {
+  animation: places-spin 0.8s linear infinite;
+}
+
+@keyframes places-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Import drop zone */
+.import-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 22px 12px;
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.import-drop:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Export dialog */
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.export-dialog {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--pane-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.export-close {
+  display: flex;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.export-close:hover {
+  color: var(--text-primary);
+}
+
+.export-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* "Pack layers only" — previews the pack as DingoNav renders it offline */
+.preview-pill {
+  float: right;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.preview-pill:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.preview-pill.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.preview-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.export-input {
+  width: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.export-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+select.export-input {
+  background: var(--pane-bg);
+}
+
+.export-dest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.export-dest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.export-dest-row:hover {
+  background: rgba(79, 124, 255, 0.1);
+}
+
+.export-dest-name {
+  flex-shrink: 0;
+}
+
+.export-dest-meta {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.export-dest-delete {
+  display: flex;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0;
+}
+
+.export-dest-row:hover .export-dest-delete {
+  opacity: 0.8;
+}
+
+.export-add-dest {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.export-add-dest:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.export-newdest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.export-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Corridor-vs-box coverage shape picker inside a layer-picker row. */
+.coverage-toggle {
+  display: inline-flex;
+  margin-left: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.coverage-toggle button {
+  padding: 1px 7px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1.6;
+}
+.coverage-toggle button + button {
+  border-left: 1px solid var(--border-color);
+}
+.coverage-toggle button.on {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Right-aligned per-layer size estimate inside a layer-picker row. */
+.export-layer-size {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.export-layer-size.est { opacity: 0.75; }
+
+.export-warning {
+  font-size: 12px;
+  color: #f0b64f;
+  padding: 6px 8px;
+  border: 1px solid rgba(240, 182, 79, 0.4);
+  border-radius: 4px;
+}
+
+.export-error {
+  font-size: 12px;
+  color: #ff7070;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 112, 112, 0.4);
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.export-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.export-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.export-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-done {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.export-done code {
+  font-size: 11px;
+  color: var(--accent-hover);
+  word-break: break-all;
+}
+
+.export-manifest {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.export-manifest-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.export-manifest-row:last-child {
+  border-bottom: none;
+}
+
+.export-manifest-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-manifest-meta {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.export-skipped {
+  font-size: 12px;
+  color: #f0b64f;
+}
+
+.export-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+/* Secondary control hanging off a layer checkbox (e.g. zoomed-out heat
+   reach) — indented to sit under its parent row, not beside it. */
+.export-suboption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 4px 26px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Preflight failure on a ticked map layer — the export will refuse it, so it
+   has to read as a blocker rather than another grey hint. */
+.export-warning {
+  font-size: 12px;
+  color: #f0b64f;
+  line-height: 1.5;
+  padding: 6px 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  border: 1px solid rgba(240, 182, 79, 0.35);
+  background: rgba(240, 182, 79, 0.1);
+}
+
+.export-total {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Selection → export-basket action in the stats bar */
+.stats-bar-basket-btn {
+  display: flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.stats-bar-basket-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* List Pane Styles */
+.list-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+}
+
+.list-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.list-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.list-toggle.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.list-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+/* Basket coverage legend — names each outline the map draws for the basket */
+.coverage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin: -4px 0 8px;
+  padding: 0 2px;
+}
+
+.coverage-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.coverage-legend i {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+}
+
+.coverage-legend em {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+/* Per-row export-basket toggle — quiet until hovered or already in the basket */
+.list-item-basket {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.list-item:hover .list-item-basket {
+  opacity: 0.7;
+}
+
+.list-item-basket:hover {
+  opacity: 1 !important;
+  color: var(--text-primary);
+  background: rgba(79, 124, 255, 0.25);
+}
+
+.list-item-basket.in-basket {
+  opacity: 0.9;
+  color: var(--accent);
+}
+
+.list-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.list-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.list-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 5px 24px 5px 26px;
+  font-size: 12px;
+}
+
+.list-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.list-search-clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.list-search-clear:hover {
+  color: var(--text-primary);
+}
+
+.list-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.list-dates input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  color-scheme: dark;
+}
+
+.list-items {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.list-item:hover {
+  background: rgba(79, 124, 255, 0.1);
+}
+
+.list-item.selected {
+  background: rgba(79, 124, 255, 0.2);
+  border-color: var(--accent);
+}
+
+.list-item-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+  opacity: 0.6;
+}
+
+.list-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Detail Pane Styles */
+.detail-pane {
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.detail-header {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-section {
+  margin-bottom: 16px;
+}
+
+.detail-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 14px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: var(--text-secondary);
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Mode Picker */
+.mode-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.mode-icon {
+  font-size: 18px;
+}
+
+.mode-select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.mode-select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.mode-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Packs ---- */
+
+/* Refresh column: quiet button ahead of the pack name; a dot marks stale */
+.pack-refresh {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.pack-refresh:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(79, 124, 255, 0.25);
+}
+
+.pack-refresh:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pack-refresh.stale {
+  color: var(--accent);
+}
+
+.pack-refresh.failed {
+  color: #e05c5c;
+}
+
+.pack-stale-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.pack-refresh.failed .pack-stale-dot {
+  background: #e05c5c;
+}
+
+/* Right-pane pack editor */
+.pack-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.pack-detail-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pack-name-input {
+  flex: 1;
+  font-weight: 600;
+}
+
+.pack-desc-input {
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.pack-share-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.pack-share-row .export-input {
+  flex: 1;
+  font-size: 11px;
+}
+
+/* Ordered track list — drag to reorder; row 0 is DingoNav's default track */
+.pack-tracks {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.pack-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: grab;
+}
+
+.pack-track:last-child {
+  border-bottom: none;
+}
+
+.pack-track.drag-over {
+  background: rgba(79, 124, 255, 0.18);
+}
+
+.pack-track-grip {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.pack-track-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-track-name.skipped {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.pack-default-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+}
+
+.pack-track-remove {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0;
+}
+
+.pack-track:hover .pack-track-remove {
+  opacity: 0.8;
+}
+
+.pack-track-remove:hover {
+  color: #e05c5c;
+  opacity: 1;
+}
+
+/* ---- Pack mark edits (DingoNav review queue) ---- */
+
+.pack-marks {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pack-marks-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pack-marks-header .export-label {
+  flex: 1;
+}
+
+.pack-marks-summary {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 0 4px;
+}
+
+.pack-marks-paste {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding-bottom: 6px;
+}
+
+.pack-marks-paste textarea {
+  flex: 1;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.pack-mark {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  font-size: 12px;
+  border-top: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.pack-mark.focused {
+  background: rgba(79, 124, 255, 0.14);
+}
+
+.pack-mark.accepted .pack-mark-title,
+.pack-mark.accepted .pack-mark-sub {
+  opacity: 0.75;
+}
+
+.pack-mark-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pack-mark-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pack-mark-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pack-mark-by {
+  color: var(--text-secondary);
+}
+
+.pack-mark-sub {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pack-mark-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(93, 202, 165, 0.2);
+  color: #5dcaa5;
+}
+
+.pack-mark-btn {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.pack-mark-btn.ok { color: #5dcaa5; }
+.pack-mark-btn.no { color: #e05c5c; }
+
+.pack-mark-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pack-marks-acceptall {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.pack-marks-empty {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  border-top: 1px solid var(--border-color);
+}
+

@@ -1,0 +1,26 @@
+[package]
+name = "dingo"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "dingo"
+path = "src/main.rs"
+
+[dependencies]
+dingo_core = { path = "../core" }
+dingo_enrich = { path = "../enrich" }
+dingo_export = { path = "../export" }
+dingo_geo = { path = "../geo" }
+dingo_ingest = { path = "../ingest" }
+dingo_google = { path = "../google" }
+clap.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow.workspace = true
+reqwest.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+serde.workspace = true

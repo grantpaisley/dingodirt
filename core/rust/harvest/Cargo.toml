@@ -1,0 +1,26 @@
+[package]
+name = "dingo_harvest"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "dingo-harvest"
+path = "src/main.rs"
+
+[dependencies]
+dingo_core = { path = "../core" }
+anyhow.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+reqwest.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+# Tile archive is a plain SQLite file in the standard MBTiles schema
+rusqlite = { version = "0.32", features = ["bundled"] }
+# Decode fetched PNGs to measure heat content (the descent/prune signal)
+image = { version = "0.25", default-features = false, features = ["png"] }
+# Jitter on the polite request pacing
+rand = "0.8"

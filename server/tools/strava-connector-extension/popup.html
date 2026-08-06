@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 300px; margin: 0; font: 13px/1.5 -apple-system, system-ui, sans-serif;
+           background: #1a1a1a; color: #eee; padding: 14px; }
+    h1 { font-size: 13px; margin: 0 0 10px; color: #fc5200; }
+    #status { min-height: 40px; font-size: 12px; white-space: pre-wrap; }
+    #status.err { color: #e0a030; }
+    #status.ok { color: #6bd06b; }
+    button { margin-top: 10px; width: 100%; padding: 7px 0; border: none; border-radius: 5px;
+             background: #fc5200; color: white; font-size: 13px; cursor: pointer; }
+    button:disabled { background: #333; cursor: default; }
+    .daemon { margin-top: 10px; font-size: 10px; color: #777; }
+    .daemon input { width: 100%; box-sizing: border-box; background: #111; color: #ccc;
+                    border: 1px solid #333; border-radius: 4px; padding: 4px 6px; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Dingo · Strava heatmap</h1>
+  <div id="status">Reading Strava cookies…</div>
+  <button id="retry">Connect again</button>
+  <div class="daemon">
+    Daemon URL
+    <input id="daemon" value="http://localhost:3000" />
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

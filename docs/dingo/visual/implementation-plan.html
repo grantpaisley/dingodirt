@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dingo — Implementation Plan &amp; Progress</title>
+<style>
+/* ============================================================
+   Dingo visual-docs shared design system.
+   Each generated HTML file must INLINE the full contents of this
+   file into its own <style> block (the files must be standalone —
+   no external stylesheet links, no CDN, no network requests).
+   ============================================================ */
+
+:root{
+  /* surfaces */
+  --bg:#f6f2ec;            /* warm paper background */
+  --surface:#fffdf9;       /* card surface */
+  --surface-2:#f0e9dd;     /* inset / subtle fill */
+  --surface-3:#e7dccb;     /* deeper inset */
+  /* ink */
+  --ink:#2a251f;           /* primary text (warm near-black) */
+  --ink-2:#574e43;         /* secondary text */
+  --muted:#857a6c;         /* muted/labels */
+  --line:#e1d7c7;          /* hairline borders */
+  --line-2:#cfc2ac;        /* stronger borders */
+  /* brand / accents (outback palette) */
+  --ochre:#c8772e;         /* dingo ochre — primary accent */
+  --ochre-soft:#f4e3cf;
+  --clay:#a8442a;          /* deep red clay */
+  --euc:#4a7c59;           /* eucalypt green */
+  --euc-soft:#dceade;
+  --sky:#3b6ea5;           /* sky blue — info/links */
+  --sand:#d9c7a3;
+  --charcoal:#33302b;
+  /* status semantics (consistent across ALL docs) */
+  --built:#4a7c59;         /* shipped / working */
+  --built-bg:#e3eee4;
+  --partial:#d18a1f;       /* stub / partial / TODO inside built code */
+  --partial-bg:#f7ead0;
+  --planned:#9a9081;       /* spec-only / not started */
+  --planned-bg:#ece6db;
+  /* type */
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  /* shape */
+  --radius:14px;
+  --radius-sm:8px;
+  --shadow:0 1px 2px rgba(42,37,31,.05),0 6px 20px rgba(42,37,31,.07);
+  --shadow-lg:0 10px 40px rgba(42,37,31,.13);
+  --maxw:1080px;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 12% -10%,#f0e6d6 0,transparent 45%),radial-gradient(circle at 100% 0,#efe7da 0,transparent 35%);
+  background-attachment:fixed;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px 96px}
+
+/* ---- hero / header ---- */
+.hero{padding:56px 0 28px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ochre);font-weight:600}
+.hero h1{font-size:clamp(28px,4.4vw,46px);line-height:1.08;margin:.35em 0 .25em;letter-spacing:-.02em}
+.hero p.lede{font-size:clamp(16px,1.9vw,20px);color:var(--ink-2);margin:.2em 0 0;max-width:62ch}
+.hero .meta{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+
+/* ---- section ---- */
+section{margin-top:48px;scroll-margin-top:24px}
+h2{font-size:clamp(21px,2.6vw,28px);letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+h2 .num{font-family:var(--mono);font-size:.62em;color:var(--ochre);font-weight:700}
+h3{font-size:17px;margin:26px 0 10px;color:var(--ink)}
+.section-intro{color:var(--ink-2);max-width:70ch;margin:0 0 18px}
+
+/* ---- cards ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:760px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ---- status badges (the shared legend vocabulary) ---- */
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;padding:3px 9px;border-radius:999px;text-transform:uppercase;white-space:nowrap;border:1px solid transparent}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%}
+.badge.built{color:#2f5a3b;background:var(--built-bg);border-color:#bcd6c0}
+.badge.built::before{background:var(--built)}
+.badge.partial{color:#8a5a06;background:var(--partial-bg);border-color:#e7cf9a}
+.badge.partial::before{background:var(--partial)}
+.badge.planned{color:#6a6155;background:var(--planned-bg);border-color:#d6cdbf}
+.badge.planned::before{background:var(--planned)}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:12px 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px}
+.legend b{font-weight:600}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tbody tr:hover{background:var(--surface-2)}
+td.mono,th.mono{font-family:var(--mono);font-size:12.5px}
+
+/* ---- pills / chips ---- */
+.chip{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:6px;background:var(--surface-3);color:var(--ink-2);border:1px solid var(--line-2)}
+.chip.accent{background:var(--ochre-soft);border-color:#e7cda6;color:#8a5212}
+
+/* ---- progress bars ---- */
+.bar{height:12px;border-radius:999px;background:var(--surface-3);overflow:hidden;position:relative}
+.bar > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--euc),#6fa97f)}
+.bar.partial > span{background:linear-gradient(90deg,var(--partial),#e6b35a)}
+
+/* ---- flow / pipeline ---- */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.node{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:12px 14px;position:relative;text-align:center}
+.node .lbl{font-weight:600;font-size:14px}
+.node .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.arrow{align-self:center;color:var(--ochre);font-size:20px;padding:0 6px;flex:0 0 auto}
+
+/* ---- callout ---- */
+.note{border-left:4px solid var(--ochre);background:var(--ochre-soft);padding:12px 16px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:14px;color:#6f4a16}
+.note.warn{border-left-color:var(--clay);background:#f6ddd4;color:#7a2c18}
+.note.ok{border-left-color:var(--euc);background:var(--built-bg);color:#2f5a3b}
+
+/* ---- code ---- */
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-3);padding:1px 6px;border-radius:5px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--charcoal);color:#ece3d3;padding:16px 18px;border-radius:var(--radius-sm);overflow:auto;line-height:1.5}
+pre .c{color:#b5a98f}
+
+/* ---- svg helpers ---- */
+.fig{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+text{font-family:var(--sans)}
+
+/* ---- footer ---- */
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+/* ---- TOC nav (optional sticky) ---- */
+.toc{position:sticky;top:0;z-index:20;background:rgba(246,242,236,.86);backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line);margin:0 -24px 0;padding:10px 24px;display:flex;gap:8px;flex-wrap:wrap;font-size:13px}
+.toc a{color:var(--ink-2);text-decoration:none;padding:4px 10px;border-radius:7px}
+.toc a:hover{background:var(--surface-3);color:var(--ink)}
+
+/* ============================================================
+   Page-specific rules (implementation-plan.html)
+   ============================================================ */
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat .big{font-size:clamp(40px,7vw,64px);line-height:1;font-weight:700;letter-spacing:-.03em;color:var(--ink)}
+.stat .big .pct{color:var(--ochre)}
+.stat .lbl{font-size:13px;color:var(--muted)}
+.compare{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+.compare .box{flex:1;min-width:150px;border-radius:var(--radius-sm);padding:14px 16px;border:1px solid var(--line)}
+.compare .box.doc{background:var(--planned-bg);border-color:#d6cdbf}
+.compare .box.real{background:var(--built-bg);border-color:#bcd6c0}
+.compare .box .n{font-size:30px;font-weight:700;letter-spacing:-.02em}
+.compare .box .k{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.compare .box.doc .n{color:#6a6155;text-decoration:line-through;text-decoration-color:#b3a892;text-decoration-thickness:2px}
+.compare .box.real .n{color:#2f5a3b}
+
+/* phase roadmap rows */
+.roadmap{display:flex;flex-direction:column;gap:0}
+.prow{display:grid;grid-template-columns:42px 1.35fr 150px 1fr;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:none}
+.prow .pid{font-family:var(--mono);font-weight:700;color:var(--ochre);font-size:13px}
+.prow .pname{font-weight:600;font-size:14.5px}
+.prow .pname small{display:block;font-weight:400;color:var(--muted);font-size:12px;font-family:var(--mono)}
+.prow .pbar{display:flex;flex-direction:column;gap:5px}
+.prow .pbar .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.prow .pwhat{font-size:13px;color:var(--ink-2)}
+.prow .pwhat .miss{color:var(--clay)}
+@media(max-width:760px){.prow{grid-template-columns:34px 1fr;gap:6px 12px}.prow .pbar,.prow .pwhat{grid-column:2}.prow>.badge{grid-column:2;justify-self:start}}
+
+/* corrections rows */
+tr.fixed td.was{color:#6a6155}
+tr.fixed td.now{color:#2f5a3b;font-weight:600}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi.b .n{color:var(--built)} .kpi.p .n{color:var(--partial)} .kpi.x .n{color:var(--planned)}
+
+.flow.future .node{opacity:.45;border-style:dashed}
+.flow.future .arrow{opacity:.5}
+.flow-wrap{display:flex;flex-direction:column;gap:6px}
+.flow-divider{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.flow-divider::before,.flow-divider::after{content:"";height:1px;background:var(--line);flex:1}
+.node.core{background:var(--euc-soft);border-color:#bcd6c0}
+ul.extras{margin:0;padding-left:0;list-style:none;display:grid;gap:10px}
+ul.extras li{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink-2)}
+ul.extras li .tag{flex:0 0 auto;margin-top:1px}
+</style>
+</head>
+<body>
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#headline">Progress</a>
+  <a href="#roadmap">Phase roadmap</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#extras">Built but unplanned</a>
+  <a href="#corrections">Corrections</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero" id="overview">
+    <div class="eyebrow">Dingo · Trail Knowledge System</div>
+    <h1>Dingo — Implementation Plan &amp; Progress</h1>
+    <p class="lede">A local-first, segment-centric trail knowledge system for off-road riding. Rust workspace
+      (backend + CLI) plus a React/TypeScript web UI. This dashboard maps the original implementation plan
+      against the code as it actually stands today.</p>
+    <div class="meta">
+      <span class="chip accent">Rust workspace</span>
+      <span class="chip">PostGIS 16</span>
+      <span class="chip">axum daemon</span>
+      <span class="chip">React · MapLibre · deck.gl</span>
+      <span class="chip">16 phases · 83 tasks</span>
+    </div>
+    <div class="legend" style="margin-top:18px">
+      <b>Status legend:</b>
+      <span class="badge built">Built</span> shipped &amp; working
+      <span class="badge partial">Partial</span> mostly done, gaps remain
+      <span class="badge planned">Planned</span> spec only, not started
+    </div>
+    <div class="note warn" style="margin-top:16px">
+      <b>Reviewed against code 2026-06-22 — the progress table in the source doc was stale.</b>
+      The plan's own table still marked phases 1.4 Areas, 1.5 Graph, 1.6 Matching, 1.7 Stats and 1.8 Scoring
+      as “Not started (0 complete)”. All five are in fact built and shipping CLI commands. Numbers below are
+      corrected against the actual crates and migrations; the doc's stated figures are shown alongside for honesty.
+    </div>
+  </header>
+
+  <!-- ============ HEADLINE PROGRESS ============ -->
+  <section id="headline">
+    <h2><span class="num">01</span> Headline progress</h2>
+    <p class="section-intro">Phases 0 and 1.1–1.9 are essentially complete (the working core: ingest → clean →
+      enrich → graph → match → stats → score → web UI). Everything from 1.10 onward — routes/export, Locus sync,
+      photos, ML and search — is not started.</p>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="stat">
+          <div class="big"><span class="pct">69%</span></div>
+          <div class="lbl">Corrected overall completion · 57 of 83 tasks built (incl. minor partials)</div>
+        </div>
+        <div class="compare">
+          <div class="box doc">
+            <div class="k">Doc claimed</div>
+            <div class="n">27 / 83</div>
+            <div class="lbl" style="font-size:12px;color:var(--muted)">≈ 33% — stale table</div>
+          </div>
+          <div class="box real">
+            <div class="k">Actual (verified)</div>
+            <div class="n">57 / 83</div>
+            <div class="lbl" style="font-size:12px;color:var(--muted)">≈ 69% — against code</div>
+          </div>
+        </div>
+        <div class="kpis" style="margin-top:18px">
+          <div class="kpi b"><div class="n">9</div><div class="k">Phases built</div></div>
+          <div class="kpi p"><div class="n">1</div><div class="k">Phase partial (1.9 UI)</div></div>
+          <div class="kpi x"><div class="n">6</div><div class="k">Phases planned</div></div>
+          <div class="kpi"><div class="n">16</div><div class="k">Phases total</div></div>
+        </div>
+      </div>
+
+      <!-- Donut: tasks built / partial / planned -->
+      <figure class="fig" style="margin:0">
+        <svg viewBox="0 0 360 230" role="img" aria-label="Donut of built, partial and planned tasks">
+          <!-- donut maths: 83 tasks. built≈55, partial≈2, planned≈26. circumference 2*pi*70 = 439.8 -->
+          <g transform="translate(110,115)">
+            <circle r="70" fill="none" stroke="var(--surface-3)" stroke-width="34"/>
+            <!-- built 55/83 = 66.3% -> 291.6 -->
+            <circle r="70" fill="none" stroke="var(--built)" stroke-width="34"
+              stroke-dasharray="291.6 148.2" stroke-dashoffset="0" transform="rotate(-90)"/>
+            <!-- partial 2/83 = 2.4% -> 10.6, offset -291.6 -->
+            <circle r="70" fill="none" stroke="var(--partial)" stroke-width="34"
+              stroke-dasharray="10.6 429.2" stroke-dashoffset="-291.6" transform="rotate(-90)"/>
+            <!-- planned 26/83 = 31.3% -> 137.6, offset -302.2 -->
+            <circle r="70" fill="none" stroke="var(--planned)" stroke-width="34"
+              stroke-dasharray="137.6 302.2" stroke-dashoffset="-302.2" transform="rotate(-90)"/>
+            <text y="-4" text-anchor="middle" font-size="30" font-weight="700" fill="var(--ink)">69%</text>
+            <text y="16" text-anchor="middle" font-size="12" fill="var(--muted)">complete</text>
+          </g>
+          <g transform="translate(225,72)" font-size="13" fill="var(--ink-2)">
+            <rect x="0" y="-9" width="12" height="12" rx="3" fill="var(--built)"/>
+            <text x="20" y="1">Built · 55 tasks</text>
+            <rect x="0" y="29" width="12" height="12" rx="3" fill="var(--partial)"/>
+            <text x="20" y="39">Partial · 2 tasks</text>
+            <rect x="0" y="67" width="12" height="12" rx="3" fill="var(--planned)"/>
+            <text x="20" y="77">Planned · 26 tasks</text>
+          </g>
+        </svg>
+        <figcaption>Task-level breakdown across all 83 plan tasks (partials counted toward the built total).</figcaption>
+      </figure>
+    </div>
+
+    <!-- stacked bar of phases by status -->
+    <figure class="fig" style="margin-top:16px">
+      <svg viewBox="0 0 720 64" role="img" aria-label="Stacked bar of phases by status">
+        <!-- 16 phases: built 9, partial 1, planned 6. widths over 700px -->
+        <g transform="translate(10,16)">
+          <rect x="0"     y="0" width="393.75" height="32" rx="6" fill="var(--built)"/>
+          <rect x="397.75" y="0" width="35.75"  height="32" rx="6" fill="var(--partial)"/>
+          <rect x="437.5" y="0" width="262.5"  height="32" rx="6" fill="var(--planned)"/>
+          <text x="196" y="21" text-anchor="middle" font-size="13" font-weight="600" fill="#fff">9 phases built</text>
+          <text x="415" y="-3" text-anchor="middle" font-size="11" fill="var(--partial)">1 partial</text>
+          <text x="568" y="21" text-anchor="middle" font-size="13" font-weight="600" fill="#fff">6 phases planned</text>
+        </g>
+      </svg>
+      <figcaption>Phase-level view: 9 of 16 phases fully built, 1 in progress (web UI), 6 not started.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ PHASE ROADMAP ============ -->
+  <section id="roadmap">
+    <h2><span class="num">02</span> Phase roadmap</h2>
+    <p class="section-intro">Every phase with its real completion bar, status, and a one-line note on what exists
+      versus what's missing. This is the corrected source of truth as of 2026-06-22.</p>
+
+    <div class="card">
+      <div class="roadmap">
+
+        <div class="prow">
+          <div class="pid">0</div>
+          <div class="pname">Project Scaffolding<small>workspace · DB · core types</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>4/4</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Cargo workspace, PostGIS docker, sqlx migrations, core crate types all in place.</div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.1</div>
+          <div class="pname">File Ingest<small>dingo ingest</small></div>
+          <div class="pbar"><div class="bar partial"><span style="width:92%"></span></div><div class="meta"><span>6/6</span><span>~92%</span></div></div>
+          <span class="badge partial">Partial</span>
+          <div class="pwhat">GPX + FIT parse, content-addressed file store, rides table. <span class="miss">KML / GeoJSON / TCX detected but not yet parsed.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.2</div>
+          <div class="pname">Ride Cleaning<small>dingo clean</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>6/6</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Jitter removal, RDP simplification, stop detection, cleaned time series stored.</div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.3</div>
+          <div class="pname">Context Enrichment<small>dingo enrich</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>6/6</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Open-Meteo weather, condition inference, solar / time-of-day, enrichment columns.</div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.4</div>
+          <div class="pname">Area Resolution<small>dingo area</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>4/4</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Area create / list / show + ride→area assignment exist. <b>Doc said “Not started” — wrong.</b></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.5</div>
+          <div class="pname">Segment Graph<small>dingo graph · ~1668 LOC</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>8/8</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Canonical geometry, snapping, matching, splitting, rematch queue, <code>graph rebuild/stats</code>. <b>Doc said “Not started” — wrong.</b></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.6</div>
+          <div class="pname">Run Matching<small>dingo match · ~971 LOC</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>6/6</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat">Runs table, ride→segment matching, run extraction, out-and-back detection, mode/condition. <b>Doc said “Not started” — wrong.</b></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.7</div>
+          <div class="pname">Segment Stats<small>dingo stats · ~853 LOC</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>5/5</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat"><code>segment_dir_stats</code>, aggregation, confidence tiers, <code>stats rebuild/show</code>. <b>Doc said “Not started” — wrong.</b></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.8</div>
+          <div class="pname">Dingo Scoring<small>dingo score</small></div>
+          <div class="pbar"><div class="bar"><span style="width:100%"></span></div><div class="meta"><span>6/6</span><span>100%</span></div></div>
+          <span class="badge built">Built</span>
+          <div class="pwhat"><code>segment_dir_dingo_score</code>, flow / tech / scenic / efficient profiles, <code>score rebuild/show</code>. <b>Doc said “Not started” — wrong.</b></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.9</div>
+          <div class="pname">Area Map &amp; Inspector<small>daemon + web UI</small></div>
+          <div class="pbar"><div class="bar partial"><span style="width:86%"></span></div><div class="meta"><span>6/7</span><span>~86%</span></div></div>
+          <span class="badge partial">Partial</span>
+          <div class="pwhat">Daemon serves <code>/api/rides</code> + <code>/api/segments</code>; three-pane React app, MapLibre + deck.gl, color-by HR/speed/elevation, filters. <span class="miss">Inspector still ride-centric, not yet segment-centric.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.10</div>
+          <div class="pname">Route Builder &amp; Export<small>routes / GPX·FIT·KML·GeoJSON</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/8</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat">A <code>routes</code> table exists, but <span class="miss">no route API/CLI and no export of any format.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">1.11</div>
+          <div class="pname">Locus Sync<small>dingo sync locus</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/4</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat"><span class="miss">Nothing built</span> — push/pull/bidirectional sync still spec only.</div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">2</div>
+          <div class="pname">Photos Foundation<small>google crate · OAuth</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/3</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat"><code>google</code> crate is a 1-line stub; <span class="miss">no photos table, no fetch pipeline.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">3</div>
+          <div class="pname">ML Bootstrap<small>vision crate</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/4</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat"><code>vision</code> crate is a 1-line stub; <span class="miss">no cloud inference, no POI suggestion flow.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">4</div>
+          <div class="pname">Search &amp; Discovery<small>LanceDB · embeddings</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/3</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat">lancedb is a declared dependency but <span class="miss">unused — no embeddings, no search endpoint.</span></div>
+        </div>
+
+        <div class="prow">
+          <div class="pid">5</div>
+          <div class="pname">Local ML<small>ONNX · hot-reload</small></div>
+          <div class="pbar"><div class="bar"><span style="width:0%"></span></div><div class="meta"><span>0/3</span><span>0%</span></div></div>
+          <span class="badge planned">Planned</span>
+          <div class="pwhat"><span class="miss">Not started</span> — training export, local backend, model hot-reload all pending.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section id="pipeline">
+    <h2><span class="num">03</span> The working pipeline vs the planned future</h2>
+    <p class="section-intro">The end-to-end core data pipeline runs today, from raw file all the way to a scored,
+      directional segment network rendered in the web UI. Everything downstream of that is still on the drawing board.</p>
+
+    <div class="flow-wrap">
+      <div class="flow-divider">Built core — works end to end</div>
+      <div class="flow">
+        <div class="node core"><div class="lbl">Ingest</div><div class="sub">GPX · FIT</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Clean</div><div class="sub">jitter · stops</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Enrich</div><div class="sub">weather · solar</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Graph</div><div class="sub">segments</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Match</div><div class="sub">runs</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Stats</div><div class="sub">per dir/mode</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Score</div><div class="sub">4 profiles</div></div>
+        <div class="arrow">→</div>
+        <div class="node core"><div class="lbl">Web UI</div><div class="sub">map · inspect</div></div>
+      </div>
+
+      <div class="flow-divider" style="margin-top:20px">Planned future — not started</div>
+      <div class="flow future">
+        <div class="node"><div class="lbl">Routes / Export</div><div class="sub">GPX·FIT·KML</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Locus Sync</div><div class="sub">push · pull</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Photos</div><div class="sub">Google · EXIF</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">ML</div><div class="sub">vision · POIs</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Search</div><div class="sub">LanceDB</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BUILT BUT UNPLANNED ============ -->
+  <section id="extras">
+    <h2><span class="num">04</span> Built but unplanned</h2>
+    <p class="section-intro">Several capabilities shipped that were never tasks in the original plan — mostly
+      richer modelling and web-UI analytics (see the doc's own 2025-12-30 note).</p>
+    <div class="card">
+      <ul class="extras">
+        <li><span class="badge built tag">Extra</span><span><b>Ride-mode enum</b> — adv / enduro / mtb / other, threaded through matching and stats for per-mode breakdowns.</span></li>
+        <li><span class="badge built tag">Extra</span><span><b>Multi-resolution geometry</b> — z10 / z14 simplified geometries for fast map rendering at different zoom levels.</span></li>
+        <li><span class="badge built tag">Extra</span><span><b>HR / speed gradient coloring</b> — per-point gradient coloring of tracks on the map with global min/max normalization for cross-ride consistency.</span></li>
+        <li><span class="badge built tag">Extra</span><span><b>Range filters</b> — HR and speed range filters that highlight matching portions on the map.</span></li>
+        <li><span class="badge built tag">Extra</span><span><b>Bottom graph pane</b> — an additional time-series graph pane in the web UI beyond the planned three-pane layout.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CORRECTIONS ============ -->
+  <section id="corrections">
+    <h2><span class="num">05</span> Corrections — where the source doc was wrong</h2>
+    <p class="section-intro">The plan's “Progress Tracking” table understated reality. Below is each phase the doc
+      mislabeled, with its verified status as of 2026-06-22. This is the “confirm it matches code” deliverable.</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>Doc said</th><th>Verified reality</th><th>Evidence</th><th class="mono">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr class="fixed">
+            <td class="mono">1.4 Areas</td>
+            <td class="was">Not started · 0/4</td>
+            <td class="now">Built · 4/4</td>
+            <td>area create/list/show + ride→area assign CLI</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr class="fixed">
+            <td class="mono">1.5 Graph</td>
+            <td class="was">Not started · 0/8</td>
+            <td class="now">Built · 8/8</td>
+            <td>graph crate ~1668 LOC; <code>graph rebuild/stats</code></td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr class="fixed">
+            <td class="mono">1.6 Matching</td>
+            <td class="was">Not started · 0/6</td>
+            <td class="now">Built · 6/6</td>
+            <td>match crate ~971 LOC; runs table; out-and-back</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr class="fixed">
+            <td class="mono">1.7 Stats</td>
+            <td class="was">Not started · 0/5</td>
+            <td class="now">Built · 5/5</td>
+            <td>stats crate ~853 LOC; <code>segment_dir_stats</code>; tiers</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr class="fixed">
+            <td class="mono">1.8 Scoring</td>
+            <td class="was">Not started · 0/6</td>
+            <td class="now">Built · 6/6</td>
+            <td><code>segment_dir_dingo_score</code>; flow/tech/scenic/efficient</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="mono">1.1 Ingest</td>
+            <td class="was">Complete · 6/6</td>
+            <td>Built, minor partial</td>
+            <td>KML/GeoJSON/TCX detected but not parsed</td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td class="mono">1.9 UI</td>
+            <td class="was">In progress · 5/7</td>
+            <td>Mostly built · ~6/7</td>
+            <td>inspector still ride-centric, not segment-centric</td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Total</td>
+            <td class="was">27 / 83 (≈33%)</td>
+            <td class="now">57 / 83 (≈69%)</td>
+            <td>+30 tasks once 1.4–1.8 counted as built</td>
+            <td><span class="badge built">Corrected</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note ok" style="margin-top:14px">
+        <b>Net effect:</b> reclassifying phases 1.4, 1.5, 1.6, 1.7 and 1.8 from “Not started” to “Built” adds 29
+        completed tasks; the working core of Dingo (ingest → score → web UI) is done. The remaining 26 open tasks
+        are all in the route/export, sync, photos, ML and search phases.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Dingo — Implementation Plan &amp; Progress dashboard</span>
+    <span>Reviewed against code · 2026-06-22 · source: Docs/dingo-implementation-plan.md</span>
+  </footer>
+
+</div>
+</body>
+</html>

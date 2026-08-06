@@ -1,0 +1,32 @@
+{
+    "version": "0.2",
+    "words": [
+        "AEST",
+        "anyhow",
+        "chrono",
+        "clap",
+        "dingo",
+        "figment",
+        "fitparser",
+        "geojson",
+        "gpx",
+        "haversine",
+        "Meteo",
+        "newtypes",
+        "Peucker",
+        "postgis",
+        "precip",
+        "Ramer",
+        "reqwest",
+        "serde",
+        "sqlx",
+        "SRID",
+        "thiserror",
+        "tokio",
+        "tracing"
+    ],
+    "ignorePaths": [
+        "target/",
+        "Cargo.lock"
+    ]
+}

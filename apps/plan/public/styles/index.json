@@ -1,0 +1,8 @@
+[
+  {
+    "id": "dingotopo",
+    "label": "Dingo Topo",
+    "description": "EOTopo-inspired Australian topo cartography on MapTiler tiles",
+    "url": "/styles/dingo-topo.json"
+  }
+]

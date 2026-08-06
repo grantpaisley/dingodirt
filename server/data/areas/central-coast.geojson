@@ -1,0 +1,19 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Central Coast",
+    "note": "Central Coast NSW practice area (Gosford/Wyong region) — bounding polygon for fast pipeline iteration. Child of Australia."
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [150.90, -33.65],
+        [151.70, -33.65],
+        [151.70, -32.90],
+        [150.90, -32.90],
+        [150.90, -33.65]
+      ]
+    ]
+  }
+}

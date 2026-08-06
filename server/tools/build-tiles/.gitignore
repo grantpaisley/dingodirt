@@ -1,0 +1,3 @@
+*.pmtiles
+tiles-spool/
+manifest.json

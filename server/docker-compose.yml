@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: dingo-db
+    environment:
+      POSTGRES_USER: dingo
+      POSTGRES_PASSWORD: dingo
+      POSTGRES_DB: dingo
+    ports:
+      - "5433:5432" # Using 5433 externally (5432 likely in use by local Postgres)
+    volumes:
+      - dingo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dingo -d dingo" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dingo_pgdata:

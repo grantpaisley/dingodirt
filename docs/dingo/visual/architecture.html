@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dingo — Architecture &amp; Design</title>
+<style>
+/* ============================================================
+   Dingo visual-docs shared design system.
+   Each generated HTML file must INLINE the full contents of this
+   file into its own <style> block (the files must be standalone —
+   no external stylesheet links, no CDN, no network requests).
+   ============================================================ */
+
+:root{
+  /* surfaces */
+  --bg:#f6f2ec;            /* warm paper background */
+  --surface:#fffdf9;       /* card surface */
+  --surface-2:#f0e9dd;     /* inset / subtle fill */
+  --surface-3:#e7dccb;     /* deeper inset */
+  /* ink */
+  --ink:#2a251f;           /* primary text (warm near-black) */
+  --ink-2:#574e43;         /* secondary text */
+  --muted:#857a6c;         /* muted/labels */
+  --line:#e1d7c7;          /* hairline borders */
+  --line-2:#cfc2ac;        /* stronger borders */
+  /* brand / accents (outback palette) */
+  --ochre:#c8772e;         /* dingo ochre — primary accent */
+  --ochre-soft:#f4e3cf;
+  --clay:#a8442a;          /* deep red clay */
+  --euc:#4a7c59;           /* eucalypt green */
+  --euc-soft:#dceade;
+  --sky:#3b6ea5;           /* sky blue — info/links */
+  --sand:#d9c7a3;
+  --charcoal:#33302b;
+  /* status semantics (consistent across ALL docs) */
+  --built:#4a7c59;         /* shipped / working */
+  --built-bg:#e3eee4;
+  --partial:#d18a1f;       /* stub / partial / TODO inside built code */
+  --partial-bg:#f7ead0;
+  --planned:#9a9081;       /* spec-only / not started */
+  --planned-bg:#ece6db;
+  /* type */
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  /* shape */
+  --radius:14px;
+  --radius-sm:8px;
+  --shadow:0 1px 2px rgba(42,37,31,.05),0 6px 20px rgba(42,37,31,.07);
+  --shadow-lg:0 10px 40px rgba(42,37,31,.13);
+  --maxw:1080px;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 12% -10%,#f0e6d6 0,transparent 45%),radial-gradient(circle at 100% 0,#efe7da 0,transparent 35%);
+  background-attachment:fixed;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px 96px}
+
+/* ---- hero / header ---- */
+.hero{padding:56px 0 28px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ochre);font-weight:600}
+.hero h1{font-size:clamp(28px,4.4vw,46px);line-height:1.08;margin:.35em 0 .25em;letter-spacing:-.02em}
+.hero p.lede{font-size:clamp(16px,1.9vw,20px);color:var(--ink-2);margin:.2em 0 0;max-width:62ch}
+.hero .meta{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+
+/* ---- section ---- */
+section{margin-top:48px;scroll-margin-top:24px}
+h2{font-size:clamp(21px,2.6vw,28px);letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+h2 .num{font-family:var(--mono);font-size:.62em;color:var(--ochre);font-weight:700}
+h3{font-size:17px;margin:26px 0 10px;color:var(--ink)}
+.section-intro{color:var(--ink-2);max-width:70ch;margin:0 0 18px}
+
+/* ---- cards ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:760px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ---- status badges (the shared legend vocabulary) ---- */
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em;padding:3px 9px;border-radius:999px;text-transform:uppercase;white-space:nowrap;border:1px solid transparent}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%}
+.badge.built{color:#2f5a3b;background:var(--built-bg);border-color:#bcd6c0}
+.badge.built::before{background:var(--built)}
+.badge.partial{color:#8a5a06;background:var(--partial-bg);border-color:#e7cf9a}
+.badge.partial::before{background:var(--partial)}
+.badge.planned{color:#6a6155;background:var(--planned-bg);border-color:#d6cdbf}
+.badge.planned::before{background:var(--planned)}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:12px 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px}
+.legend b{font-weight:600}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tbody tr:hover{background:var(--surface-2)}
+td.mono,th.mono{font-family:var(--mono);font-size:12.5px}
+
+/* ---- pills / chips ---- */
+.chip{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:6px;background:var(--surface-3);color:var(--ink-2);border:1px solid var(--line-2)}
+.chip.accent{background:var(--ochre-soft);border-color:#e7cda6;color:#8a5212}
+
+/* ---- progress bars ---- */
+.bar{height:12px;border-radius:999px;background:var(--surface-3);overflow:hidden;position:relative}
+.bar > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--euc),#6fa97f)}
+.bar.partial > span{background:linear-gradient(90deg,var(--partial),#e6b35a)}
+
+/* ---- flow / pipeline ---- */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.node{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:12px 14px;position:relative;text-align:center}
+.node .lbl{font-weight:600;font-size:14px}
+.node .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.arrow{align-self:center;color:var(--ochre);font-size:20px;padding:0 6px;flex:0 0 auto}
+
+/* ---- callout ---- */
+.note{border-left:4px solid var(--ochre);background:var(--ochre-soft);padding:12px 16px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:14px;color:#6f4a16}
+.note.warn{border-left-color:var(--clay);background:#f6ddd4;color:#7a2c18}
+.note.ok{border-left-color:var(--euc);background:var(--built-bg);color:#2f5a3b}
+
+/* ---- code ---- */
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-3);padding:1px 6px;border-radius:5px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--charcoal);color:#ece3d3;padding:16px 18px;border-radius:var(--radius-sm);overflow:auto;line-height:1.5}
+pre .c{color:#b5a98f}
+
+/* ---- svg helpers ---- */
+.fig{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+text{font-family:var(--sans)}
+
+/* ---- footer ---- */
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+/* ---- TOC nav (optional sticky) ---- */
+.toc{position:sticky;top:0;z-index:20;background:rgba(246,242,236,.86);backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line);margin:0 -24px 0;padding:10px 24px;display:flex;gap:8px;flex-wrap:wrap;font-size:13px}
+.toc a{color:var(--ink-2);text-decoration:none;padding:4px 10px;border-radius:7px}
+.toc a:hover{background:var(--surface-3);color:var(--ink)}
+
+/* ===== page-specific additions ===== */
+.meta .badge{font-size:11px}
+.status-tag{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;padding:2px 7px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
+.status-tag.built{color:#2f5a3b;background:var(--built-bg)}
+.status-tag.partial{color:#8a5a06;background:var(--partial-bg)}
+.status-tag.planned{color:#6a6155;background:var(--planned-bg)}
+.node.is-planned{opacity:.55;border-style:dashed;background:var(--surface-2)}
+.node.is-partial{border-color:var(--partial)}
+.node .st{margin-top:6px}
+.profile-feature{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0}
+.profile-feature .fname{flex:0 0 130px;color:var(--ink-2)}
+.minibar{flex:1;height:9px;border-radius:999px;background:var(--surface-3);position:relative;overflow:hidden}
+.minibar > i{position:absolute;top:0;bottom:0;display:block;border-radius:999px}
+.minibar.up > i{left:50%;background:var(--euc)}
+.minibar.down > i{right:50%;background:var(--clay)}
+.pn{font-family:var(--mono);font-size:11px;width:34px;text-align:center;color:var(--muted)}
+.legend-cell{display:flex;align-items:center;gap:7px}
+.kv{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.roadmap{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+@media(max-width:880px){.roadmap{grid-template-columns:repeat(2,1fr)}}
+.phase{border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:12px;background:var(--surface)}
+.phase h4{margin:0 0 4px;font-size:13px}
+.phase .ph-num{font-family:var(--mono);font-size:11px;color:var(--ochre);font-weight:700}
+.phase ul{margin:8px 0 0;padding-left:16px;font-size:12px;color:var(--ink-2)}
+.phase.is-planned{opacity:.62;background:var(--surface-2)}
+.entity-built{background:var(--built-bg)!important}
+.entity-planned{opacity:.65}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.split,.roadmap{grid-template-columns:1fr}.roadmap{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <a href="#legend">Status</a>
+  <a href="#arch">Architecture</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#data">Data Model</a>
+  <a href="#scoring">Dingo Scoring</a>
+  <a href="#roadmap">Roadmap</a>
+  <a href="#gaps">Spec vs Reality</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="eyebrow">Software Design Doc · Visualised</div>
+    <h1>Dingo — Architecture &amp; Design</h1>
+    <p class="lede">A local-first, segment-centric trail knowledge system for off-road riding. Segments — not GPX files — are the source of truth, scored per direction, mode, and condition.</p>
+    <div class="meta">
+      <span class="chip accent">Rust workspace</span>
+      <span class="chip accent">PostGIS</span>
+      <span class="chip accent">React + deck.gl</span>
+      <span class="chip">sqlx</span>
+      <span class="chip">MapLibre GL</span>
+      <span style="margin-left:auto">Reviewed 2026-06-22 against code</span>
+    </div>
+    <div class="legend" id="legend" style="margin-top:18px">
+      <b>Status legend:</b>
+      <span class="legend-cell"><span class="badge built">Built</span> shipped &amp; working in code</span>
+      <span class="legend-cell"><span class="badge partial">Partial</span> exists but stubbed / TODO</span>
+      <span class="legend-cell"><span class="badge planned">Planned</span> spec-only, not started</span>
+    </div>
+    <div class="note" style="margin-top:16px">
+      This document is largely a <b>forward-looking vision</b>. The diagrams below mark what is real
+      today vs. aspirational. As of 2026-06-22 the full ingest&nbsp;→&nbsp;score pipeline works via CLI;
+      the entire photos / ML / vector-search half of the spec is unbuilt.
+    </div>
+  </header>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section id="arch">
+    <h2><span class="num">01</span> System Architecture</h2>
+    <p class="section-intro">A Rust workspace of 11 crates: a shared <b>library layer</b>, two <b>runtimes</b> (daemon &amp; CLI), and two <b>stubs</b> (google, vision). The web UI talks to the daemon over HTTP; the CLI and daemon both connect directly to PostGIS.</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System architecture diagram">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#c8772e"/>
+          </marker>
+        </defs>
+        <style>
+          .box{rx:8;stroke-width:1.2}
+          .lbuilt{fill:#e3eee4;stroke:#bcd6c0}
+          .lstub{fill:#ece6db;stroke:#d6cdbf;stroke-dasharray:4 3}
+          .lext{fill:#fffdf9;stroke:#cfc2ac}
+          .lextu{fill:#ece6db;stroke:#d6cdbf;stroke-dasharray:4 3}
+          .lrun{fill:#f4e3cf;stroke:#e7cda6}
+          .t{font-family:var(--sans);fill:#2a251f}
+          .tt{font-family:var(--sans);font-weight:600;font-size:13px;fill:#2a251f}
+          .ts{font-family:var(--mono);font-size:10px;fill:#857a6c}
+          .grouplbl{font-family:var(--mono);font-size:11px;fill:#857a6c;letter-spacing:.08em;text-transform:uppercase}
+          .rel{stroke:#c8772e;stroke-width:1.6;fill:none}
+        </style>
+
+        <!-- Library layer group -->
+        <rect x="20" y="48" width="560" height="180" rx="12" fill="#f0e9dd" stroke="#e1d7c7"/>
+        <text class="grouplbl" x="34" y="40">Library layer · Built</text>
+        <!-- 7 lib crates -->
+        <g>
+          <rect class="box lbuilt" x="36" y="64" width="120" height="64"/>
+          <text class="tt" x="96" y="92" text-anchor="middle">core</text>
+          <text class="ts" x="96" y="108" text-anchor="middle">types · DB · ids</text>
+
+          <rect class="box lbuilt" x="168" y="64" width="120" height="64"/>
+          <text class="tt" x="228" y="92" text-anchor="middle">geo</text>
+          <text class="ts" x="228" y="108" text-anchor="middle">jitter · snap</text>
+
+          <rect class="box lbuilt" x="300" y="64" width="120" height="64"/>
+          <text class="tt" x="360" y="92" text-anchor="middle">ingest</text>
+          <text class="ts" x="360" y="108" text-anchor="middle">FIT/GPX · store</text>
+
+          <rect class="box lbuilt" x="432" y="64" width="132" height="64"/>
+          <text class="tt" x="498" y="92" text-anchor="middle">enrich</text>
+          <text class="ts" x="498" y="108" text-anchor="middle">weather · solar</text>
+
+          <rect class="box lbuilt" x="36" y="146" width="120" height="64"/>
+          <text class="tt" x="96" y="174" text-anchor="middle">graph</text>
+          <text class="ts" x="96" y="190" text-anchor="middle">segment net</text>
+
+          <rect class="box lbuilt" x="168" y="146" width="120" height="64"/>
+          <text class="tt" x="228" y="174" text-anchor="middle">match</text>
+          <text class="ts" x="228" y="190" text-anchor="middle">ride→runs</text>
+
+          <rect class="box lbuilt" x="300" y="146" width="120" height="64"/>
+          <text class="tt" x="360" y="174" text-anchor="middle">stats</text>
+          <text class="ts" x="360" y="190" text-anchor="middle">agg · scoring</text>
+        </g>
+
+        <!-- Stubs -->
+        <rect class="box lstub" x="432" y="146" width="132" height="64"/>
+        <text class="tt" x="498" y="170" text-anchor="middle">google</text>
+        <text class="ts" x="498" y="185" text-anchor="middle">1-line stub</text>
+        <text class="ts" x="498" y="200" text-anchor="middle">PLANNED</text>
+
+        <!-- Runtimes -->
+        <text class="grouplbl" x="34" y="262">Runtimes · Built</text>
+        <rect class="box lrun" x="36" y="276" width="250" height="70"/>
+        <text class="tt" x="161" y="304" text-anchor="middle">daemon  (dingo-server)</text>
+        <text class="ts" x="161" y="322" text-anchor="middle">axum API · /api/rides · /api/segments</text>
+
+        <rect class="box lrun" x="300" y="276" width="264" height="70"/>
+        <text class="tt" x="432" y="304" text-anchor="middle">cli  (dingo)</text>
+        <text class="ts" x="432" y="322" text-anchor="middle">ingest · clean · enrich · graph · match …</text>
+
+        <!-- vision stub bottom -->
+        <rect class="box lstub" x="36" y="362" width="250" height="58"/>
+        <text class="tt" x="161" y="386" text-anchor="middle">vision</text>
+        <text class="ts" x="161" y="402" text-anchor="middle">ML inference — 1-line stub · PLANNED</text>
+
+        <!-- External column -->
+        <text class="grouplbl" x="638" y="40">External / infra</text>
+        <rect class="box lext" x="638" y="56" width="320" height="64"/>
+        <text class="tt" x="798" y="84" text-anchor="middle">PostGIS 16  (localhost:5433)</text>
+        <text class="ts" x="798" y="102" text-anchor="middle">22 migrations · source of truth · Built</text>
+
+        <rect class="box lextu" x="638" y="134" width="155" height="64"/>
+        <text class="tt" x="715" y="158" text-anchor="middle">LanceDB</text>
+        <text class="ts" x="715" y="174" text-anchor="middle">declared dep,</text>
+        <text class="ts" x="715" y="188" text-anchor="middle">UNUSED · PLANNED</text>
+
+        <rect class="box lext" x="803" y="134" width="155" height="64"/>
+        <text class="tt" x="880" y="158" text-anchor="middle">Open-Meteo</text>
+        <text class="ts" x="880" y="174" text-anchor="middle">weather API</text>
+        <text class="ts" x="880" y="188" text-anchor="middle">Built (enrich)</text>
+
+        <rect class="box lbuilt" x="638" y="276" width="320" height="70"/>
+        <text class="tt" x="798" y="300" text-anchor="middle">web UI</text>
+        <text class="ts" x="798" y="318" text-anchor="middle">React + TS + Vite + MapLibre + deck.gl</text>
+        <text class="ts" x="798" y="333" text-anchor="middle">Vite :5173 · mostly built</text>
+
+        <!-- relationships -->
+        <!-- daemon <-> web (HTTP) -->
+        <path class="rel" d="M286,300 H560 M560,300 H638" marker-end="url(#ah)" marker-start="url(#ah)"/>
+        <text class="ts" x="600" y="292" text-anchor="middle">HTTP /api</text>
+        <!-- daemon -> DB -->
+        <path class="rel" d="M210,276 V250 H700 V120" marker-end="url(#ah)"/>
+        <text class="ts" x="455" y="244" text-anchor="middle">daemon → PostGIS (sqlx pool)</text>
+        <!-- cli -> DB -->
+        <path class="rel" d="M520,276 V258 H880 V120" marker-end="url(#ah)"/>
+        <text class="ts" x="700" y="252" text-anchor="middle">cli → PostGIS</text>
+      </svg>
+      <figcaption>Solid boxes = built &amp; substantial. Dashed = stub or unused dependency. The event bus the doc describes does not yet exist — both runtimes drive the DB directly.</figcaption>
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section id="pipeline">
+    <h2><span class="num">02</span> The Processing Pipeline</h2>
+    <p class="section-intro">Raw ride history is turned into a scored trail network through a fixed sequence of stages. The first seven stages are fully built and runnable today; the photo/ML tail is entirely planned.</p>
+
+    <div class="card">
+      <div class="flow">
+        <div class="node"><div class="lbl">Ingest</div><div class="sub">FIT · GPX</div><div class="st"><span class="status-tag built">Built</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Clean</div><div class="sub">jitter · stops</div><div class="st"><span class="status-tag built">Built</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Enrich</div><div class="sub">weather · solar</div><div class="st"><span class="status-tag built">Built</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node is-partial"><div class="lbl">Graph</div><div class="sub">segment build</div><div class="st"><span class="status-tag partial">Partial</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Match</div><div class="sub">runs</div><div class="st"><span class="status-tag built">Built</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Stats</div><div class="sub">aggregate</div><div class="st"><span class="status-tag built">Built</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="lbl">Score</div><div class="sub">dingo</div><div class="st"><span class="status-tag built">Built</span></div></div>
+      </div>
+      <div class="flow" style="margin-top:14px;opacity:.85">
+        <div class="arrow" style="color:var(--planned)">⇢</div>
+        <div class="node is-planned"><div class="lbl">Photos</div><div class="sub">Google Photos</div><div class="st"><span class="status-tag planned">Planned</span></div></div>
+        <div class="arrow" style="color:var(--planned)">⇢</div>
+        <div class="node is-planned"><div class="lbl">ML</div><div class="sub">vision labels</div><div class="st"><span class="status-tag planned">Planned</span></div></div>
+        <div class="arrow" style="color:var(--planned)">⇢</div>
+        <div class="node is-planned"><div class="lbl">POI suggest</div><div class="sub">review queue</div><div class="st"><span class="status-tag planned">Planned</span></div></div>
+        <div class="arrow" style="color:var(--planned)">⇢</div>
+        <div class="node is-planned"><div class="lbl">Embed</div><div class="sub">vector search</div><div class="st"><span class="status-tag planned">Planned</span></div></div>
+      </div>
+
+      <div class="note warn" style="margin-top:18px">
+        <b>Reality vs. spec — orchestration.</b> The doc describes an event-driven bus
+        (Postgres <code>LISTEN/NOTIFY</code>, an outbox table, a file watcher, and a chain
+        <code>ride_ingested → ride_cleaned → … → photos_analysed</code>). <b>None of that is built.</b>
+        Today the pipeline is <b>CLI-stage-driven</b>: you run <code>dingo ingest</code>, then
+        <code>clean</code>, <code>enrich</code>, <code>graph</code>, <code>match</code>, <code>stats</code>,
+        <code>score</code> as explicit commands. The event bus is the planned future.
+      </div>
+      <div class="note" style="margin-top:10px">
+        <b>Graph stage is Partial.</b> Segment build exists, but the daemon's <code>create_segment</code>
+        consensus-geometry algorithm is a TODO. The project has also <b>pivoted from automatic graph
+        building to user-defined segments</b> (drawn in the UI from selected runs) — see §06.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DATA MODEL ============ -->
+  <section id="data">
+    <h2><span class="num">03</span> Data Model</h2>
+    <p class="section-intro">PostGIS holds 22 migrations. The ride/segment/run/stats core is fully built; every photo, POI, ML, and queue entity from the spec has <b>no table</b> yet.</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 980 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Core entity relationship">
+        <defs>
+          <marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#574e43"/>
+          </marker>
+        </defs>
+        <style>
+          .e{rx:8;fill:#e3eee4;stroke:#bcd6c0;stroke-width:1.2}
+          .en{font-family:var(--sans);font-weight:600;font-size:14px;fill:#2a251f}
+          .es{font-family:var(--mono);font-size:10px;fill:#857a6c}
+          .ln{stroke:#574e43;stroke-width:1.4;fill:none}
+          .lt{font-family:var(--mono);font-size:11px;fill:#574e43}
+        </style>
+
+        <!-- segment -->
+        <rect class="e" x="40" y="120" width="150" height="60"/>
+        <text class="en" x="115" y="146" text-anchor="middle">segment</text>
+        <text class="es" x="115" y="164" text-anchor="middle">UUID · geom_hash</text>
+
+        <!-- 2 segment_dirs -->
+        <rect class="e" x="290" y="60" width="160" height="56"/>
+        <text class="en" x="370" y="84" text-anchor="middle">segment_dir A→B</text>
+        <text class="es" x="370" y="101" text-anchor="middle">directed edge</text>
+        <rect class="e" x="290" y="184" width="160" height="56"/>
+        <text class="en" x="370" y="208" text-anchor="middle">segment_dir B→A</text>
+        <text class="es" x="370" y="225" text-anchor="middle">directed edge</text>
+
+        <!-- runs -->
+        <rect class="e" x="560" y="120" width="150" height="60"/>
+        <text class="en" x="635" y="146" text-anchor="middle">runs</text>
+        <text class="es" x="635" y="164" text-anchor="middle">one traversal</text>
+
+        <!-- rides -->
+        <rect class="e" x="800" y="120" width="150" height="60"/>
+        <text class="en" x="875" y="146" text-anchor="middle">rides</text>
+        <text class="es" x="875" y="164" text-anchor="middle">timestamped</text>
+
+        <!-- relations -->
+        <path class="ln" d="M190,142 L290,90" marker-end="url(#ah2)"/>
+        <path class="ln" d="M190,158 L290,210" marker-end="url(#ah2)"/>
+        <text class="lt" x="232" y="108">1 : 2</text>
+
+        <path class="ln" d="M450,90 L560,140" marker-end="url(#ah2)"/>
+        <path class="ln" d="M450,210 L560,162" marker-end="url(#ah2)"/>
+        <text class="lt" x="500" y="118">has many</text>
+
+        <path class="ln" d="M800,150 L710,150" marker-end="url(#ah2)"/>
+        <text class="lt" x="730" y="140">produces</text>
+
+        <!-- stats/scores hang off segment_dir -->
+        <text class="es" x="370" y="270" text-anchor="middle">segment_dir → segment_dir_stats + segment_dir_dingo_score  (per mode × condition × profile)</text>
+      </svg>
+      <figcaption>Key relationship: <b>segment → 2 segment_dirs → runs ← rides</b>. Stats and Dingo scores are keyed on each directed edge.</figcaption>
+    </div>
+
+    <div class="split" style="margin-top:18px">
+      <div class="card">
+        <h3 style="margin-top:0">Built entities <span class="badge built">Built</span></h3>
+        <div class="kv">
+          <span class="chip">areas</span>
+          <span class="chip">files</span>
+          <span class="chip">rides</span>
+          <span class="chip">routes</span>
+          <span class="chip">segments</span>
+          <span class="chip">segment_dirs</span>
+          <span class="chip">runs</span>
+          <span class="chip">segment_dir_stats</span>
+          <span class="chip">segment_dir_dingo_score</span>
+        </div>
+        <p class="es" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:12px">
+          Migrations cover speed, time-stats, HR, stopped-variance, feature-extraction, out_and_back,
+          unreviewed-visibility, fit-metadata, name-metadata, multi-res geometry (z10/z14), the
+          ride_mode enum, and a restructured stats + scores layout.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Spec entities with no table <span class="badge planned">Planned</span></h3>
+        <div class="kv">
+          <span class="chip">photos</span>
+          <span class="chip">photo_labels</span>
+          <span class="chip">pois</span>
+          <span class="chip">poi_suggestions</span>
+          <span class="chip">ml_training_queue</span>
+          <span class="chip">rematch_queue</span>
+        </div>
+        <p class="es" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:12px">
+          The spec lists all of these as "core entities". None exist in migrations. Vector
+          search (LanceDB <code>segment_embeddings</code> / <code>photo_embeddings</code>) is likewise unbuilt.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCORING ============ -->
+  <section id="scoring">
+    <h2><span class="num">04</span> Dingo Scoring <span class="badge built">Built</span></h2>
+    <p class="section-intro">The score is a weighted sum of normalised features (0–100), computed per (segment_dir, mode, condition, profile). Four profiles weight features up (green) or down (red).</p>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0">flow <span class="chip accent">fast &amp; flowing</span></h3>
+        <div class="profile-feature"><span class="fname">speed</span><span class="minibar up"><i style="width:42%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">twistiness</span><span class="minibar up"><i style="width:36%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">stops</span><span class="minibar down"><i style="width:34%"></i></span><span class="pn">−</span></div>
+        <div class="profile-feature"><span class="fname">elevation gain</span><span class="minibar down"><i style="width:28%"></i></span><span class="pn">−</span></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">tech <span class="chip accent">technical effort</span></h3>
+        <div class="profile-feature"><span class="fname">pace_vs_shape</span><span class="minibar up"><i style="width:44%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">hr_intensity</span><span class="minibar up"><i style="width:38%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">speed</span><span class="minibar down"><i style="width:32%"></i></span><span class="pn">−</span></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">scenic <span class="chip accent">low stress</span></h3>
+        <div class="profile-feature"><span class="fname">low stress</span><span class="minibar up"><i style="width:40%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">stop_density</span><span class="minibar down"><i style="width:34%"></i></span><span class="pn">−</span></div>
+        <div class="profile-feature"><span class="fname">elevation gain</span><span class="minibar down"><i style="width:30%"></i></span><span class="pn">−</span></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">efficient <span class="chip accent">get there</span></h3>
+        <div class="profile-feature"><span class="fname">speed</span><span class="minibar up"><i style="width:46%"></i></span><span class="pn">+</span></div>
+        <div class="profile-feature"><span class="fname">stops</span><span class="minibar down"><i style="width:34%"></i></span><span class="pn">−</span></div>
+        <div class="profile-feature"><span class="fname">gates / overgrown</span><span class="minibar down"><i style="width:30%"></i></span><span class="pn">−</span></div>
+      </div>
+    </div>
+    <div class="note ok" style="margin-top:14px">
+      Feature extraction (length, grade, twistiness, pace_vs_shape, stop_density, hr_intensity) and all
+      four profiles are implemented in the <code>stats</code> crate and runnable via <code>dingo score rebuild</code>.
+      Note: surface/obstacle features that depend on photos are deferred — those inputs are zero until the photo pipeline exists.
+    </div>
+  </section>
+
+  <!-- ============ ROADMAP ============ -->
+  <section id="roadmap">
+    <h2><span class="num">05</span> Roadmap / Phase Status</h2>
+    <p class="section-intro">The spec's "MVP Build Order" has garbled phase numbering (Phase 3, 4 and 5 each appear twice). Below is the corrected, reality-checked view.</p>
+
+    <div class="roadmap">
+      <div class="phase">
+        <div class="ph-num">Phase 1</div>
+        <h4>Core Pipeline</h4>
+        <div><span class="badge built">Built</span></div>
+        <ul><li>FIT/GPX ingest</li><li>Cleaning</li><li>Enrichment</li><li>Areas</li><li>Stats + score</li></ul>
+      </div>
+      <div class="phase">
+        <div class="ph-num">Phase 2</div>
+        <h4>UI Foundation</h4>
+        <div><span class="badge built">Built</span></div>
+        <ul><li>Axum API</li><li>Multi-res geom</li><li>3-pane layout</li><li>MapLibre + deck.gl</li></ul>
+      </div>
+      <div class="phase">
+        <div class="ph-num">Phase 3</div>
+        <h4>User-Defined Segments</h4>
+        <div><span class="badge partial">Partial</span></div>
+        <ul><li>Segment create endpoint</li><li>Consensus geom = TODO</li><li>Run ↔ segment assoc</li></ul>
+      </div>
+      <div class="phase is-planned">
+        <div class="ph-num">Phase 4</div>
+        <h4>Route Planning</h4>
+        <div><span class="badge planned">Planned</span></div>
+        <ul><li>Routes from segments</li><li>Valhalla bridging</li><li>Export · Locus sync</li></ul>
+      </div>
+      <div class="phase is-planned">
+        <div class="ph-num">Phase 5</div>
+        <h4>Photos + ML</h4>
+        <div><span class="badge planned">Planned</span></div>
+        <ul><li>Google OAuth + fetch</li><li>Photo→segment match</li><li>Cloud ML · POI flow</li></ul>
+      </div>
+      <div class="phase is-planned">
+        <div class="ph-num">Phase 6</div>
+        <h4>Search &amp; Local ML</h4>
+        <div><span class="badge planned">Planned</span></div>
+        <ul><li>Vector embeddings</li><li>Photo search UI</li><li>Local model train</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SPEC VS REALITY ============ -->
+  <section id="gaps">
+    <h2><span class="num">06</span> Spec vs. Reality — Honest Gaps</h2>
+    <p class="section-intro">Where the design doc and the actual code diverge as of 2026-06-22.</p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Doc says</th><th>Reality</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Photos / ML / vector search</b></td>
+            <td>Google Photos fetch, ONNX + cloud vision, POI suggestions, training pipeline, LanceDB semantic search</td>
+            <td><code>google</code> &amp; <code>vision</code> are 1-line stubs; LanceDB declared but unused; no photo/POI/ML tables</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td><b>Event coordination</b></td>
+            <td>LISTEN/NOTIFY + outbox + file watcher; event chain ride_ingested→…→photos_analysed</td>
+            <td>Not implemented — pipeline is CLI-stage-driven via explicit commands</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td><b>Graph building</b></td>
+            <td>Automatic segment discovery / match / fork / split from rides</td>
+            <td>Pivoted to <b>user-defined segments</b> drawn in the UI; daemon consensus-geometry is a TODO</td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td><b>Riding modes</b></td>
+            <td>ADV / Enduro / eBike</td>
+            <td>Actual <code>ride_mode</code> enum = <code>adv, enduro, mtb, other</code> — <b>no eBike</b></td>
+            <td><span class="badge built">Built (differs)</span></td>
+          </tr>
+          <tr>
+            <td><b>Parsers</b></td>
+            <td>FIT, GPX, KML, GeoJSON, TCX</td>
+            <td>FIT &amp; GPX parse; KML/GeoJSON/TCX are in the FileFormat enum but <b>detection only, no parser</b></td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td><b>CLI surface</b></td>
+            <td>+ export, sync locus, photos, ml, auth google, queue</td>
+            <td>Present: ingest, clean, enrich, graph, match, stats, score, name, area, segment. The rest don't exist</td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td><b>Daemon API</b></td>
+            <td>rides, segments, areas, routes, photo serving, semantic search</td>
+            <td>Present: <code>/api/rides</code> (+points, PATCH mode) and <code>/api/segments</code> (CRUD). Others absent</td>
+            <td><span class="badge partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td><b>Doc bug</b></td>
+            <td>"MVP Build Order" lists Phase 1–5</td>
+            <td>Phase 3, 4, 5 each appear <b>twice</b> with duplicated numbering — see corrected roadmap §05</td>
+            <td><span class="badge planned">Doc fix</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note ok" style="margin-top:16px">
+      <b>Bottom line.</b> The "trail knowledge from rides" half of Dingo — ingest, clean, enrich, segment
+      build, run match, stats, and Dingo scoring — is real and works end-to-end via CLI. The "photo
+      intelligence" half — Google Photos, ML vision, POIs, vector search — and the event-driven
+      orchestration remain entirely on the drawing board.
+    </div>
+  </section>
+
+  <footer>
+    <span>Dingo — Architecture &amp; Design · visual companion to <code>Docs/dingo-architecture-design.md</code></span>
+    <span>Reviewed against code 2026-06-22</span>
+  </footer>
+
+</div>
+</body>
+</html>

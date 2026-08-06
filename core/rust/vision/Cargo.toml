@@ -1,0 +1,11 @@
+[package]
+name = "dingo_vision"
+version.workspace = true
+edition.workspace = true
+
+# This crate is a Phase 3+ stub — src/lib.rs is a single doc comment. Its deps
+# were declared up front but nothing imports them, and `ort` (ONNX Runtime) is
+# expensive to build, so they are parked in [workspace.dependencies] at the repo
+# root instead. Add them back here (`ort.workspace = true`, etc.) when the photo
+# ML pipeline actually lands.
+[dependencies]

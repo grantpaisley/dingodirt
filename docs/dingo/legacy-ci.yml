@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. force-pushes to a PR branch).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust — check & test
+    runs-on: ubuntu-latest
+
+    # The workspace uses sqlx compile-time-checked `query!` macros against a live
+    # database (the .sqlx offline cache is gitignored), so a PostGIS instance must
+    # be up with the schema applied BEFORE anything is compiled.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: dingo
+          POSTGRES_PASSWORD: dingo
+          POSTGRES_DB: dingo
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U dingo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://dingo:dingo@localhost:5433/dingo
+      # Full debuginfo is the single biggest contributor to target-dir size and is
+      # useless here — nothing debugs a CI run interactively, and panics still carry
+      # file/line with line-tables. Belt-and-braces against the disk exhaustion that
+      # red-lined this job for days; CI-only, so local `cargo build` is unaffected.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apply migrations with psql (preinstalled on the runner) rather than
+      # sqlx-cli, so we don't pay to compile the CLI just to create the schema.
+      # The first migration enables the postgis/uuid-ossp extensions.
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.sql; do
+            echo "→ $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check (all targets)
+        run: cargo check --workspace --all-targets
+
+      - name: Test
+        run: cargo test --workspace
+
+  web:
+    name: Web — type-check & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # `npm run build` runs `tsc -b && vite build`, so this covers type-checking too.
+      - run: npm run build

@@ -1,0 +1,41 @@
+[package]
+name = "dingo_daemon"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "dingo-server"
+path = "src/main.rs"
+
+[dependencies]
+dingo_core = { path = "../core" }
+dingo_enrich = { path = "../enrich" }
+dingo_export = { path = "../export" }
+dingo_geo = { path = "../geo" }
+dingo_google = { path = "../google" }
+dingo_ingest = { path = "../ingest" }
+dingo_harvest = { path = "../harvest" }
+anyhow.workspace = true
+# Corridor polygon: parse the PostGIS buffer's GeoJSON, test tile bounds against it
+geo.workspace = true
+geojson.workspace = true
+# Bundle download endpoint zips the built folder in memory
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# base64 the .dingonav zip into the GitHub Contents API body for tile-carrying shares
+base64 = "0.22"
+# Serve-time colourisation of grayscale heat tiles (MapLibre GL has no raster-color)
+image = { version = "0.25", default-features = false, features = ["png"] }
+axum = { workspace = true, features = ["multipart", "macros"] }
+# Strava heatmap tile proxy (server-side fetch with cached CloudFront cookies)
+reqwest.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true

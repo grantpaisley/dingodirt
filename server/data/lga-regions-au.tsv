@@ -1,0 +1,249 @@
+# LGA -> region mapping — state<TAB>LGA<TAB>region
+# "Region" is not a formal AU admin level; these are curated colloquial/rider
+# regions (e.g. "Snowy Mountains", "Kimberley"), keyed by state+LGA because LGA
+# names collide across states (Central Coast NSW vs TAS). Edit freely and re-run
+# `dingo gazetteer load-regions data/lga-regions-au.tsv` then `dingo name --rides-all`.
+# A row with an empty LGA is the state-wide default (used for ACT).
+# Covers every LGA Grant's rides touch plus neighbours; unmapped LGAs get NULL region.
+ACT		Canberra
+NSW	Bayside	Sydney
+NSW	Blacktown	Sydney
+NSW	Burwood	Sydney
+NSW	Camden	Sydney
+NSW	Campbelltown	Sydney
+NSW	Canada Bay	Sydney
+NSW	Canterbury-Bankstown	Sydney
+NSW	Cumberland	Sydney
+NSW	Fairfield	Sydney
+NSW	Georges River	Sydney
+NSW	Hornsby	Sydney
+NSW	Hunters Hill	Sydney
+NSW	Inner West	Sydney
+NSW	Ku-ring-gai	Sydney
+NSW	Lane Cove	Sydney
+NSW	Liverpool	Sydney
+NSW	Mosman	Sydney
+NSW	North Sydney	Sydney
+NSW	Northern Beaches	Sydney
+NSW	Parramatta	Sydney
+NSW	Penrith	Sydney
+NSW	Randwick	Sydney
+NSW	Ryde	Sydney
+NSW	Strathfield	Sydney
+NSW	Sutherland	Sydney
+NSW	Sydney	Sydney
+NSW	The Hills	Sydney
+NSW	Waverley	Sydney
+NSW	Willoughby	Sydney
+NSW	Wollondilly	Sydney
+NSW	Woollahra	Sydney
+NSW	Hawkesbury	Hawkesbury
+NSW	Blue Mountains	Blue Mountains
+NSW	Central Coast	Central Coast
+NSW	Cessnock	Hunter
+NSW	Dungog	Hunter
+NSW	Lake Macquarie	Hunter
+NSW	Maitland	Hunter
+NSW	Muswellbrook	Hunter
+NSW	Newcastle	Hunter
+NSW	Port Stephens	Hunter
+NSW	Singleton	Hunter
+NSW	Upper Hunter	Hunter
+NSW	Mid-Coast	Mid North Coast
+NSW	Port Macquarie-Hastings	Mid North Coast
+NSW	Kempsey	Mid North Coast
+NSW	Nambucca	Mid North Coast
+NSW	Bellingen	Mid North Coast
+NSW	Coffs Harbour	Mid North Coast
+NSW	Ballina	Northern Rivers
+NSW	Byron	Northern Rivers
+NSW	Clarence Valley	Northern Rivers
+NSW	Kyogle	Northern Rivers
+NSW	Lismore	Northern Rivers
+NSW	Richmond Valley	Northern Rivers
+NSW	Tweed	Northern Rivers
+NSW	Armidale	New England
+NSW	Glen Innes Severn	New England
+NSW	Gunnedah	New England
+NSW	Gwydir	New England
+NSW	Inverell	New England
+NSW	Liverpool Plains	New England
+NSW	Moree Plains	New England
+NSW	Narrabri	New England
+NSW	Tamworth	New England
+NSW	Tenterfield	New England
+NSW	Uralla	New England
+NSW	Walcha	New England
+NSW	Bathurst	Central Tablelands
+NSW	Blayney	Central Tablelands
+NSW	Cabonne	Central Tablelands
+NSW	Lithgow	Central Tablelands
+NSW	Oberon	Central Tablelands
+NSW	Orange	Central Tablelands
+NSW	Cowra	Central West
+NSW	Forbes	Central West
+NSW	Lachlan	Central West
+NSW	Mid-Western	Central West
+NSW	Parkes	Central West
+NSW	Weddin	Central West
+NSW	Bogan	Orana
+NSW	Coonamble	Orana
+NSW	Dubbo	Orana
+NSW	Gilgandra	Orana
+NSW	Narromine	Orana
+NSW	Walgett	Orana
+NSW	Warren	Orana
+NSW	Warrumbungle	Orana
+NSW	Balranald	Far West
+NSW	Bourke	Far West
+NSW	Brewarrina	Far West
+NSW	Broken Hill	Far West
+NSW	Central Darling	Far West
+NSW	Cobar	Far West
+NSW	Wentworth	Far West
+NSW	Bland	Riverina
+NSW	Carrathool	Riverina
+NSW	Coolamon	Riverina
+NSW	Cootamundra-Gundagai	Riverina
+NSW	Griffith	Riverina
+NSW	Hay	Riverina
+NSW	Junee	Riverina
+NSW	Leeton	Riverina
+NSW	Lockhart	Riverina
+NSW	Murrumbidgee	Riverina
+NSW	Narrandera	Riverina
+NSW	Temora	Riverina
+NSW	Wagga Wagga	Riverina
+NSW	Albury	Murray
+NSW	Berrigan	Murray
+NSW	Edward River	Murray
+NSW	Federation	Murray
+NSW	Greater Hume	Murray
+NSW	Murray River	Murray
+NSW	Snowy Monaro	Snowy Mountains
+NSW	Snowy Valleys	Snowy Mountains
+NSW	Goulburn Mulwaree	Southern Tablelands
+NSW	Hilltops	Southern Tablelands
+NSW	Queanbeyan-Palerang	Southern Tablelands
+NSW	Upper Lachlan	Southern Tablelands
+NSW	Yass Valley	Southern Tablelands
+NSW	Wingecarribee	Southern Highlands
+NSW	Kiama	Illawarra
+NSW	Shellharbour	Illawarra
+NSW	Wollongong	Illawarra
+NSW	Shoalhaven	South Coast
+NSW	Eurobodalla	South Coast
+NSW	Bega Valley	South Coast
+VIC	Bass Coast	Gippsland
+VIC	Baw Baw	Gippsland
+VIC	East Gippsland	Gippsland
+VIC	Latrobe	Gippsland
+VIC	South Gippsland	Gippsland
+VIC	Wellington	Gippsland
+VIC	Alpine	High Country
+VIC	Benalla	High Country
+VIC	Indigo	High Country
+VIC	Mansfield	High Country
+VIC	Murrindindi	High Country
+VIC	Towong	High Country
+VIC	Wangaratta	High Country
+VIC	Wodonga	High Country
+VIC	Campaspe	Goulburn Valley
+VIC	Greater Shepparton	Goulburn Valley
+VIC	Mitchell	Goulburn Valley
+VIC	Moira	Goulburn Valley
+VIC	Strathbogie	Goulburn Valley
+VIC	Buloke	Mallee
+VIC	Gannawarra	Mallee
+VIC	Mildura	Mallee
+VIC	Swan Hill	Mallee
+VIC	Ararat	Grampians
+VIC	Horsham	Grampians
+VIC	Northern Grampians	Grampians
+VIC	Yarra Ranges	Yarra Valley
+QLD	Brisbane	South East Queensland
+QLD	Gold Coast	South East Queensland
+QLD	Ipswich	South East Queensland
+QLD	Lockyer Valley	South East Queensland
+QLD	Logan	South East Queensland
+QLD	Moreton Bay	South East Queensland
+QLD	Redland	South East Queensland
+QLD	Scenic Rim	South East Queensland
+QLD	Somerset	South East Queensland
+QLD	Noosa	Sunshine Coast
+QLD	Sunshine Coast	Sunshine Coast
+QLD	Goondiwindi	Darling Downs
+QLD	Southern Downs	Darling Downs
+QLD	Toowoomba	Darling Downs
+QLD	Banana	Central Queensland
+QLD	Central Highlands	Central Queensland
+QLD	Gladstone	Central Queensland
+QLD	Rockhampton	Central Queensland
+QLD	Barcoo	Outback Queensland
+QLD	Blackall Tambo	Outback Queensland
+QLD	Boulia	Outback Queensland
+QLD	Bulloo	Outback Queensland
+QLD	Diamantina	Outback Queensland
+QLD	Longreach	Outback Queensland
+QLD	Quilpie	Outback Queensland
+QLD	Winton	Outback Queensland
+QLD	Cloncurry	North West Queensland
+QLD	Mount Isa	North West Queensland
+QLD	Burke	Gulf Country
+QLD	Carpentaria	Gulf Country
+NT	Darwin	Top End
+NT	Litchfield	Top End
+NT	Palmerston	Top End
+NT	Tiwi Islands	Tiwi Islands
+NT	East Arnhem	Arnhem Land
+NT	West Arnhem	Arnhem Land
+NT	Katherine	Katherine Region
+NT	Roper Gulf	Katherine Region
+NT	Victoria Daly	Katherine Region
+NT	Barkly	Barkly
+NT	Alice Springs	Central Australia
+NT	Central Desert	Central Australia
+NT	MacDonnell	Central Australia
+WA	Broome	Kimberley
+WA	Derby-West Kimberley	Kimberley
+WA	Halls Creek	Kimberley
+WA	Wyndham-East Kimberley	Kimberley
+WA	Carnarvon	Gascoyne
+WA	Exmouth	Gascoyne
+WA	Shark Bay	Gascoyne
+WA	Ashburton	Pilbara
+WA	East Pilbara	Pilbara
+WA	Karratha	Pilbara
+WA	Port Hedland	Pilbara
+SA	Adelaide Hills	Adelaide Hills
+SA	Campbelltown	Adelaide
+SA	Mitcham	Adelaide
+SA	Onkaparinga	Adelaide
+SA	Alexandrina	Fleurieu Peninsula
+SA	Victor Harbor	Fleurieu Peninsula
+SA	Yankalilla	Fleurieu Peninsula
+SA	Coorong	Murraylands
+SA	Mid Murray	Murraylands
+SA	Murray Bridge	Murraylands
+SA	Berri Barmera	Riverland
+SA	Loxton Waikerie	Riverland
+SA	Renmark Paringa	Riverland
+SA	Flinders Ranges	Flinders Ranges
+SA	Port Augusta	Flinders Ranges
+TAS	Clarence	Hobart
+TAS	Glenorchy	Hobart
+TAS	Hobart	Hobart
+TAS	Kingborough	Hobart
+TAS	Huon Valley	Huon Valley
+TAS	Break O'Day	East Coast Tasmania
+TAS	Glamorgan-Spring Bay	East Coast Tasmania
+TAS	Dorset	Northern Tasmania
+TAS	George Town	Northern Tasmania
+TAS	Launceston	Northern Tasmania
+TAS	Meander Valley	Northern Tasmania
+TAS	Northern Midlands	Northern Tasmania
+TAS	West Tamar	Northern Tasmania
+TAS	Burnie	North West Tasmania
+TAS	Central Coast	North West Tasmania
+TAS	Devonport	North West Tasmania
+TAS	Waratah-Wynyard	North West Tasmania

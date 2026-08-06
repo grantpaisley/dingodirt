@@ -1,12 +1,17 @@
-# Rust
-/target/
+# Rust — unanchored: the workspace lives at core/rust/, not the repo root
+target/
 **/*.rs.bk
 
 # Node
 node_modules/
 dist/
+.next/
 .vite/
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
 
 # Environment — never commit a real one; .env.example is the template
 .env
