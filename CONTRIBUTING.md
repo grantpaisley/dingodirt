@@ -102,13 +102,19 @@ never-completed.
 
 | App | Where |
 |---|---|
+| **nav (canonical)** | `nav.dingodirt.com` — DingoNav repo's Pages, rebuilt from this repo by its mirror workflow |
 | nav, studio, plan | GitHub Pages from this repo → `grantpaisley.github.io/dingodirt/{nav,studio,plan}/` |
-| nav (legacy URL) | mirrored to `grantpaisley.github.io/DingoNav/` by a workflow in the DingoNav repo |
-| site | Vercel — it needs a database and server-side auth, so Pages cannot host it |
+| site | Vercel at `dingodirt.com` — it needs a database and server-side auth, so Pages cannot host it |
 
-The DingoNav repo is **not archived** and must not be: it still serves the URL
-that installed PWAs and every pack share link in the wild point at, and an
-archived repo cannot run the Actions workflow that keeps it current.
+The old `grantpaisley.github.io/DingoNav/` URL 301-redirects to
+`nav.dingodirt.com` (a GitHub Pages custom domain does that automatically), so
+pack share links minted before 2026-08-06 still resolve. PWAs installed from
+the old origin keep running from their service-worker cache but no longer
+receive updates — reinstalling from `nav.dingodirt.com` is the fix.
+
+The DingoNav repo is **not archived** and must not be: its Pages site IS
+`nav.dingodirt.com`, and an archived repo cannot run the Actions workflow that
+keeps it current.
 
 Plan is served from a subpath, so anything reading a public asset at runtime
 must use `import.meta.env.BASE_URL` rather than a leading slash. A leading

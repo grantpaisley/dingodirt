@@ -1343,8 +1343,11 @@ async fn list_shares(
 }
 
 fn nav_base_url() -> String {
+    // nav.dingodirt.com became canonical on 2026-08-06; the old
+    // grantpaisley.github.io/DingoNav/ URL 301s here, so links minted
+    // against either keep working.
     std::env::var("DINGO_NAV_URL")
-        .unwrap_or_else(|_| "https://grantpaisley.github.io/DingoNav/".to_string())
+        .unwrap_or_else(|_| "https://nav.dingodirt.com/".to_string())
 }
 
 pub fn nav_base() -> String {
