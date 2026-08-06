@@ -49,16 +49,27 @@ apps/
 core/
   schemes/    canonical map scheme preset pairs — the ONLY copy
   behaviors/  nav behaviour profiles
-  appliers/   applier modules (module form is canonical here)
+  appliers/   applier-nav.js + scheme.js — the module form is canonical here
   rust/       Dingo crates (native today; WASM targets later)
-server/       the backend for local/self-hosted use: daemon, migrations,
+server/       the backend for local/self-hosted use: migrations,
               docker-compose, tooling
 docs/plans/   design docs, origin-prefixed, dated
+tools/        assemble-app.sh — deploy-time artefact assembly
+tests/        repo-level checks (npm test)
 ```
 
-Map schemes and behaviours live in `core/` in exactly one copy. Apps consume
-them by relative import or at deploy time — never by vendoring. A repo test
-fails the build if an app grows a local copy.
+Map schemes, behaviours and appliers live in `core/` in **exactly one copy**.
+Each app reaches them through a symlink, so editing `core/schemes/default.json`
+changes it everywhere at once — there is nothing to sync.
+
+Symlinks don't survive a static host, so deploys run
+`tools/assemble-app.sh <nav|studio> <out>` to dereference them into real
+files. For Nav that step also appends a content hash of the presets to the
+service-worker cache name, so offline riders refetch when presets change and
+only then.
+
+`npm test` runs the guard that fails if any app grows a local copy again.
+This replaced a cross-repo sync workflow and its PAT.
 
 Related: [`grantpaisley/dingo-shares`](https://github.com/grantpaisley/dingo-shares)
 stays a separate repo on purpose — it is GitHub-as-CDN, its raw URLs are
