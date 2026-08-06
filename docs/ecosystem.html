@@ -1,0 +1,906 @@
+<title>How the Dingo ecosystem fits together</title>
+
+<style>
+  :root {
+    /* Dark is the house look — same tokens as app/globals.css */
+    --ground: #141109;
+    --panel: #1d1910;
+    --raised: #272216;
+    --rule: #35301f;
+    --rule-soft: #2b2617;
+    --text: #ece4d2;
+    --muted: #a89d83;
+    --accent: #d96f32;
+    --accent-hot: #f28c4b;
+    --gum: #97a86a;
+    /* Dingo's own heat palette (crates/export/src/lib.rs) */
+    --own: #ff822d;
+    --plan: #468cff;
+    --other: #ff2d46;
+
+    --display: "Big Shoulders Display", "Big Shoulders", "Arial Narrow",
+      Oswald, Haettenschweiler, ui-sans-serif, sans-serif;
+    --body: Barlow, "Helvetica Neue", Helvetica, ui-sans-serif, system-ui,
+      sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ground: #ece4d2;
+      --panel: #e3d9c3;
+      --raised: #d9ceb4;
+      --rule: #bcac8b;
+      --rule-soft: #cdbfa0;
+      --text: #1d1910;
+      --muted: #6b6046;
+      --accent: #ab4f1a;
+      --accent-hot: #8c3f12;
+      --gum: #5c6b36;
+      --own: #b95c0c;
+      --plan: #1f5cc0;
+      --other: #b81028;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground: #ece4d2;
+    --panel: #e3d9c3;
+    --raised: #d9ceb4;
+    --rule: #bcac8b;
+    --rule-soft: #cdbfa0;
+    --text: #1d1910;
+    --muted: #6b6046;
+    --accent: #ab4f1a;
+    --accent-hot: #8c3f12;
+    --gum: #5c6b36;
+    --own: #b95c0c;
+    --plan: #1f5cc0;
+    --other: #b81028;
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #141109;
+    --panel: #1d1910;
+    --raised: #272216;
+    --rule: #35301f;
+    --rule-soft: #2b2617;
+    --text: #ece4d2;
+    --muted: #a89d83;
+    --accent: #d96f32;
+    --accent-hot: #f28c4b;
+    --gum: #97a86a;
+    --own: #ff822d;
+    --plan: #468cff;
+    --other: #ff2d46;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  /* ---- masthead ---- */
+
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--gum);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(44px, 8vw, 82px);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 0.92;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 10px 0 0;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .standfirst {
+    max-width: 62ch;
+    margin: 20px 0 0;
+    font-size: 18px;
+    color: var(--muted);
+  }
+
+  .standfirst strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* ---- legend ---- */
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    align-items: center;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 0;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .swatch {
+    width: 26px;
+    height: 14px;
+    border: 1.4px solid currentColor;
+    background: var(--panel);
+    flex: none;
+  }
+
+  .swatch.built {
+    color: var(--text);
+  }
+
+  .swatch.designed {
+    color: var(--muted);
+    border-style: dashed;
+  }
+
+  .swatch.hinge {
+    color: var(--accent);
+    border-width: 2px;
+  }
+
+  /* ---- figures ---- */
+
+  figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .fig-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 16px;
+    border-top: 1px solid var(--rule);
+    padding-top: 16px;
+  }
+
+  .fig-num {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--accent);
+  }
+
+  .fig-head h2 {
+    font-family: var(--display);
+    font-size: clamp(26px, 3.4vw, 38px);
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1;
+    margin: 0;
+  }
+
+  .scroller {
+    overflow-x: auto;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 18px;
+  }
+
+  svg.diagram {
+    display: block;
+    width: 100%;
+    min-width: 720px;
+    height: auto;
+    color: var(--text);
+    font-family: var(--body);
+  }
+
+  figcaption {
+    max-width: 78ch;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+
+  figcaption b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    color: var(--accent-hot);
+  }
+
+  /* ---- SVG text roles ---- */
+
+  .b-fill { fill: var(--raised); }
+  .b-line { stroke: var(--rule); stroke-width: 1.2; }
+  .b-hinge { stroke: var(--accent); stroke-width: 2; }
+  .b-soft { stroke: var(--rule); stroke-width: 1.2; stroke-dasharray: 6 4; }
+
+  .t-title {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    fill: var(--text);
+  }
+
+  .t-title.accent { fill: var(--accent); }
+
+  .t-tag {
+    font-family: var(--display);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    fill: var(--muted);
+  }
+
+  .t-body {
+    font-size: 12px;
+    fill: var(--text);
+  }
+
+  .t-mono {
+    font-family: var(--mono);
+    font-size: 11px;
+    fill: var(--gum);
+  }
+
+  .t-note {
+    font-size: 11.5px;
+    font-style: italic;
+    fill: var(--muted);
+  }
+
+  .t-edge {
+    font-size: 10.5px;
+    fill: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .t-edge.accent { fill: var(--accent); }
+
+  .flow {
+    stroke: var(--muted);
+    stroke-width: 1.3;
+    fill: none;
+  }
+
+  .flow.accent {
+    stroke: var(--accent);
+    stroke-width: 1.8;
+  }
+
+  .mk { fill: var(--muted); }
+  .mk-accent { fill: var(--accent); }
+
+  .divider { stroke: var(--rule); stroke-width: 1; }
+
+  /* ---- code map table ---- */
+
+  .map-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .map-table th {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    text-align: left;
+    padding: 0 16px 10px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .map-table td {
+    padding: 11px 16px 11px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+
+  .map-table td:first-child {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .map-table td.path {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--gum);
+  }
+
+  .map-table td.what {
+    color: var(--muted);
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  footer b {
+    color: var(--text);
+    font-weight: 600;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Dingo · system map</p>
+    <h1>Plan it.<br />Pack it.<br /><em>Ride it.</em></h1>
+    <p class="standfirst">
+      Five repos, three file formats and one idea: a ride is
+      <strong>data</strong>, the map is <strong>infrastructure</strong>, and the
+      look and feel are <strong>swappable config</strong>. What follows traces
+      what actually moves between the pieces — from a GPX file landing in the
+      library to a beep on your bars 200&nbsp;km from signal.
+    </p>
+  </header>
+
+  <div class="legend">
+    <span><i class="swatch built"></i> Built and running</span>
+    <span><i class="swatch designed"></i> Designed, not wired into Nav/Plan yet</span>
+    <span><i class="swatch hinge"></i> The hinge — everything crosses here</span>
+  </div>
+
+  <!-- ============================ FIGURE 1 ============================ -->
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">Fig. 1</span>
+      <h2>How a ride file becomes a ride</h2>
+    </div>
+
+    <div class="scroller">
+      <svg
+        class="diagram"
+        viewBox="0 0 1200 880"
+        role="img"
+        aria-label="System map: GPX and FIT files are ingested by Dingo core into a PostGIS rides table, which derives a GPX library tree and a heatmap. Dingo Plan turns a selection of rides into a saved pack recipe and builds a .dingonav zip. That pack is published either to the dingo-shares GitHub repo or to dingodirt.com, and Dingo Nav installs it, prefetching map tiles from the shared archive. Dingo Studio produces .dingoscheme and .dingobehavior files that Nav applies on top."
+      >
+        <defs>
+          <marker id="f1a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk" points="0,0 9,3.5 0,7" />
+          </marker>
+          <marker id="f1b" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk-accent" points="0,0 9,3.5 0,7" />
+          </marker>
+        </defs>
+
+        <!-- S1 ride files -->
+        <rect class="b-fill b-line" x="300" y="36" width="400" height="58" />
+        <text class="t-title" x="320" y="62">Ride files</text>
+        <text class="t-mono" x="320" y="82">.gpx · .fit · .kml · .tcx · .geojson</text>
+        <text class="t-tag" x="680" y="62" text-anchor="end">yours · mates' · drawn plans</text>
+
+        <line class="flow" x1="500" y1="94" x2="500" y2="136" marker-end="url(#f1a)" />
+        <text class="t-edge" x="510" y="120">dingo import · web upload · folder drop</text>
+
+        <!-- S2 Dingo core -->
+        <rect class="b-fill b-line" x="300" y="140" width="400" height="112" />
+        <text class="t-title" x="320" y="166">Dingo core</text>
+        <text class="t-tag" x="680" y="166" text-anchor="end">rust + postgis · local-first</text>
+        <text class="t-body" x="320" y="190">ingest → clean &amp; snap → name → place</text>
+        <text class="t-mono" x="320" y="209">rides.cleaned_geometry · owner_id · track_type</text>
+        <text class="t-note" x="320" y="232">originals kept once, by hash — the source file is consumed</text>
+
+        <line class="flow" x1="500" y1="252" x2="500" y2="296" marker-end="url(#f1a)" />
+        <text class="t-edge" x="510" y="278">the rides you pick for a trip</text>
+
+        <!-- reading key, top right -->
+        <text class="t-tag" x="790" y="60">how to read this</text>
+        <text class="t-body" x="790" y="88">Down the middle is the data path — the only</text>
+        <text class="t-body" x="790" y="107">thing that carries your actual rides.</text>
+        <text class="t-body" x="790" y="136">Left rail: what Dingo derives from them, and</text>
+        <text class="t-body" x="790" y="155">where the map itself comes from.</text>
+        <text class="t-body" x="790" y="184">Right rail: look and feel, added last and</text>
+        <text class="t-body" x="790" y="203">separately — nothing here touches the data.</text>
+        <text class="t-note" x="790" y="238">Dashed = designed and running in Studio,</text>
+        <text class="t-note" x="790" y="256">not yet wired into Nav or Plan.</text>
+
+        <!-- L1 library tree -->
+        <rect class="b-fill b-line" x="24" y="150" width="200" height="52" />
+        <text class="t-title" x="36" y="172">GPX library</text>
+        <text class="t-mono" x="36" y="191">NSW / … / LGA / Suburb</text>
+        <line class="flow" x1="300" y1="176" x2="228" y2="176" marker-end="url(#f1a)" />
+        <text class="t-edge" x="264" y="168" text-anchor="middle">export-on-import</text>
+
+        <!-- L2 heatmap -->
+        <rect class="b-fill b-line" x="24" y="214" width="200" height="52" />
+        <text class="t-title" x="36" y="236">Heatmap</text>
+        <text class="t-mono" x="36" y="255">own · plan · other</text>
+        <line class="flow" x1="300" y1="240" x2="228" y2="240" marker-end="url(#f1a)" />
+        <text class="t-edge" x="264" y="232" text-anchor="middle">every live ride</text>
+
+        <!-- L3 strava mirror -->
+        <rect class="b-fill b-line" x="24" y="290" width="200" height="52" />
+        <text class="t-title" x="36" y="312">Strava mirror</text>
+        <text class="t-mono" x="36" y="331">harvested → mbtiles</text>
+        <line class="flow" x1="226" y1="316" x2="296" y2="316" marker-end="url(#f1a)" />
+        <text class="t-edge" x="261" y="308" text-anchor="middle">optional bake</text>
+
+        <!-- S3 Plan -->
+        <rect class="b-fill b-line" x="300" y="300" width="400" height="104" />
+        <text class="t-title" x="320" y="326">Dingo Plan</text>
+        <text class="t-tag" x="680" y="326" text-anchor="end">web/ + daemon</text>
+        <text class="t-body" x="320" y="350">map + basket → a saved, re-publishable pack recipe</text>
+        <text class="t-mono" x="320" y="369">packs · pack_rides (ordered, layer toggles)</text>
+        <text class="t-note" x="320" y="392">tracks[0] is the one Nav auto-selects on open</text>
+
+        <line class="flow accent" x1="500" y1="404" x2="500" y2="448" marker-end="url(#f1b)" />
+        <text class="t-edge accent" x="510" y="430">POST /api/packs/{id}/publish — builds the zip</text>
+
+        <!-- S4 the pack (hinge) -->
+        <rect class="b-fill b-hinge" x="300" y="452" width="400" height="124" />
+        <text class="t-title accent" x="320" y="478">.dingonav — the pack</text>
+        <text class="t-tag" x="680" y="478" text-anchor="end">zip · v2</text>
+        <text class="t-mono" x="320" y="502">bundle.json</text>
+        <text class="t-body" x="338" y="522">tracks[] full-res GPX · heatmap GeoJSON</text>
+        <text class="t-body" x="338" y="541">marks[] turn / gate / danger / creek</text>
+        <text class="t-body" x="338" y="560">tiles{} + schemes[] — URLs, not payload</text>
+
+        <!-- split to two publish paths -->
+        <line class="flow" x1="400" y1="576" x2="400" y2="620" marker-end="url(#f1a)" />
+        <text class="t-edge" x="392" y="600" text-anchor="end">daemon, gh contents API</text>
+        <line class="flow" x1="600" y1="576" x2="600" y2="620" marker-end="url(#f1a)" />
+        <text class="t-edge" x="608" y="600">author uploads at /publish</text>
+
+        <rect class="b-fill b-line" x="300" y="624" width="190" height="92" />
+        <text class="t-title" x="316" y="650">dingo-shares</text>
+        <text class="t-mono" x="316" y="670">shares/&lt;slug&gt;.dingonav</text>
+        <text class="t-note" x="316" y="692">one live link, refreshed</text>
+        <text class="t-note" x="316" y="708">in place — no new URL</text>
+
+        <rect class="b-fill b-line" x="510" y="624" width="190" height="92" />
+        <text class="t-title" x="526" y="650">dingodirt.com</text>
+        <text class="t-mono" x="526" y="670">packs · pack_versions</text>
+        <text class="t-note" x="526" y="692">zip → Blob; private →</text>
+        <text class="t-note" x="526" y="708">link → reviewed → public</text>
+
+        <line class="flow" x1="400" y1="716" x2="400" y2="760" marker-end="url(#f1a)" />
+        <text class="t-edge" x="392" y="742" text-anchor="end">?b=&lt;slug&gt;</text>
+        <line class="flow" x1="600" y1="716" x2="600" y2="760" marker-end="url(#f1a)" />
+        <text class="t-edge" x="608" y="742">Ride it → ?dl=&lt;token&gt;</text>
+
+        <!-- S6 Nav -->
+        <rect class="b-fill b-line" x="300" y="764" width="400" height="92" />
+        <text class="t-title" x="320" y="790">Dingo Nav</text>
+        <text class="t-tag" x="680" y="790" text-anchor="end">pwa · offline · north-up</text>
+        <text class="t-body" x="320" y="814">install → prefetch the corridor → ride with no signal</text>
+        <text class="t-note" x="320" y="836">heatmap crossings become junction beeps</text>
+
+        <!-- L4 tiles -->
+        <rect class="b-fill b-line" x="24" y="770" width="200" height="64" />
+        <text class="t-title" x="36" y="792">tiles.dingodirt</text>
+        <text class="t-mono" x="36" y="811">basemap-au · hillshade-au</text>
+        <text class="t-note" x="36" y="828">R2, range requests</text>
+        <line class="flow" x1="226" y1="802" x2="296" y2="802" marker-end="url(#f1a)" />
+        <text class="t-edge" x="261" y="794" text-anchor="middle">z8–14 corridor</text>
+
+        <!-- R1 Studio -->
+        <rect class="b-fill b-line" x="790" y="300" width="386" height="140" />
+        <text class="t-title" x="810" y="326">Dingo Studio</text>
+        <text class="t-tag" x="1156" y="326" text-anchor="end">static pwa · no backend</text>
+        <text class="t-body" x="810" y="350">token editor + replay rig: N viewports, one engine</text>
+        <text class="t-body" x="810" y="369">test-drive the look at 30 km/h before the crew does</text>
+        <text class="t-mono" x="810" y="392">js/applier-nav.js — the canonical token applier</text>
+        <text class="t-note" x="810" y="416">imports a .dingonav to tune against the real terrain</text>
+
+        <polyline class="flow" points="700,478 745,478 745,444" marker-end="url(#f1a)" />
+        <text class="t-edge" x="752" y="462">import a pack to tune against</text>
+
+        <!-- R2 scheme -->
+        <rect class="b-fill b-soft" x="790" y="470" width="386" height="58" />
+        <text class="t-title" x="810" y="494">.dingoscheme — the look</text>
+        <text class="t-mono" x="810" y="515">scheme.json tokens + preview.png</text>
+        <line class="flow" x1="983" y1="440" x2="983" y2="466" marker-end="url(#f1a)" />
+
+        <!-- R3 behaviour -->
+        <rect class="b-fill b-soft" x="790" y="546" width="386" height="58" />
+        <text class="t-title" x="810" y="570">.dingobehavior — the feel</text>
+        <text class="t-mono" x="810" y="591">54 params: camera, cues, off-route, voice</text>
+        <line class="flow" x1="983" y1="528" x2="983" y2="542" marker-end="url(#f1a)" />
+
+        <polyline class="flow" points="983,604 983,800 704,800" marker-end="url(#f1a)" />
+        <text class="t-edge" x="993" y="656">?scheme= · ?behavior=</text>
+        <text class="t-edge" x="993" y="674">or offered once by the pack</text>
+      </svg>
+    </div>
+
+    <figcaption>
+      The spine is the data: files in, a pack out, a ride at the bottom.
+      <b>Segments — not GPX files — are the source of truth</b>, so everything
+      below Dingo core is a regenerable artifact: republishing a pack re-renders
+      the same pinned rides against current data and reuses the same link. The
+      two publish paths differ only in who is doing it — the Plan daemon commits
+      to the shares repo over the GitHub API, a person uploads at
+      <code>/publish</code>. Studio never touches the ride data; it produces the
+      two config files that ride on top.
+    </figcaption>
+  </figure>
+
+  <!-- ============================ FIGURE 2 ============================ -->
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">Fig. 2</span>
+      <h2>What changed in pack v2</h2>
+    </div>
+
+    <div class="scroller">
+      <svg
+        class="diagram"
+        viewBox="0 0 1000 482"
+        role="img"
+        aria-label="Comparison of pack format v1 and v2. A v1 pack is about 40 megabytes because it embeds basemap, hillshade and satellite tiles. A v2 pack is about 0.3 megabytes: bundle.json only, with tile URLs pointing at the shared Australia-wide archive, which Nav prefetches per ride corridor at install time."
+      >
+        <defs>
+          <marker id="f2a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk" points="0,0 9,3.5 0,7" />
+          </marker>
+          <marker id="f2b" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk-accent" points="0,0 9,3.5 0,7" />
+          </marker>
+        </defs>
+
+        <text class="t-tag" x="24" y="30">v1 — the pack carries the map</text>
+        <text class="t-tag" x="536" y="30">v2 — the pack carries the data</text>
+
+        <rect class="b-fill b-line" x="24" y="44" width="440" height="256" />
+        <text class="t-mono" x="44" y="76">bundle.json</text>
+        <text class="t-mono" x="404" y="76" text-anchor="end">~0.5 MB</text>
+        <text class="t-mono" x="44" y="106">basemap.pmtiles</text>
+        <text class="t-mono" x="404" y="106" text-anchor="end">33 MB</text>
+        <text class="t-mono" x="44" y="136">hillshade.pmtiles</text>
+        <text class="t-mono" x="404" y="136" text-anchor="end">3 MB</text>
+        <text class="t-mono" x="44" y="166">satellite/{z}/{x}/{y}.jpg</text>
+        <text class="t-mono" x="404" y="166" text-anchor="end">~4 MB</text>
+        <line class="divider" x1="44" y1="186" x2="420" y2="186" />
+        <text class="t-title" x="44" y="212">one pack</text>
+        <text class="t-title" x="420" y="212" text-anchor="end">≈ 40 MB</text>
+        <text class="t-note" x="44" y="244">Every pack ships the same ridges again — and</text>
+        <text class="t-note" x="44" y="262">Nav's own deploy carried another 41 MB of them.</text>
+        <text class="t-note" x="44" y="286">Still valid: old packs load exactly as they always did.</text>
+
+        <rect class="b-fill b-hinge" x="536" y="44" width="440" height="256" />
+        <text class="t-mono" x="556" y="76">bundle.json</text>
+        <text class="t-mono" x="916" y="76" text-anchor="end">~0.3 MB</text>
+        <text class="t-body" x="574" y="100">tracks · heatmap · marks</text>
+        <text class="t-mono" x="556" y="130">"formatVersion": 2</text>
+        <text class="t-mono" x="556" y="160">"tiles": { …url… }</text>
+        <text class="t-body" x="574" y="184">a pointer, not a payload — omit it</text>
+        <text class="t-body" x="574" y="202">and Nav uses its own defaults</text>
+        <line class="divider" x1="556" y1="222" x2="932" y2="222" />
+        <text class="t-title accent" x="556" y="248">one pack</text>
+        <text class="t-title accent" x="932" y="248" text-anchor="end">≈ 0.3 MB</text>
+        <text class="t-note" x="556" y="282">Small enough to send in the group chat.</text>
+
+        <line class="flow accent" x1="756" y1="300" x2="756" y2="354" marker-end="url(#f2b)" />
+        <text class="t-edge accent" x="766" y="332">Nav computes the corridor at install</text>
+
+        <rect class="b-fill b-line" x="536" y="358" width="440" height="88" />
+        <text class="t-title" x="556" y="384">tiles.dingodirt.com</text>
+        <text class="t-tag" x="956" y="384" text-anchor="end">Cloudflare R2</text>
+        <text class="t-mono" x="556" y="406">basemap-au z0–14 · hillshade-au z0–12</text>
+        <text class="t-note" x="556" y="430">~2 km buffer along the tracks, cached to IndexedDB, resumable</text>
+
+        <rect class="b-fill b-line" x="24" y="358" width="440" height="104" />
+        <text class="t-title" x="44" y="384">The escape hatch</text>
+        <text class="t-mono" x="44" y="406">make_bundle.py --embed-tiles</text>
+        <text class="t-note" x="44" y="430">Still builds a v1-shaped, fully self-contained pack for trips</text>
+        <text class="t-note" x="44" y="446">outside the archive's coverage.</text>
+      </svg>
+    </div>
+
+    <figcaption>
+      One edge moved, and that is the whole change: the tiles left the zip and
+      became a URL. Nav decides the corridor <b>at install time</b> from the
+      pack's own tracks, so nothing has to be pre-computed at build time and a
+      pack never has to guess where you'll ride. Deleting a pack releases its
+      tiles; a moved tile host is a Nav update, not a re-publish of every pack
+      ever made. dingodirt badges v1-sized uploads
+      <code>legacy pack — contains embedded tiles</code>: accepted, quietly
+      nudged out.
+    </figcaption>
+  </figure>
+
+  <!-- ============================ FIGURE 3 ============================ -->
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">Fig. 3</span>
+      <h2>Three files, one screen</h2>
+    </div>
+
+    <div class="scroller">
+      <svg
+        class="diagram"
+        viewBox="0 0 1000 420"
+        role="img"
+        aria-label="Three sibling file formats converge on one Nav view: .dingonav carries the data you ride, .dingoscheme carries the look, .dingobehavior carries the feel. All three share one compatibility contract: ignore unknown keys, default missing keys, values never code, reject only on a major schemaVersion mismatch."
+      >
+        <defs>
+          <marker id="f3a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk" points="0,0 9,3.5 0,7" />
+          </marker>
+        </defs>
+
+        <rect class="b-fill b-hinge" x="24" y="30" width="296" height="118" />
+        <text class="t-title accent" x="44" y="56">.dingonav</text>
+        <text class="t-tag" x="300" y="56" text-anchor="end">data</text>
+        <text class="t-body" x="44" y="82">tracks · heatmap · marks</text>
+        <text class="t-mono" x="44" y="104">what you ride</text>
+        <text class="t-note" x="44" y="132">built by Plan, hosted by dingodirt</text>
+
+        <rect class="b-fill b-soft" x="352" y="30" width="296" height="118" />
+        <text class="t-title" x="372" y="56">.dingoscheme</text>
+        <text class="t-tag" x="628" y="56" text-anchor="end">look</text>
+        <text class="t-body" x="372" y="82">colours · widths · HUD tokens</text>
+        <text class="t-mono" x="372" y="104">where it sits, how it's drawn</text>
+        <text class="t-note" x="372" y="132">built and applied in Studio today</text>
+
+        <rect class="b-fill b-soft" x="680" y="30" width="296" height="118" />
+        <text class="t-title" x="700" y="56">.dingobehavior</text>
+        <text class="t-tag" x="956" y="56" text-anchor="end">feel</text>
+        <text class="t-body" x="700" y="82">camera · cues · off-route · voice</text>
+        <text class="t-mono" x="700" y="104">whether it shows, how it acts</text>
+        <text class="t-note" x="700" y="132">pair by id: "make it feel like Waze"</text>
+
+        <line class="flow" x1="172" y1="148" x2="172" y2="226" marker-end="url(#f3a)" />
+        <line class="flow" x1="500" y1="148" x2="500" y2="226" marker-end="url(#f3a)" />
+        <line class="flow" x1="828" y1="148" x2="828" y2="226" marker-end="url(#f3a)" />
+
+        <rect class="b-fill b-line" x="24" y="230" width="952" height="82" />
+        <text class="t-title" x="44" y="258">One NavView</text>
+        <text class="t-tag" x="956" y="258" text-anchor="end">the map on your bars</text>
+        <text class="t-body" x="44" y="282">Same geometry, same cue engine, same replay engine — Studio renders N of these side by side on one</text>
+        <text class="t-body" x="44" y="300">clock, so a remix and the original can be compared in motion rather than as two screenshots.</text>
+
+        <rect class="b-fill b-line" x="24" y="336" width="952" height="72" />
+        <text class="t-title" x="44" y="362">The contract all three share</text>
+        <text class="t-body" x="44" y="386">Ignore unknown keys · default missing keys · values, never executable style · reject only on a major</text>
+        <text class="t-body" x="44" y="404">schemaVersion mismatch — because a bad config file must never brick Nav in the middle of a ride.</text>
+      </svg>
+    </div>
+
+    <figcaption>
+      The split is deliberate and worth memorising: <b>scheme is where a thing
+      sits and what it looks like; behaviour is whether it shows and how it
+      acts.</b> Both are values only — never executable style JSON — which is
+      what makes a stranger's download safe to apply. Today Studio is the only
+      app that reads them; Nav and Plan gain the importer as rollout step one,
+      at which point the applier stops being Studio's and each app owns its own
+      copy.
+    </figcaption>
+  </figure>
+
+  <!-- ============================ FIGURE 4 ============================ -->
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">Fig. 4</span>
+      <h2>Where the heatmap goes</h2>
+    </div>
+
+    <div class="scroller">
+      <svg
+        class="diagram"
+        viewBox="0 0 1000 372"
+        role="img"
+        aria-label="Heatmap provenance and consumption. Your rides, mates' imports and drawn plans feed a vector heat layer classed own, plan and other; the harvested Strava mirror feeds a separate raster layer. Between them they feed Plan's map, the GeoJSON inside a pack, a raster MBTiles export for OsmAnd and Locus, and Nav's junction alerts."
+      >
+        <defs>
+          <marker id="f4a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk" points="0,0 9,3.5 0,7" />
+          </marker>
+          <marker id="f4b" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon class="mk-accent" points="0,0 9,3.5 0,7" />
+          </marker>
+        </defs>
+
+        <text class="t-tag" x="24" y="24">where heat comes from</text>
+        <text class="t-tag" x="628" y="24">and what reads it</text>
+
+        <rect class="b-fill b-line" x="24" y="40" width="230" height="48" />
+        <text class="t-body" x="40" y="60">Your recordings</text>
+        <text class="t-mono" x="40" y="78">class: own</text>
+
+        <rect class="b-fill b-line" x="24" y="104" width="230" height="48" />
+        <text class="t-body" x="40" y="124">Mates' tracks, owner-tagged</text>
+        <text class="t-mono" x="40" y="142">class: other</text>
+
+        <rect class="b-fill b-line" x="24" y="168" width="230" height="48" />
+        <text class="t-body" x="40" y="188">Drawn plans and routes</text>
+        <text class="t-mono" x="40" y="206">class: plan</text>
+
+        <rect class="b-fill b-line" x="24" y="232" width="230" height="48" />
+        <text class="t-body" x="40" y="252">Strava, harvested once</text>
+        <text class="t-mono" x="40" y="270">z6–15, off-road sports only</text>
+
+        <line class="flow" x1="256" y1="64" x2="300" y2="64" marker-end="url(#f4a)" />
+        <line class="flow" x1="256" y1="128" x2="300" y2="128" marker-end="url(#f4a)" />
+        <line class="flow" x1="256" y1="192" x2="300" y2="192" marker-end="url(#f4a)" />
+        <line class="flow" x1="256" y1="256" x2="300" y2="256" marker-end="url(#f4a)" />
+
+        <rect class="b-fill b-line" x="304" y="40" width="250" height="264" />
+        <text class="t-title" x="320" y="66">Vector heat</text>
+        <text class="t-mono" x="320" y="88">rides.cleaned_geometry</text>
+        <text class="t-body" x="320" y="112">live rides only, simplified</text>
+        <text class="t-body" x="320" y="131">to the consumer's budget</text>
+        <text class="t-note" x="320" y="158">privacy zones cut server-side</text>
+        <line class="divider" x1="304" y1="212" x2="554" y2="212" />
+        <text class="t-title" x="320" y="240">Raster heat</text>
+        <text class="t-mono" x="320" y="262">mbtiles, one archive</text>
+        <text class="t-body" x="320" y="286">a separate overlay, never merged</text>
+
+        <line class="flow" x1="556" y1="64" x2="624" y2="64" marker-end="url(#f4a)" />
+        <line class="flow" x1="556" y1="128" x2="624" y2="128" marker-end="url(#f4a)" />
+        <line class="flow" x1="556" y1="198" x2="624" y2="198" marker-end="url(#f4a)" />
+        <line class="flow accent" x1="556" y1="274" x2="624" y2="274" marker-end="url(#f4b)" />
+
+        <rect class="b-fill b-line" x="628" y="40" width="348" height="48" />
+        <text class="t-body" x="644" y="60">Plan's map — both layers, filterable</text>
+        <text class="t-mono" x="644" y="78">/api/heatmap</text>
+
+        <rect class="b-fill b-line" x="628" y="104" width="348" height="48" />
+        <text class="t-body" x="644" y="124">A pack — GeoJSON of the selected rides</text>
+        <text class="t-mono" x="644" y="142">bundle.json → heatmap</text>
+
+        <rect class="b-fill b-line" x="628" y="168" width="348" height="60" />
+        <text class="t-body" x="644" y="188">Other people's apps — OsmAnd, Locus</text>
+        <text class="t-mono" x="644" y="206">dingo export heatmap-tiles</text>
+        <text class="t-note" x="644" y="222">counts distinct rides per pixel — real glow</text>
+
+        <rect class="b-fill b-hinge" x="628" y="244" width="348" height="60" />
+        <text class="t-body" x="644" y="264">Nav — every crossing is a junction alert</text>
+        <text class="t-mono" x="644" y="282">low-high beep, ~55 m out</text>
+        <text class="t-note" x="644" y="298">the heatmap is navigation, not decoration</text>
+
+        <text class="t-note" x="24" y="336">Colours are not chosen per app: own #FF822D, plan #468CFF, other #FF2D46 are constants shared by the</text>
+        <text class="t-note" x="24" y="354">Rust exporter, the web map and every scheme's default tokens — so a trail is the same colour everywhere.</text>
+      </svg>
+    </div>
+
+    <figcaption>
+      Heat is derived, never authored — which is why it has one source and four
+      exits. The one worth noticing is the bottom right: in Nav the heatmap is
+      not a background wash. <b>Anywhere another ridden trail crosses your track
+      at an angle, you get a junction beep</b> — knowledge from everyone else's
+      rides, arriving as a sound, 55 metres before the turning you couldn't see.
+    </figcaption>
+  </figure>
+
+  <!-- ============================ CODE MAP ============================ -->
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">Fig. 5</span>
+      <h2>Where each piece lives</h2>
+    </div>
+
+    <div class="scroller">
+      <table class="map-table">
+        <thead>
+          <tr>
+            <th>Repo</th>
+            <th>The part that matters</th>
+            <th>What it owns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dingo</td>
+            <td class="path">crates/ingest · geo · export · harvest</td>
+            <td class="what">Ingest, clean, name, place. The rides table and everything derived from it.</td>
+          </tr>
+          <tr>
+            <td>Dingo</td>
+            <td class="path">crates/daemon/src/routes/packs.rs</td>
+            <td class="what">Pack recipes, and the publish that builds a <code>.dingonav</code> and commits it.</td>
+          </tr>
+          <tr>
+            <td>Dingo</td>
+            <td class="path">web/ (Dingo Plan)</td>
+            <td class="what">The planning map: basket, pack detail pane, layer toggles, size estimates.</td>
+          </tr>
+          <tr>
+            <td>Dingo</td>
+            <td class="path">tools/build-tiles/</td>
+            <td class="what">Builds the shared AU tile archive. Open, so anyone can build their own region.</td>
+          </tr>
+          <tr>
+            <td>DingoNav</td>
+            <td class="path">index.html · corridor.js · sw.js</td>
+            <td class="what">The ride itself: pack install, corridor prefetch, cue engine, off-track, group dots.</td>
+          </tr>
+          <tr>
+            <td>DingoStudio</td>
+            <td class="path">js/scheme.js · behavior.js · applier-nav.js</td>
+            <td class="what">The token and param vocabularies, their validation, and the applier all apps will share.</td>
+          </tr>
+          <tr>
+            <td>DingoStudio</td>
+            <td class="path">js/replay.js · navview.js · demogrid.js</td>
+            <td class="what">One replay engine driving N independent Nav renders — the A/B rig.</td>
+          </tr>
+          <tr>
+            <td>DingoDirt</td>
+            <td class="path">lib/validate-pack.ts</td>
+            <td class="what">The gate: zip shape, manifest, schema major, size cap, legacy-tiles badge.</td>
+          </tr>
+          <tr>
+            <td>DingoDirt</td>
+            <td class="path">lib/packs.ts · db/schema.ts</td>
+            <td class="what">Versioned uploads, capability links, visibility and the review queue, downloads.</td>
+          </tr>
+          <tr>
+            <td>dingo-shares</td>
+            <td class="path">shares/ · schemes/</td>
+            <td class="what">The plain-git store behind live links. Moderation is <code>git revert</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figcaption>
+      Five repos, one direction of travel: Dingo owns the truth, Plan turns a
+      selection into a pack, Studio dresses it, dingodirt hands it out, Nav
+      rides it.
+    </figcaption>
+  </figure>
+
+  <footer>
+    <p>
+      Drawn from the code and the design docs on 4 August 2026 — pack format v2
+      and the shared tile archive
+      (<b>2026-08-04-shared-tiles-pack-v2-design</b>), Studio and
+      <code>.dingoscheme</code> (<b>2026-08-02-dingo-studio-design</b>),
+      <code>.dingobehavior</code> (<b>2026-08-03-nav-behavior-framework</b>),
+      packs (<b>2026-07-15-packs-design</b>) and the library layout
+      (<b>2026-07-28-gpx-library-storage-design</b>). Dashed boxes are designed
+      and running in Studio, not yet wired into Nav or Plan.
+    </p>
+  </footer>
+</div>

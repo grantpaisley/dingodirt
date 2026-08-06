@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #141109;
+  --ink-2: #1d1910;
+  --ink-3: #272216;
+  --line: #35301f;
+  --bone: #ece4d2;
+  --bone-dim: #a89d83;
+  --clay: #d96f32;
+  --clay-hot: #f28c4b;
+  --gum: #97a86a;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-bone: var(--bone);
+  --color-bone-dim: var(--bone-dim);
+  --color-clay: var(--clay);
+  --color-clay-hot: var(--clay-hot);
+  --color-gum: var(--gum);
+  --font-display: var(--font-display), sans-serif;
+  --font-body: var(--font-body), sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--font-body), sans-serif;
+}
+
+::selection {
+  background: var(--clay);
+  color: var(--ink);
+}
+
+/* Dashed GPX-route motif */
+.route-dash {
+  stroke-dasharray: 10 8;
+  animation: route-crawl 30s linear infinite;
+}
+
+@keyframes route-crawl {
+  to {
+    stroke-dashoffset: -720;
+  }
+}
+
+/* Staggered page-load reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes reveal {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-dash {
+    animation: none;
+  }
+  .reveal {
+    animation-duration: 0.01s;
+  }
+}
