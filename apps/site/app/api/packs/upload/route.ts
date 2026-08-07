@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
       pathname,
       validUntil,
       maximumSizeInBytes: MAX_BYTES,
+      // Store under the exact minted pathname — the default random suffix
+      // would make /complete's head(pathname) miss the blob.
+      addRandomSuffix: false,
     });
     return NextResponse.json({ ok: true, uploadUrl: presignedUrl, pathname });
   } catch (err) {

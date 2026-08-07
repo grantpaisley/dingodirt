@@ -301,9 +301,9 @@ async fn upload_pack_presigned(
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("blob upload failed: {e}")))?;
-    if !res.status().is_success() {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
+    let status = res.status();
+    let text = res.text().await.unwrap_or_default();
+    if !status.is_success() {
         return Err((
             StatusCode::BAD_GATEWAY,
             format!(
@@ -312,6 +312,19 @@ async fn upload_pack_presigned(
             ),
         ));
     }
+    // The store may rewrite the pathname (it random-suffixes unless told
+    // not to, and its `pathname` field omits the suffix). The `url` path is
+    // the real object name — trust it over both the minted value and the
+    // response's pathname field so /complete looks in the right place.
+    let stored: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+    let pathname = stored
+        .get("url")
+        .and_then(|v| v.as_str())
+        .and_then(|u| reqwest::Url::parse(u).ok())
+        .map(|u| percent_decode(u.path().trim_start_matches('/')))
+        .filter(|p| !p.is_empty())
+        .unwrap_or(pathname);
+    tracing::info!("blob PUT ok; stored as {pathname}");
 
     let mut payload = serde_json::json!({ "pathname": pathname, "filename": filename });
     if let Some(v) = visibility {
@@ -334,6 +347,31 @@ async fn upload_pack_presigned(
             )
         })?;
     parse_pack_response(res).await
+}
+
+/// Undo URL percent-encoding (a blob pathname with spaces comes back as
+/// `%20` in the store's object URL).
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && bytes[i + 1].is_ascii_hexdigit()
+            && bytes[i + 2].is_ascii_hexdigit()
+        {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("");
+            if let Ok(b) = u8::from_str_radix(hex, 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Shared tail of both upload paths: surface site errors verbatim, or parse
@@ -468,7 +506,13 @@ mod tests {
                     let blob_tx = blob_tx.clone();
                     async move {
                         blob_tx.send(body.len()).await.ok();
-                        Json(serde_json::json!({ "url": "https://store/blob" }))
+                        // Real store echoes the object URL; a suffixed name
+                        // here proves the daemon trusts it over the minted
+                        // pathname.
+                        Json(serde_json::json!({
+                            "url": "https://s.public.blob.vercel-storage.com/uploads/u1/x/Flinders-abc123.dingonav",
+                            "pathname": "uploads/u1/x/Flinders.dingonav",
+                        }))
                     }
                 })
                 .layer(axum::extract::DefaultBodyLimit::max(16 * 1024 * 1024)),
@@ -510,7 +554,8 @@ mod tests {
         assert_eq!(blob_rx.recv().await, Some(sent));
         let (auth, body) = done_rx.recv().await.expect("mock saw complete");
         assert_eq!(auth, "Bearer ddt_secret");
-        assert!(body.contains("uploads/u1/x/Flinders.dingonav"));
+        // The suffixed name from the store's PUT response, not the minted one.
+        assert!(body.contains("uploads/u1/x/Flinders-abc123.dingonav"));
         assert!(body.contains("unlisted"));
         assert!(!body.contains("packId"));
 
