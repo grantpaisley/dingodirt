@@ -1128,17 +1128,23 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     const applyPackMaskRef = useRef<() => void>(() => {})
     applyPackMaskRef.current = applyPackMask
     const applyExtrasInner = useCallback((m: maplibregl.Map) => {
+        // Mid-PARSE bail: every style mutator below (addSource/addLayer/
+        // moveLayer/…) throws "Style is not done loading" while a setStyle is
+        // still parsing. That window is unhittable with URL styles ('styledata'
+        // first fires post-parse) but real for object styles — a scheme change
+        // rebuilding the Dingo style can land while another style load is in
+        // flight, and the throw unmounts MapView. styleLayerCount() is the
+        // parse probe (getStyle() throws mid-parse → 0); the 'styledata'
+        // listener at init re-drives this pass once parsing settles. This is
+        // deliberately NOT isStyleLoaded() — that also waits on every source,
+        // and the Strava rasters never settle when the daemon 404s their
+        // tiles (see the hillshade note below, which learned it the hard way).
+        if (!styleLayerCount(m)) return
         // Two Strava heat layers, split by sport: ride (blue) and hike (purple).
         // The daemon serves each from its own harvested MBTiles owner and
         // colourises server-side. Hike added first so RIDE draws above it where
         // they overlap, matching the Layers pane order (Strava rides sits above
         // Strava hikes). Sits directly on the basemap, UNDER the deck.gl canvas.
-        //
-        // Added BEFORE the parsed-style gate below: adding a raster source/layer
-        // is safe even before the style reports loaded, and gating it there was a
-        // real bug that left the layers never added (toggles do nothing).
-        // MapLibre fetches the tiles once the style finishes loading, so the
-        // unconditional add is correct.
         for (const owner of ['strava-hike', 'strava-ride'] as const) {
             if (!m.getSource(owner)) {
                 m.addSource(owner, {

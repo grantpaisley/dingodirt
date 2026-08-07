@@ -72,6 +72,7 @@ const SHAPE_META: Array<[TrackShape, string, string, typeof Compass]> = [
 // styles from /styles/index.json are appended at render time (see
 // useStyleManifest) so community style JSONs show up with zero code changes.
 const BASE_STYLE_META: Array<[BaseStyle, string, string, typeof Compass]> = [
+    ['dingo', 'Dingo', 'The shared Dingo basemap — same map as Nav and Studio, themed by the active scheme', Compass],
     ['satellite', 'Satellite', 'Satellite imagery with labels (MapTiler hybrid)', Satellite],
     ['outdoor', 'Outdoor', 'Terrain topo with contours and hillshading built in', TreePine],
     ['topo', 'Topo', 'Classic topographic map', MapIcon],
