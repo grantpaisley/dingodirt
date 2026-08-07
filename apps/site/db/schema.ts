@@ -1,10 +1,13 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   integer,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -146,6 +149,35 @@ export const packVersions = pgTable("pack_versions", {
   metadata: text("metadata"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// Votes and comments on a planning pack's tracks/marks
+// (docs/plans/2026-08-07-planning-mode-design.md). Voters are name-only —
+// the share link is the access control, so voterName is trusted the way a
+// whiteboard is. Votes upsert per (pack, item, voter); comments append.
+export const packFeedback = pgTable(
+  "pack_feedback",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    packId: text("pack_id")
+      .notNull()
+      .references(() => packs.id, { onDelete: "cascade" }),
+    itemType: text("item_type").$type<"track" | "mark">().notNull(),
+    itemId: text("item_id").notNull(),
+    voterName: text("voter_name").notNull(),
+    kind: text("kind").$type<"vote" | "comment">().notNull(),
+    /** "yes" | "maybe" | "no" for votes; free text for comments. */
+    value: text("value").notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("pack_feedback_vote_unique")
+      .on(t.packId, t.itemType, t.itemId, t.voterName)
+      .where(sql`kind = 'vote'`),
+    index("pack_feedback_pack_idx").on(t.packId),
+  ],
+);
 
 // Community reports on public packs (route through private property, etc.).
 export const reports = pgTable("reports", {

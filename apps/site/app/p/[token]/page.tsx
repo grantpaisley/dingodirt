@@ -80,7 +80,7 @@ export default async function PackPage({
           )}
         </div>
         {doc ? (
-          <PlanView doc={doc} />
+          <PlanView doc={doc} token={pack.shareToken} />
         ) : (
           <p className="px-6 py-16 text-center text-bone-dim">
             Plan data missing — re-publish from Dingo Plan.
