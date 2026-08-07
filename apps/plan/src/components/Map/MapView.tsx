@@ -891,6 +891,76 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             }))
         }
 
+        // Selected tracks: redrawn on top of the ordinary ride layers as a
+        // white casing + full-opacity core at ~3x the base width, so the
+        // active selection is unmistakable. Separate layers rather than wider
+        // getWidth in the base layers because those share widthMaxPixels
+        // clamps with unselected tracks — at high zoom everything saturates
+        // at the cap and a per-feature width difference stops reading.
+        // Not pickable: clicks fall through to the base layers beneath.
+        if (showRides && selectedIds.length > 0) {
+            if (gradientSegments.length > 0) {
+                const segs = gradientSegments.filter(d => selectedIds.includes(d.rideId))
+                if (segs.length > 0) {
+                    layers.push(new LineLayer({
+                        id: 'selected-casing-layer',
+                        data: segs,
+                        getSourcePosition: (d: typeof gradientSegments[0]) => d.sourcePosition,
+                        getTargetPosition: (d: typeof gradientSegments[0]) => d.targetPosition,
+                        getColor: [255, 255, 255, 230],
+                        getWidth: 14,
+                        widthMinPixels: 9,
+                        widthMaxPixels: 26,
+                    }))
+                    layers.push(new LineLayer({
+                        id: 'selected-core-layer',
+                        data: segs,
+                        getSourcePosition: (d: typeof gradientSegments[0]) => d.sourcePosition,
+                        getTargetPosition: (d: typeof gradientSegments[0]) => d.targetPosition,
+                        getColor: (d: typeof gradientSegments[0]) =>
+                            [d.color[0], d.color[1], d.color[2], 255] as RGBA,
+                        getWidth: 9,
+                        widthMinPixels: 6,
+                        widthMaxPixels: 20,
+                    }))
+                }
+            } else {
+                const sel = ridesData.filter(d => selectedIds.includes(d.id))
+                if (sel.length > 0) {
+                    const coreColor = (d: typeof ridesData[0]): RGBA => {
+                        if (d.collection && d.colorHex) {
+                            const [r, g, b] = hexToRgb(d.colorHex, HEAT_COLORS.plan)
+                            return [r, g, b, 255]
+                        }
+                        const c = MODE_COLORS_BRIGHT[d.mode] || MODE_COLORS_BRIGHT.other
+                        return [c[0], c[1], c[2], 255]
+                    }
+                    layers.push(new PathLayer({
+                        id: 'selected-casing-layer',
+                        data: sel,
+                        capRounded: true,
+                        jointRounded: true,
+                        getPath: (d: typeof ridesData[0]) => d.path,
+                        getColor: [255, 255, 255, 230],
+                        getWidth: 10,
+                        widthMinPixels: 9,
+                        widthMaxPixels: 24,
+                    }))
+                    layers.push(new PathLayer({
+                        id: 'selected-core-layer',
+                        data: sel,
+                        capRounded: true,
+                        jointRounded: true,
+                        getPath: (d: typeof ridesData[0]) => d.path,
+                        getColor: coreColor,
+                        getWidth: 6,
+                        widthMinPixels: 6,
+                        widthMaxPixels: 18,
+                    }))
+                }
+            }
+        }
+
         // Ride direction chevrons (above the tracks, below photos)
         if (showRides && rideChevrons.length > 0) {
             layers.push(new TextLayer({
