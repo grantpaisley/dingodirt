@@ -195,6 +195,10 @@ interface SettingsState {
     terrain3d: boolean
     /** Show area boundaries (the areas table) as outlines */
     showAreas: boolean
+    /** Live road-closures overlay (SA outback warnings + NSW/VIC closures near
+     *  library tracks). Advisory only — plain settings toggle, deliberately
+     *  outside EffectiveLayers: live data is never pack content. */
+    showClosures: boolean
     /** Which track classes show — own (orange) / other (red) / plan (blue).
      *  Filters rides, the list, AND the heatmap. */
     trackClasses: Record<TrackClass, boolean>
@@ -265,6 +269,7 @@ interface SettingsState {
     setHillshade: (v: boolean) => void
     setTerrain3d: (v: boolean) => void
     setShowAreas: (v: boolean) => void
+    setShowClosures: (v: boolean) => void
     toggleTrackClass: (c: TrackClass) => void
     toggleOwnerOff: (id: string) => void
     toggleShapeClass: (c: TrackShape) => void
@@ -311,6 +316,7 @@ export const useSettings = create<SettingsState>()(
             hillshade: false,
             terrain3d: false,
             showAreas: false,
+            showClosures: false,
             trackClasses: { own: true, other: true, plan: true },
             ownersOff: [],
             shapeClasses: { loop: true, oneway: true },
@@ -383,6 +389,7 @@ export const useSettings = create<SettingsState>()(
             setHillshade: (hillshade) => set({ hillshade }),
             setTerrain3d: (terrain3d) => set({ terrain3d }),
             setShowAreas: (showAreas) => set({ showAreas }),
+            setShowClosures: (showClosures) => set({ showClosures }),
             toggleTrackClass: (c) =>
                 set((s) => ({ trackClasses: { ...s.trackClasses, [c]: !s.trackClasses[c] } })),
             toggleOwnerOff: (id) =>

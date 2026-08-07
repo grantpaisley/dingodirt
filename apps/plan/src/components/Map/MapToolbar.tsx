@@ -8,7 +8,7 @@ import {
     Repeat, MoveRight,
     MousePointer2, Navigation, Route,
     Footprints, Satellite, TreePine, Map as MapIcon, Mountain, MountainSnow, SquareDashed,
-    PencilLine, Locate,
+    PencilLine, Locate, TriangleAlert,
 } from 'lucide-react'
 import { useSettings, useUiState, effectiveLayerState, hasActiveRangeFilters, MODE_COLORS, ALL_POI_CATEGORIES, type RideMode, type TrackClass, type TrackShape, type ArrowMode, type BaseStyle, type DetailLevel, type GradeKey } from '../../store'
 import { useStyleManifest } from '../../mapStyles'
@@ -151,6 +151,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
         hillshade, setHillshade,
         terrain3d, setTerrain3d,
         showAreas, setShowAreas,
+        showClosures, setShowClosures,
         ownersOff, toggleOwnerOff,
     } = settings
 
@@ -279,7 +280,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                 icon={<Layers size={ICON_SIZE} />}
                 title="Map layers — rides, planned routes, heatmap, photos"
                 active={openPane === 'layers'}
-                badge={showHeatmap || showPhotos || showStravaRide || showStravaHike || showPois || showPlannedHeat}
+                badge={showHeatmap || showPhotos || showStravaRide || showStravaHike || showPois || showPlannedHeat || showClosures}
                 onClick={() => toggle('layers')}
             >
                 {openPane === 'layers' && (
@@ -481,6 +482,16 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                             on={eff.showAreas}
                             disabled={previewing}
                             onClick={() => setShowAreas(!showAreas)}
+                        />
+                        {/* Live data, not pack content — plain settings toggle,
+                            deliberately outside the pack-preview recipe */}
+                        <PaneRow
+                            icon={<TriangleAlert size={PANE_ICON_SIZE} color="#e5484d" />}
+                            label="Road closures"
+                            title="Live road closures — SA outback road warnings statewide, plus NSW/VIC closures near your tracks. Advisory: click a closure for the official detail (bikes often get through). Data: Government of SA (CC-BY), VicTraffic / Transport for NSW."
+                            on={showClosures}
+                            onClick={() => setShowClosures(!showClosures)}
+                            swatch="#e5484d"
                         />
                         {/* Terrain — relief shading + 3D */}
                         <div style={{
