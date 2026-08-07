@@ -107,7 +107,7 @@ export const packs = pgTable("packs", {
   ownerId: text("owner_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").$type<"ride" | "scheme">().notNull(),
+  type: text("type").$type<"ride" | "scheme" | "plan">().notNull(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description"),

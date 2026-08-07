@@ -36,11 +36,17 @@ export async function GET(
 
   await countDownload(pack.id).catch(() => {});
 
-  const ext = pack.type === "ride" ? "dingonav" : "dingoscheme";
+  const ext =
+    pack.type === "ride"
+      ? "dingonav"
+      : pack.type === "plan"
+        ? "dingoplan"
+        : "dingoscheme";
   const filename = `${pack.slug}.${ext}`;
   return new NextResponse(upstream.body, {
     headers: {
-      "Content-Type": "application/zip",
+      "Content-Type":
+        pack.type === "plan" ? "application/json" : "application/zip",
       "Content-Disposition": `attachment; filename="${filename}"`,
       ...(version.size ? { "Content-Length": String(version.size) } : {}),
       "Access-Control-Allow-Origin": "*",

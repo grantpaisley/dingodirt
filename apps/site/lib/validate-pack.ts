@@ -1,9 +1,11 @@
 import AdmZip from "adm-zip";
 
 export const MAX_PACK_BYTES = 50 * 1024 * 1024;
+export const MAX_PLAN_BYTES = 5 * 1024 * 1024;
 export const SUPPORTED_SCHEMA_MAJOR = 1;
+export const SUPPORTED_PLAN_SCHEMA_MAJOR = 1;
 
-export type PackType = "ride" | "scheme";
+export type PackType = "ride" | "scheme" | "plan";
 
 export interface ValidatedPack {
   type: PackType;
@@ -18,8 +20,10 @@ export interface ValidatedPack {
 export class PackValidationError extends Error {}
 
 /**
- * Validate an uploaded pack zip and extract its manifest + preview.
- * `.dingonav` (ride) → bundle.json; `.dingoscheme` → scheme.json (+ preview.png).
+ * Validate an uploaded pack and extract its manifest + preview.
+ * `.dingonav` (ride) → zip with bundle.json; `.dingoscheme` → zip with
+ * scheme.json (+ preview.png); `.dingoplan` (plan) → bare JSON planning
+ * doc (docs/plans/2026-08-07-planning-mode-design.md).
  * Throws PackValidationError with a plain, user-facing message.
  */
 export function validatePack(buf: Buffer, filename: string): ValidatedPack {
@@ -31,12 +35,13 @@ export function validatePack(buf: Buffer, filename: string): ValidatedPack {
   }
 
   const lower = filename.toLowerCase();
+  if (lower.endsWith(".dingoplan")) return validatePlan(buf, filename);
   let type: PackType;
   if (lower.endsWith(".dingonav")) type = "ride";
   else if (lower.endsWith(".dingoscheme")) type = "scheme";
   else {
     throw new PackValidationError(
-      "Expected a .dingonav or .dingoscheme file.",
+      "Expected a .dingonav, .dingoscheme or .dingoplan file.",
     );
   }
 
@@ -95,6 +100,80 @@ export function validatePack(buf: Buffer, filename: string): ValidatedPack {
       );
 
   return { type, name, metadata: manifest, preview, legacyTiles };
+}
+
+/** A `.dingoplan` planning doc: bare JSON, no zip. The full doc is the
+ *  blob; metadata keeps only a summary for the pack page / gallery. */
+function validatePlan(buf: Buffer, filename: string): ValidatedPack {
+  if (buf.length > MAX_PLAN_BYTES) {
+    throw new PackValidationError(
+      `Plan is too big (max ${MAX_PLAN_BYTES / 1024 / 1024} MB).`,
+    );
+  }
+
+  let doc: Record<string, unknown>;
+  try {
+    doc = JSON.parse(buf.toString("utf-8"));
+  } catch {
+    throw new PackValidationError("That file isn't a valid plan (not JSON).");
+  }
+  if (doc.format !== "dingoplan") {
+    throw new PackValidationError("That file isn't a dingoplan document.");
+  }
+
+  const sv = doc.schemaVersion;
+  const major =
+    typeof sv === "number"
+      ? Math.floor(sv)
+      : typeof sv === "string"
+        ? parseInt(sv, 10)
+        : NaN;
+  if (!Number.isNaN(major) && major > SUPPORTED_PLAN_SCHEMA_MAJOR) {
+    throw new PackValidationError(
+      `This plan needs a newer schema (v${major}) than the site supports (v${SUPPORTED_PLAN_SCHEMA_MAJOR}).`,
+    );
+  }
+
+  const tracks = Array.isArray(doc.tracks) ? doc.tracks : [];
+  if (tracks.length === 0) {
+    throw new PackValidationError("The plan has no tracks.");
+  }
+  const badTrack = tracks.find(
+    (t) =>
+      typeof t !== "object" ||
+      t === null ||
+      typeof (t as Record<string, unknown>).id !== "string" ||
+      typeof (t as Record<string, unknown>).name !== "string" ||
+      typeof (t as Record<string, unknown>).geometry !== "object",
+  );
+  if (badTrack !== undefined) {
+    throw new PackValidationError(
+      "A plan track is missing its id, name or geometry.",
+    );
+  }
+
+  const name =
+    (typeof doc.name === "string" && doc.name.trim()) ||
+    filename.replace(/\.dingoplan$/i, "");
+  const marks = Array.isArray(doc.marks) ? doc.marks : [];
+  const km = tracks.reduce(
+    (s, t) => s + (typeof (t as Record<string, unknown>).km === "number"
+      ? ((t as Record<string, unknown>).km as number)
+      : 0),
+    0,
+  );
+
+  return {
+    type: "plan",
+    name,
+    metadata: {
+      tracks: tracks.length,
+      marks: marks.length,
+      total_km: Math.round(km),
+    },
+    preview: null,
+    legacyTiles: false,
+  };
 }
 
 /** URL-safe slug; caller ensures uniqueness (suffix on collision). */

@@ -99,6 +99,62 @@ describe("validatePack", () => {
   });
 });
 
+describe("validatePack: plan", () => {
+  const track = {
+    id: "t1",
+    name: "Big Desert Goaty",
+    km: 220,
+    geometry: { type: "LineString", coordinates: [[139.5, -35.3], [139.6, -35.2]] },
+  };
+  const planOf = (doc: Record<string, unknown>) =>
+    Buffer.from(JSON.stringify(doc));
+
+  it("accepts a valid planning doc and summarises metadata", () => {
+    const buf = planOf({
+      format: "dingoplan",
+      schemaVersion: 1,
+      name: "Flinders2026",
+      tracks: [track, { ...track, id: "t2", km: 80 }],
+      marks: [{ id: "m1", name: "Prairie Hotel", lon: 138.4, lat: -31.1 }],
+    });
+    const result = validatePack(buf, "Flinders2026.dingoplan");
+    expect(result.type).toBe("plan");
+    expect(result.name).toBe("Flinders2026");
+    expect(result.metadata).toEqual({ tracks: 2, marks: 1, total_km: 300 });
+    expect(result.legacyTiles).toBe(false);
+  });
+
+  it("rejects non-JSON and non-dingoplan documents", () => {
+    expect(() => validatePack(Buffer.from("PK\x03\x04"), "x.dingoplan")).toThrow(
+      /not JSON/,
+    );
+    expect(() => validatePack(planOf({ tracks: [track] }), "x.dingoplan")).toThrow(
+      /isn't a dingoplan/,
+    );
+  });
+
+  it("rejects a plan with no tracks or broken tracks", () => {
+    expect(() =>
+      validatePack(planOf({ format: "dingoplan", tracks: [] }), "x.dingoplan"),
+    ).toThrow(/no tracks/);
+    expect(() =>
+      validatePack(
+        planOf({ format: "dingoplan", tracks: [{ id: "t1" }] }),
+        "x.dingoplan",
+      ),
+    ).toThrow(/missing its id, name or geometry/);
+  });
+
+  it("rejects a plan with a newer major schemaVersion", () => {
+    expect(() =>
+      validatePack(
+        planOf({ format: "dingoplan", schemaVersion: 2, tracks: [track] }),
+        "x.dingoplan",
+      ),
+    ).toThrow(/newer schema/);
+  });
+});
+
 describe("slugify", () => {
   it("makes URL-safe slugs", () => {
     expect(slugify("Wombeyan 2026-08!")).toBe("wombeyan-2026-08");

@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
     AlertTriangle, ArrowUp, Check, ClipboardPaste, Construction, CornerUpLeft, CornerUpRight,
-    Copy, Eraser, Eye, Fence, Fuel, GripVertical, Link2, PackagePlus, RefreshCw, Tent, Trash2,
-    Upload, UtensilsCrossed, Waves, X,
+    Copy, Eraser, Eye, Fence, Fuel, GripVertical, Link2, Map as MapIcon, PackagePlus, RefreshCw,
+    Tent, Trash2, Upload, UtensilsCrossed, Waves, X,
 } from 'lucide-react'
 import {
-    usePack, useRidesByIds, updatePack, deletePack, publishPack, useCoverageEstimate,
+    usePack, useRidesByIds, updatePack, deletePack, publishPack, publishPlan, useCoverageEstimate,
     usePackMarks, checkPackMarks, pastePackMarks, setMarkStatus, useDingodirtStatus,
     type LayerCoverage, type PackMark, type PackRideEntry,
 } from '../../api/hooks'
@@ -313,6 +313,27 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
         }
     }
 
+    // Planning page: a tiles-free, tracks-only share the group picks a route
+    // from. Separate site pack; first publish defaults to unlisted.
+    const [planPublishing, setPlanPublishing] = useState(false)
+    const [planNote, setPlanNote] = useState<string | null>(null)
+    const handlePublishPlan = async () => {
+        setPlanPublishing(true)
+        setError(null)
+        setPlanNote(null)
+        try {
+            const res = await publishPlan(packId)
+            setPlanNote(
+                `Plan ${res.replaced ? 'refreshed' : 'published'} — ${res.tracks} tracks, ${formatBytes(res.bytes)}.`,
+            )
+            invalidate()
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e))
+        } finally {
+            setPlanPublishing(false)
+        }
+    }
+
     const handleDelete = async () => {
         const msg = pack?.published_at
             ? `Delete pack "${pack.name}" and its published share? The ?b= link you handed out will stop working.`
@@ -399,6 +420,18 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                     ><Copy size={13} /></button>
                 </div>
             )}
+            {pack.plan_url && (
+                <div className="pack-share-row">
+                    <MapIcon size={13} style={{ flexShrink: 0 }} />
+                    <input className="export-input" readOnly value={pack.plan_url} onFocus={e => e.target.select()} />
+                    <button
+                        className="export-btn"
+                        title="Copy the planning-page link — mates pick tracks on this map in their browser"
+                        onClick={() => navigator.clipboard?.writeText(pack.plan_url!)}
+                    ><Copy size={13} /></button>
+                </div>
+            )}
+            {planNote && <div className="export-done">{planNote}</div>}
             {published && (
                 <div className="export-done">
                     {published.replaced ? 'Refreshed' : 'Published'} — v{published.revision}, {formatBytes(published.bytes)}.
@@ -649,6 +682,15 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                 >
                     <RefreshCw size={13} className={publishing ? 'places-spin' : ''} style={{ verticalAlign: -2, marginRight: 5 }} />
                     {publishing ? 'Publishing…' : pack.published_at ? 'Refresh' : 'Publish…'}
+                </button>
+                <button
+                    className="export-btn"
+                    disabled={planPublishing || pack.rides.length === 0}
+                    onClick={handlePublishPlan}
+                    title="Publish a lightweight planning page — every track on one web map (no tiles, ~instant) for the group to pick a route from"
+                >
+                    <MapIcon size={13} className={planPublishing ? 'places-spin' : ''} style={{ verticalAlign: -2, marginRight: 5 }} />
+                    {planPublishing ? 'Publishing…' : pack.plan_url ? 'Refresh plan' : 'Plan page'}
                 </button>
                 <button
                     className="export-btn"

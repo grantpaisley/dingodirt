@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const file = form?.get("file");
   if (!file || typeof file === "string") {
     return NextResponse.json(
-      { ok: false, error: "Attach a .dingonav or .dingoscheme file." },
+      { ok: false, error: "Attach a .dingonav, .dingoscheme or .dingoplan file." },
       { status: 400 },
     );
   }

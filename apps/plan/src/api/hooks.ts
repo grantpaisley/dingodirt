@@ -948,6 +948,8 @@ export interface PackDetailData extends Omit<PackSummary, 'ride_count'> {
     /** Frozen group-ride channel name (pack name + first-publish year, e.g.
      *  Kandos2026); null until first publish. Baked into the bundle. */
     ride_name: string | null
+    /** Site planning page (<site>/p/<token>); null = plan never published */
+    plan_url: string | null
     rides: PackRideEntry[]
 }
 
@@ -1042,6 +1044,34 @@ export async function publishPack(
     visibility?: 'unlisted' | 'public',
 ): Promise<PublishResult> {
     const res = await fetch(`${API_BASE}/packs/${id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify(visibility ? { visibility } : {}),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+export interface PublishPlanResult {
+    /** Site plan page, e.g. https://dingodirt.com/p/<token> */
+    plan_url: string
+    share_token: string
+    visibility: PackVisibility
+    site_version: number
+    replaced: boolean
+    bytes: number
+    tracks: number
+    marks: number
+}
+
+/** Publish the pack as a lightweight planning page (tracks + marks, no
+ *  tiles) the group picks a route from — separate site pack from the full
+ *  publish; a pack can have both. First publish defaults to unlisted. */
+export async function publishPlan(
+    id: string,
+    visibility?: 'unlisted' | 'public',
+): Promise<PublishPlanResult> {
+    const res = await fetch(`${API_BASE}/packs/${id}/publish-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
         body: JSON.stringify(visibility ? { visibility } : {}),

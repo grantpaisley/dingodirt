@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 // then confirms via /api/packs/complete.
 
 const MAX_BYTES = 512 * 1024 * 1024;
-const EXTENSIONS = [".dingonav", ".dingoscheme"];
+const EXTENSIONS = [".dingonav", ".dingoscheme", ".dingoplan"];
 
 export async function POST(req: NextRequest) {
   const user = await requirePublisher(req, { spend: true });

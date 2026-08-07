@@ -133,7 +133,12 @@ export async function publishPack(
 
   const version = existing ? existing.currentVersion + 1 : 1;
   const packId = existing ? existing.id : crypto.randomUUID();
-  const ext = validated.type === "ride" ? "dingonav" : "dingoscheme";
+  const ext =
+    validated.type === "ride"
+      ? "dingonav"
+      : validated.type === "plan"
+        ? "dingoplan"
+        : "dingoscheme";
 
   const finalPath = `packs/${packId}/v${version}.${ext}`;
   const blob = opts.preUploadedPathname

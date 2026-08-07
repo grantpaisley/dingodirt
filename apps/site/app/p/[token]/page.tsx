@@ -5,6 +5,7 @@ import CopyLinkButton from "@/components/CopyLinkButton";
 import ReportButton from "@/components/ReportButton";
 import { packByToken, currentVersionOf } from "@/lib/packs";
 import { currentUser } from "@/lib/membership";
+import PlanView from "./PlanView";
 
 export const metadata = { title: "Pack — dingodirt" };
 
@@ -49,6 +50,45 @@ export default async function PackPage({
     ? (JSON.parse(version.metadata) as Record<string, unknown>)
     : {};
   const isRide = pack.type === "ride";
+
+  // Planning packs get the interactive map view, not the download page.
+  if (pack.type === "plan") {
+    const doc = version?.blobUrl
+      ? await fetch(version.blobUrl)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      : null;
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
+          <span className="font-display text-xs font-medium uppercase tracking-[0.25em] text-gum">
+            Trip plan
+            {pack.visibility === "private" && " — private (only you see this)"}
+          </span>
+          <h1 className="font-display text-2xl font-black uppercase leading-none">
+            {pack.name}
+          </h1>
+          <span className="text-sm text-bone-dim">
+            by {pack.authorName} · v{pack.currentVersion}
+            {pack.description ? ` · ${pack.description}` : ""}
+          </span>
+          {pack.visibility !== "private" && (
+            <span className="ml-auto">
+              <CopyLinkButton path={`/p/${pack.shareToken}`} />
+            </span>
+          )}
+        </div>
+        {doc ? (
+          <PlanView doc={doc} />
+        ) : (
+          <p className="px-6 py-16 text-center text-bone-dim">
+            Plan data missing — re-publish from Dingo Plan.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen">

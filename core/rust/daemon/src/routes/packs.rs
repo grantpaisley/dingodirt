@@ -33,6 +33,7 @@ pub fn routes() -> Router {
             get(get_pack).patch(update_pack).delete(delete_pack),
         )
         .route("/{id}/publish", post(publish_pack))
+        .route("/{id}/publish-plan", post(publish_plan))
         .merge(super::marks::routes())
 }
 
@@ -344,6 +345,9 @@ async fn get_pack(
         "share_url": share_url,
         "file_url": file_url,
         "ride_name": row.get::<Option<String>, _>("ride_name"),
+        "plan_url": row
+            .get::<Option<String>, _>("plan_share_token")
+            .map(|t| format!("{}/p/{t}", dingodirt::site_base())),
         "rides": rides,
     })))
 }
@@ -510,6 +514,178 @@ async fn publish_pack(
         "bytes": build.zip.len(),
         "revision": revision,
         "manifest": m,
+    })))
+}
+
+/// Publish a lightweight planning doc (`.dingoplan`) to the site: simplified
+/// track geometry + metadata + accommodation marks, no tiles. This is the
+/// shared high-level view the group picks tracks from
+/// (docs/plans/2026-08-07-planning-mode-design.md). Separate site pack from
+/// the full ride pack; a pack can have both.
+async fn publish_plan(
+    Extension(pool): Extension<PgPool>,
+    AxumPath(id): AxumPath<Uuid>,
+    body: Option<Json<PublishBody>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let Json(publish) = body.unwrap_or_default();
+    if let Some(v) = &publish.visibility {
+        if v != "unlisted" && v != "public" {
+            return Err(bad_request("visibility must be 'unlisted' or 'public'"));
+        }
+    }
+    let token = dingodirt::require_token(&pool).await?;
+    let row = sqlx::query("SELECT * FROM packs WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal)?
+        .ok_or((StatusCode::NOT_FOUND, format!("no pack {id}")))?;
+    let ride_ids: Vec<Uuid> = sqlx::query(
+        "SELECT ride_id FROM pack_rides WHERE pack_id = $1 ORDER BY position",
+    )
+    .bind(id)
+    .fetch_all(&pool)
+    .await
+    .map_err(internal)?
+    .iter()
+    .map(|r| r.get("ride_id"))
+    .collect();
+    if ride_ids.is_empty() {
+        return Err(bad_request("pack has no tracks — add rides before publishing"));
+    }
+
+    let name: String = row.get("name");
+    let bundle_name = sanitize(name.trim());
+    let privacy: bool = row.get("privacy");
+
+    // Tier-10 simplification (same tolerance as the web map's zoomed-out
+    // tier) over privacy-trimmed geometry: high-level shapes, tiny payload.
+    let rows = sqlx::query(
+        r#"
+        SELECT t.id, t.name, t.grade, t.mode, t.kind, t.region, t.state,
+               t.description, t.started_at,
+               ST_Length(t.g::geography) AS distance_m,
+               ST_AsGeoJSON(ST_SimplifyPreserveTopology(t.g, 0.002), 4) AS geometry
+        FROM (
+            SELECT r.id, r.name, r.grade, r.mode::text AS mode,
+                   r.kind::text AS kind, r.region, r.state, r.description,
+                   r.started_at,
+                   CASE WHEN $2 THEN
+                       ST_Difference(r.cleaned_geometry,
+                           COALESCE((SELECT ST_Union(boundary) FROM privacy_zones),
+                                    ST_GeomFromText('GEOMETRYCOLLECTION EMPTY', 4326)))
+                   ELSE r.cleaned_geometry END AS g
+            FROM rides r
+            WHERE r.id = ANY($1) AND r.cleaned_geometry IS NOT NULL
+              AND r.superseded_by IS NULL
+        ) t
+        ORDER BY array_position($1, t.id)
+        "#,
+    )
+    .bind(&ride_ids)
+    .bind(privacy)
+    .fetch_all(&pool)
+    .await
+    .map_err(internal)?;
+
+    let mut tracks = Vec::new();
+    for r in &rows {
+        let Some(geom) = r.get::<Option<String>, _>("geometry") else { continue };
+        let Ok(geometry) = serde_json::from_str::<serde_json::Value>(&geom) else { continue };
+        let km = r
+            .get::<Option<f64>, _>("distance_m")
+            .map(|m| (m / 1000.0).round())
+            .unwrap_or(0.0);
+        tracks.push(serde_json::json!({
+            "id": r.get::<Uuid, _>("id").to_string(),
+            "name": r.get::<Option<String>, _>("name").unwrap_or_else(|| "Unnamed ride".into()),
+            "km": km,
+            "grade": r.get::<Option<String>, _>("grade"),
+            "mode": r.get::<Option<String>, _>("mode"),
+            "kind": r.get::<Option<String>, _>("kind"),
+            "region": r.get::<Option<String>, _>("region"),
+            "state": r.get::<Option<String>, _>("state"),
+            "description": r.get::<Option<String>, _>("description"),
+            "started_at": r
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("started_at")
+                .map(|t| t.to_rfc3339()),
+            "geometry": geometry,
+        }));
+    }
+    if tracks.is_empty() {
+        return Err(bad_request("no publishable tracks — every ride is empty or superseded"));
+    }
+
+    // Accommodation/POI marks only — turn cues are nav noise at this scale.
+    let marks: Vec<serde_json::Value> = super::marks::accepted_marks(&pool, id)
+        .await?
+        .into_iter()
+        .filter(|m| m.op == "add" && m.kind.as_deref().is_some_and(|k| k != "turn"))
+        .map(|m| {
+            let kind = m.kind.unwrap_or_default();
+            let icon = match kind.as_str() {
+                "camp" => "⛺",
+                "fuel" => "⛽",
+                "water" => "💧",
+                "pub" | "food" => "🍺",
+                _ => "📍",
+            };
+            serde_json::json!({
+                "id": m.id,
+                "name": kind,
+                "icon": icon,
+                "lon": m.lo,
+                "lat": m.la,
+            })
+        })
+        .collect();
+
+    let doc = serde_json::json!({
+        "format": "dingoplan",
+        "schemaVersion": 1,
+        "name": name,
+        "description": row.get::<Option<String>, _>("description"),
+        "tracks": tracks,
+        "marks": marks,
+    });
+    let bytes = serde_json::to_vec(&doc).map_err(internal)?;
+
+    // First plan publish defaults to unlisted — a private plan page is
+    // useless to the group and the 404 it produces reads as a bug.
+    let site_plan_id: Option<String> = row.get("site_plan_id");
+    let visibility = publish
+        .visibility
+        .as_deref()
+        .or(if site_plan_id.is_none() { Some("unlisted") } else { None });
+    let bytes_len = bytes.len();
+    let site = dingodirt::upload_pack(
+        &token,
+        &format!("{bundle_name}.dingoplan"),
+        bytes,
+        visibility,
+        site_plan_id.as_deref(),
+    )
+    .await?;
+
+    sqlx::query(
+        "UPDATE packs SET site_plan_id = $2, plan_share_token = $3 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(&site.id)
+    .bind(&site.share_token)
+    .execute(&pool)
+    .await
+    .map_err(internal)?;
+
+    Ok(Json(serde_json::json!({
+        "plan_url": format!("{}/p/{}", dingodirt::site_base(), site.share_token),
+        "share_token": site.share_token,
+        "visibility": site.visibility,
+        "site_version": site.version,
+        "replaced": !site.is_new,
+        "bytes": bytes_len,
+        "tracks": tracks.len(),
+        "marks": marks.len(),
     })))
 }
 
