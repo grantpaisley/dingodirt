@@ -303,6 +303,11 @@ export default function PlanView({
 
   useEffect(() => {
     if (!mapDiv.current) return;
+    // Bundled maplibre resolves its worker module relative to the bundle
+    // chunk URL, which 404s under Next — the map then silently never
+    // renders. Point it at the copy served from /public (kept in sync by
+    // the prebuild script).
+    maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
     const source = BASEMAPS[basemap];
     const map = new maplibregl.Map({
       container: mapDiv.current,
