@@ -125,12 +125,17 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
     const focusIds = settings.focusMode && listView === 'tracks' ? selectedIds : []
     const { data: focusRides } = useRidesByIds(focusIds)
     // Focus mode ("Only selected") narrows the tracks list to the selection, the
-    // same rule the map applies. No selection ⇒ everything shows, so the
-    // default-on toggle never leaves a blank list.
+    // same rule the map applies. No selection ⇒ everything shows, so turning the
+    // toggle on never leaves a blank list. The by-id fetch returns selection
+    // (click) order, so re-sort to the list's natural newest-first order — a
+    // filter narrows the list, it never reorders it.
     const rides = useMemo(
         () => {
             if (listView === 'basket') return basketRides
-            if (focusIds.length > 0) return focusRides
+            if (focusIds.length > 0) {
+                return focusRides && [...focusRides].sort(
+                    (a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? ''))
+            }
             return allRides?.filter(r => rideMatchesFilters(r, settings))
         },
         [listView, basketRides, focusIds, focusRides, allRides, settings]
@@ -175,6 +180,28 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
         () => (rides ?? []).map(r => r.id).filter(id => !inBasket.has(id)),
         [rides, inBasket]
     )
+
+    // Selecting a track (usually a map click) scrolls the list just enough to
+    // bring its row into view — the list itself never refilters or reorders on
+    // selection. 'nearest' makes an already-visible row (a list click) a no-op.
+    // The pending id survives until the row exists, so a selection that lands
+    // before its refetch still gets scrolled to when the data arrives.
+    const listItemsRef = useRef<HTMLDivElement>(null)
+    const prevSelectedRef = useRef<string[]>([])
+    const pendingScrollId = useRef<string | null>(null)
+    useEffect(() => {
+        const added = selectedIds.filter(id => !prevSelectedRef.current.includes(id))
+        prevSelectedRef.current = selectedIds
+        if (added.length > 0) pendingScrollId.current = added[added.length - 1]
+        const target = pendingScrollId.current
+        if (!target) return
+        if (!selectedIds.includes(target)) { pendingScrollId.current = null; return }
+        const el = listItemsRef.current?.querySelector(`[data-ride-id="${CSS.escape(target)}"]`)
+        if (el) {
+            el.scrollIntoView({ block: 'nearest' })
+            pendingScrollId.current = null
+        }
+    }, [selectedIds, rides])
 
     // File-manager selection semantics: plain click = single select,
     // ctrl/cmd-click = toggle one, shift-click = add the range from the last
@@ -522,7 +549,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                         : <PlacesTree rides={placesRides} selectedIds={selectedIds} onSelect={onSelect} onFlyTo={onFlyTo} />}
                 </div>
             ) : (
-                <div className="list-items">
+                <div className="list-items" ref={listItemsRef}>
                     {listView === 'basket' && basket.ids.length === 0 && (
                         <div className="empty-state" style={{ padding: 16 }}>
                             <p>Basket is empty</p>
@@ -534,6 +561,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                     {rides?.map(ride => (
                         <div
                             key={ride.id}
+                            data-ride-id={ride.id}
                             className={`list-item ${selectedIds.includes(ride.id) ? 'selected' : ''}`}
                             onClick={(e) => handleItemClick(ride.id, e)}
                             onMouseEnter={() => onHover(ride.id)}
