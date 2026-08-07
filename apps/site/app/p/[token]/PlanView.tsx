@@ -6,8 +6,37 @@
 // self-reported name in localStorage; the share link is the access control.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import type * as maplibreNs from "maplibre-gl";
+
+// The npm maplibre build spawns its worker via module URLs the bundler
+// rewrites into 404s (map silently never renders), so like Nav and Studio
+// this page runs the vendored standalone build: script + css from
+// /public/vendor, worker self-contained. npm package stays for types only.
+type MaplibreNS = typeof maplibreNs;
+declare global {
+  interface Window {
+    maplibregl?: MaplibreNS;
+  }
+}
+let maplibreLoading: Promise<MaplibreNS> | null = null;
+function loadMaplibre(): Promise<MaplibreNS> {
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  maplibreLoading ??= new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/vendor/maplibre-gl.css";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = "/vendor/maplibre-gl.js";
+    script.onload = () => resolve(window.maplibregl!);
+    script.onerror = () => {
+      maplibreLoading = null;
+      reject(new Error("maplibre failed to load"));
+    };
+    document.head.appendChild(script);
+  });
+  return maplibreLoading;
+}
 
 export interface PlanTrack {
   id: string;
@@ -117,7 +146,7 @@ export default function PlanView({
   token: string;
 }) {
   const mapDiv = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<maplibreNs.Map | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeRef = useRef<string | null>(null);
   const [basemap, setBasemap] = useState<keyof typeof BASEMAPS>("topo");
@@ -150,7 +179,7 @@ export default function PlanView({
   const applyItems = useCallback((items: Feedback) => {
     setFeedback(items);
     const map = mapRef.current;
-    const src = map?.getSource("tracks") as maplibregl.GeoJSONSource | undefined;
+    const src = map?.getSource("tracks") as maplibreNs.GeoJSONSource | undefined;
     if (src) src.setData(buildFC(items) as GeoJSON.FeatureCollection);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -279,7 +308,7 @@ export default function PlanView({
     [doc.tracks],
   );
 
-  const applySelection = (map: maplibregl.Map, id: string | null) => {
+  const applySelection = (map: maplibreNs.Map, id: string | null) => {
     map.setFilter("track-active-casing", ["==", ["get", "id"], id ?? ""]);
     map.setFilter("track-active", ["==", ["get", "id"], id ?? ""]);
   };
@@ -287,13 +316,14 @@ export default function PlanView({
   const focusTrack = (t: PlanTrack) => {
     setActiveId(t.id);
     const map = mapRef.current;
-    if (!map) return;
+    const ml = window.maplibregl;
+    if (!map || !ml) return;
     applySelection(map, t.id);
     const cs = coordsOf(t.geometry);
     if (!cs.length) return;
     const bounds = cs.reduce(
       (b, c) => b.extend(c as [number, number]),
-      new maplibregl.LngLatBounds(cs[0], cs[0]),
+      new ml.LngLatBounds(cs[0], cs[0]),
     );
     map.fitBounds(bounds, { padding: 60, maxZoom: 11 });
     document
@@ -302,15 +332,27 @@ export default function PlanView({
   };
 
   useEffect(() => {
-    if (!mapDiv.current) return;
-    // Bundled maplibre resolves its worker module relative to the bundle
-    // chunk URL, which 404s under Next — the map then silently never
-    // renders. Point it at the copy served from /public (kept in sync by
-    // the prebuild script).
-    maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
+    const container = mapDiv.current;
+    if (!container) return;
+    let cancelled = false;
+    let map: maplibreNs.Map | null = null;
+    loadMaplibre().then((ml) => {
+      if (cancelled) return;
+      map = createMap(ml, container);
+    });
+    return () => {
+      cancelled = true;
+      map?.remove();
+      mapRef.current = null;
+    };
+    // Recreated on basemap switch; layer setup stays in one place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basemap]);
+
+  const createMap = (ml: MaplibreNS, container: HTMLDivElement) => {
     const source = BASEMAPS[basemap];
-    const map = new maplibregl.Map({
-      container: mapDiv.current,
+    const map = new ml.Map({
+      container,
       style: {
         version: 8,
         sources: {
@@ -331,10 +373,10 @@ export default function PlanView({
     // Debug handle + surfaced errors, mirroring Plan's __dingoMap convention.
     (window as unknown as Record<string, unknown>).__planMap = map;
     map.on("error", (e) => console.error("[plan-map]", e.error ?? e));
-    map.addControl(new maplibregl.NavigationControl(), "top-left");
-    new ResizeObserver(() => map.resize()).observe(mapDiv.current);
+    map.addControl(new ml.NavigationControl(), "top-left");
+    new ResizeObserver(() => map.resize()).observe(container);
 
-    const verdictColor: maplibregl.ExpressionSpecification = [
+    const verdictColor: maplibreNs.ExpressionSpecification = [
       "match",
       ["get", "verdict"],
       "yes",
@@ -370,7 +412,7 @@ export default function PlanView({
             "no",
             0.45,
             0.92,
-          ] as unknown as maplibregl.ExpressionSpecification,
+          ] as unknown as maplibreNs.ExpressionSpecification,
         },
       });
       // Selection must be unmistakable: ~3x width over a wide casing.
@@ -394,12 +436,12 @@ export default function PlanView({
       if (all.length) {
         const bounds = all.reduce(
           (b, c) => b.extend(c as [number, number]),
-          new maplibregl.LngLatBounds(all[0], all[0]),
+          new ml.LngLatBounds(all[0], all[0]),
         );
         map.fitBounds(bounds, { padding: 40 });
       }
 
-      const clickTrack = (e: maplibregl.MapLayerMouseEvent) => {
+      const clickTrack = (e: maplibreNs.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id as string | undefined;
         const t = doc.tracks.find((x) => x.id === id);
         if (t) focusTrack(t);
@@ -423,17 +465,12 @@ export default function PlanView({
           document
             .getElementById(`plan-mark-${m.id}`)
             ?.scrollIntoView({ block: "center" });
-        new maplibregl.Marker({ element: el }).setLngLat([m.lon, m.lat]).addTo(map);
+        new ml.Marker({ element: el }).setLngLat([m.lon, m.lat]).addTo(map);
       }
     });
 
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
-    // Recreated on basemap switch; layer setup stays in one place.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basemap]);
+    return map;
+  };
 
   // ---- widgets ----
   const saveName = () => {
