@@ -4,6 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import Header from "@/components/Header";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import PackRow from "@/components/PackRow";
+import ApiTokensCard from "@/components/ApiTokensCard";
 import { db } from "@/db";
 import { packs, folders } from "@/db/schema";
 import { currentUser } from "@/lib/membership";
@@ -83,6 +84,8 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
+
+        <ApiTokensCard />
       </main>
     </div>
   );

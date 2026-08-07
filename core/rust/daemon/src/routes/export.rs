@@ -1354,58 +1354,6 @@ pub fn nav_base() -> String {
     nav_base_url()
 }
 
-/// The shares repo from the env, or 501 with a setup hint.
-pub fn share_repo() -> Result<String, ApiError> {
-    std::env::var("DINGO_SHARE_REPO").map_err(|_| {
-        (
-            StatusCode::NOT_IMPLEMENTED,
-            "DINGO_SHARE_REPO not set — create a public repo (e.g. grantpaisley/dingo-shares) \
-             and set DINGO_SHARE_REPO to it"
-                .to_string(),
-        )
-    })
-}
-
-/// Run `gh api -X <method> <path>` (body, when given, is JSON on stdin) and
-/// parse the JSON response. Err carries gh's stderr (e.g. "Not Found (404)").
-pub async fn gh_api(
-    method: &str,
-    path: &str,
-    body: Option<&serde_json::Value>,
-) -> Result<serde_json::Value, String> {
-    let mut cmd = tokio::process::Command::new("gh");
-    cmd.args(["api", "-X", method, path]);
-    if body.is_some() {
-        cmd.args(["--input", "-"]);
-    }
-    let mut child = cmd
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("GitHub CLI (gh) not runnable: {e} — install gh and run `gh auth login`"))?;
-    if let Some(b) = body {
-        use tokio::io::AsyncWriteExt;
-        let bytes = serde_json::to_vec(b).map_err(|e| e.to_string())?;
-        let mut stdin = child.stdin.take().expect("piped stdin");
-        stdin.write_all(&bytes).await.map_err(|e| e.to_string())?;
-    }
-    let out = child.wait_with_output().await.map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
-    }
-    serde_json::from_slice(&out.stdout).map_err(|e| format!("unparseable gh api response: {e}"))
-}
-
-/// Map a gh_api error string onto an API error, keeping "gh missing" distinct.
-pub fn map_gh_err(e: String, repo: &str) -> ApiError {
-    if e.contains("not runnable") {
-        (StatusCode::NOT_IMPLEMENTED, e)
-    } else {
-        internal(format!("GitHub API call failed (repo {repo}): {e}"))
-    }
-}
-
 /// Pack key shared with DingoNav: lowercase alphanumeric runs joined by
 /// dashes ("Singleton overnight!" → "singleton-overnight"). Same name ⇒ same
 /// slug ⇒ same pack on the phone — that collision is the desired semantics.

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { packs } from "@/db/schema";
-import { currentUser, isTrusted, isAdmin } from "@/lib/membership";
+import { isTrusted, isAdmin } from "@/lib/membership";
+import { requestUser } from "@/lib/tokens";
 import { resolveVisibilityRequest } from "@/lib/packs";
 
 const REQUESTABLE = new Set(["private", "unlisted", "public"]);
@@ -24,7 +25,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await currentUser();
+  const user = await requestUser(req);
   if (!user) return NextResponse.json({ ok: false }, { status: 403 });
   const { id } = await params;
   const pack = await ownedPack(id, user.id, isAdmin(user));
@@ -74,7 +75,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await currentUser();
+  const user = await requestUser(_req);
   if (!user) return NextResponse.json({ ok: false }, { status: 403 });
   const { id } = await params;
   const pack = await ownedPack(id, user.id, isAdmin(user));

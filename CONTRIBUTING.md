@@ -130,9 +130,9 @@ things work today. The code is the truth; the docs are the reasoning.
 
 ## Related repos
 
-[`grantpaisley/dingo-shares`](https://github.com/grantpaisley/dingo-shares)
-stays separate on purpose — it is GitHub-as-CDN, its raw URLs are load-bearing,
-and its commit history *is* the moderation model (moderation = revert).
+The old `dingo-shares` GitHub-as-CDN repo is retired — pack share links are
+served by dingodirt.com (the `site` app), which owns versioning and the
+moderation queue.
 
 ## Licence
 

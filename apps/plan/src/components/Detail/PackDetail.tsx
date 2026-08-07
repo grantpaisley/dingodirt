@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import {
     usePack, useRidesByIds, updatePack, deletePack, publishPack, useCoverageEstimate,
-    usePackMarks, checkPackMarks, pastePackMarks, setMarkStatus,
+    usePackMarks, checkPackMarks, pastePackMarks, setMarkStatus, useDingodirtStatus,
     type LayerCoverage, type PackMark, type PackRideEntry,
 } from '../../api/hooks'
 import { useBasket, useUiState, type PackPreview } from '../../store'
@@ -283,14 +283,28 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
     }
 
     const [publishing, setPublishing] = useState(false)
-    const [published, setPublished] = useState<{ share_url: string, bytes: number, replaced: boolean, revision: number } | null>(null)
+    const [published, setPublished] = useState<{ share_url: string, bytes: number, replaced: boolean, revision: number, visibility: string } | null>(null)
+    // Publish confirm popover: pick Link only vs Public, then go. Defaults to
+    // the pack's current state (public/pending → Public) on re-publish.
+    const [confirmOpen, setConfirmOpen] = useState(false)
+    const [pubVisibility, setPubVisibility] = useState<'unlisted' | 'public'>('unlisted')
+    const { data: dingodirt } = useDingodirtStatus()
+    const openConfirm = () => {
+        setPubVisibility(pack?.visibility === 'public' || pack?.visibility === 'pending' ? 'public' : 'unlisted')
+        setError(null)
+        setConfirmOpen(o => !o)
+    }
     const handlePublish = async () => {
         setPublishing(true)
         setError(null)
         setPublished(null)
         try {
-            const res = await publishPack(packId)
-            setPublished({ share_url: res.share_url, bytes: res.bytes, replaced: res.replaced, revision: res.revision })
+            const res = await publishPack(packId, pubVisibility)
+            setPublished({
+                share_url: res.share_url, bytes: res.bytes, replaced: res.replaced,
+                revision: res.revision, visibility: res.visibility,
+            })
+            setConfirmOpen(false)
             invalidate()
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
@@ -359,7 +373,7 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     onBlur={() => { if (name.trim() && name !== pack.name) patch({ name: name.trim() }) }}
-                    title={pack.slug ? `Share name is frozen as "${pack.slug}" — renaming the pack keeps the link working` : 'Pack name (becomes the share name on first publish)'}
+                    title="Pack name — renaming a published pack updates it on dingodirt.com (the share link keeps working)"
                 />
                 <button className="export-btn" onClick={handleDelete} title="Delete this pack (and its published share)">
                     <Trash2 size={14} />
@@ -388,7 +402,22 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
             {published && (
                 <div className="export-done">
                     {published.replaced ? 'Refreshed' : 'Published'} — v{published.revision}, {formatBytes(published.bytes)}.
-                    Handed-out links pick this up within ~5 minutes.
+                    {published.visibility === 'pending'
+                        ? ' Public listing is awaiting review — the link works now.'
+                        : published.visibility === 'public'
+                            ? ' Listed publicly on dingodirt.com.'
+                            : ' Anyone with the link can open it.'}
+                </div>
+            )}
+            {!published && pack.published_at && pack.visibility && (
+                <div className="export-hint">
+                    {pack.visibility === 'public' ? 'Public — listed on dingodirt.com'
+                        : pack.visibility === 'pending' ? 'Public requested — awaiting review (link works now)'
+                            : pack.visibility === 'unlisted' ? 'Link only — not listed on dingodirt.com'
+                                : 'Private on dingodirt.com — the ?b= link is disabled'}
+                    {pack.file_url && (
+                        <> · <a href={pack.file_url} target="_blank" rel="noreferrer">view on dingodirt.com</a></>
+                    )}
                 </div>
             )}
             {pack.stale && pack.published_at && !published && (
@@ -568,17 +597,58 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
 
             {error && <div className="export-error">{error}</div>}
 
+            {confirmOpen && (
+                <div className="export-hint" style={{ border: '1px solid #444', borderRadius: 4, padding: 8 }}>
+                    {dingodirt && !dingodirt.connected ? (
+                        <div>
+                            Publishing needs a dingodirt.com account — paste an API token in
+                            Settings (the gear on the map toolbar) first.
+                        </div>
+                    ) : (
+                        <>
+                            <label className="export-check" title="The ?b= link works for anyone you send it to; the pack is not listed in the dingodirt.com galleries">
+                                <input
+                                    type="radio"
+                                    name="pack-visibility"
+                                    checked={pubVisibility === 'unlisted'}
+                                    onChange={() => setPubVisibility('unlisted')}
+                                />
+                                Link only — share the link with your mates
+                            </label>
+                            <label className="export-check" title="Submits the pack to the public galleries — it appears after a quick review (the link works immediately either way)">
+                                <input
+                                    type="radio"
+                                    name="pack-visibility"
+                                    checked={pubVisibility === 'public'}
+                                    onChange={() => setPubVisibility('public')}
+                                />
+                                Public — list in the dingodirt.com galleries
+                            </label>
+                            <button
+                                className="export-btn primary"
+                                style={{ marginTop: 6 }}
+                                disabled={publishing}
+                                onClick={handlePublish}
+                            >
+                                <RefreshCw size={13} className={publishing ? 'places-spin' : ''} style={{ verticalAlign: -2, marginRight: 5 }} />
+                                {publishing ? 'Publishing…' : pack.published_at ? 'Refresh pack' : 'Publish pack'}
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
+
             <div className="export-actions">
                 <button
                     className="export-btn primary"
                     disabled={publishing || pack.rides.length === 0}
-                    onClick={handlePublish}
+                    onClick={openConfirm}
                     title={pack.published_at
-                        ? 'Rebuild and re-publish — the shared link serves the new contents'
-                        : 'Publish to the shares repo and get a live DingoNav link'}
+                        ? 'Rebuild and re-publish to dingodirt.com — the shared link serves the new contents'
+                        : 'Publish to dingodirt.com and get a live DingoNav link'}
                 >
                     <RefreshCw size={13} className={publishing ? 'places-spin' : ''} style={{ verticalAlign: -2, marginRight: 5 }} />
-                    {publishing ? 'Publishing…' : pack.published_at ? 'Refresh' : 'Publish'}
+                    {publishing ? 'Publishing…' : pack.published_at ? 'Refresh' : 'Publish…'}
                 </button>
                 <button
                     className="export-btn"

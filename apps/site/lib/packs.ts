@@ -27,20 +27,51 @@ export function resolveVisibilityRequest(
   return requested === "public" && !trusted ? "pending" : requested;
 }
 
+export type Visibility = "private" | "unlisted" | "pending" | "public";
+
+/**
+ * Visibility to store on a publish/refresh; undefined = leave as-is. A
+ * refresh that re-asks for "public" on an already-approved pack must not
+ * knock it back into the review queue.
+ */
+export function nextVisibility(
+  current: Visibility | null,
+  requested: "private" | "unlisted" | "public" | undefined,
+  trusted: boolean,
+): Visibility | undefined {
+  if (!requested) return undefined;
+  const resolved = resolveVisibilityRequest(requested, trusted);
+  if (resolved === "pending" && current === "public") return "public";
+  return resolved;
+}
+
 function blobConfigured(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN;
 }
 
 export class StorageUnavailableError extends Error {}
 
+export interface PublishOptions {
+  /** Requested visibility; omitted = keep current (new packs: schema default). */
+  visibility?: "private" | "unlisted" | "public";
+  /**
+   * Version-bump this exact pack (must be owned by the caller) instead of
+   * matching on name+type — so renaming a pack in Plan propagates to the
+   * site pack instead of forking a new one.
+   */
+  packId?: string;
+}
+
 /**
- * Upload a pack for `user`. If the user already owns a non-deleted pack with
- * the same name+type, this becomes a version bump (same share link).
+ * Upload a pack for `user`. `opts.packId` (from the daemon) pins the version
+ * bump to that pack; otherwise a non-deleted pack with the same name+type
+ * becomes the bump target (same share link either way).
  */
 export async function publishPack(
   user: SessionUser,
   buf: Buffer,
   filename: string,
+  opts: PublishOptions = {},
 ) {
   const validated = validatePack(buf, filename);
   if (!blobConfigured()) {
@@ -51,17 +82,48 @@ export async function publishPack(
 
   const checksum = createHash("sha256").update(buf).digest("hex");
 
-  const [existing] = await db
-    .select()
-    .from(packs)
-    .where(
-      and(
-        eq(packs.ownerId, user.id),
-        eq(packs.name, validated.name),
-        eq(packs.type, validated.type),
-        isNull(packs.deletedAt),
-      ),
-    );
+  let existing: typeof packs.$inferSelect | undefined;
+  if (opts.packId) {
+    [existing] = await db
+      .select()
+      .from(packs)
+      .where(
+        and(
+          eq(packs.id, opts.packId),
+          eq(packs.ownerId, user.id),
+          isNull(packs.deletedAt),
+        ),
+      );
+    if (!existing) {
+      throw new PackValidationError(
+        "Unknown pack id — it may have been deleted on dingodirt.com.",
+      );
+    }
+    if (existing.type !== validated.type) {
+      throw new PackValidationError(
+        "That pack id belongs to a different pack type.",
+      );
+    }
+  } else {
+    [existing] = await db
+      .select()
+      .from(packs)
+      .where(
+        and(
+          eq(packs.ownerId, user.id),
+          eq(packs.name, validated.name),
+          eq(packs.type, validated.type),
+          isNull(packs.deletedAt),
+        ),
+      );
+  }
+
+  const trusted = user.role === "trusted" || user.role === "admin";
+  const visibility = nextVisibility(
+    existing?.visibility ?? null,
+    opts.visibility,
+    trusted,
+  );
 
   const version = existing ? existing.currentVersion + 1 : 1;
   const packId = existing ? existing.id : crypto.randomUUID();
@@ -99,11 +161,21 @@ export async function publishPack(
       checksum,
       metadata: storedMeta,
     });
-    await db
+    // An explicit packId means the caller's name is authoritative (a Plan
+    // rename); the slug stays frozen so handed-out links survive.
+    const [updated] = await db
       .update(packs)
-      .set({ currentVersion: version, updatedAt: new Date() })
-      .where(eq(packs.id, packId));
-    return { pack: existing, version, isNew: false };
+      .set({
+        currentVersion: version,
+        updatedAt: new Date(),
+        ...(opts.packId && validated.name !== existing.name
+          ? { name: validated.name }
+          : {}),
+        ...(visibility ? { visibility } : {}),
+      })
+      .where(eq(packs.id, packId))
+      .returning();
+    return { pack: updated ?? existing, version, isNew: false };
   }
 
   // New pack: unique slug (suffix on collision with anyone's pack).
@@ -128,6 +200,7 @@ export async function publishPack(
       slug,
       shareToken: newShareToken(),
       authorName: user.name,
+      ...(visibility ? { visibility } : {}),
     })
     .returning();
 

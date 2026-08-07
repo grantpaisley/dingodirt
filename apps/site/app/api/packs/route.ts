@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/membership";
+import { userForToken } from "@/lib/tokens";
 import {
   publishPack,
   PackValidationError,
@@ -14,11 +15,18 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 30;
 
 export async function POST(req: NextRequest) {
-  const user = await currentUser();
+  // Bearer (a ddt_… API token from Plan/Studio) or the session cookie —
+  // both resolve to the same SessionUser shape.
+  const bearer = req.headers.get("authorization");
+  const user = bearer?.startsWith("Bearer ")
+    ? await userForToken(bearer.slice(7)).catch(() => null)
+    : await currentUser();
   if (!user) {
     return NextResponse.json(
-      { ok: false, error: "Sign in to publish." },
-      { status: 403 },
+      bearer
+        ? { ok: false, error: "Invalid or revoked API token." }
+        : { ok: false, error: "Sign in to publish." },
+      { status: bearer ? 401 : 403 },
     );
   }
 
@@ -42,9 +50,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const rawVisibility = form?.get("visibility");
+  if (
+    typeof rawVisibility === "string" &&
+    rawVisibility !== "" &&
+    !["private", "unlisted", "public"].includes(rawVisibility)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Bad visibility." },
+      { status: 400 },
+    );
+  }
+  const visibility =
+    typeof rawVisibility === "string" && rawVisibility !== ""
+      ? (rawVisibility as "private" | "unlisted" | "public")
+      : undefined;
+  const packId = form?.get("packId");
+
   const buf = Buffer.from(await file.arrayBuffer());
   try {
-    const { pack, version, isNew } = await publishPack(user, buf, file.name);
+    const { pack, version, isNew } = await publishPack(user, buf, file.name, {
+      visibility,
+      packId: typeof packId === "string" && packId ? packId : undefined,
+    });
     return NextResponse.json({
       ok: true,
       isNew,

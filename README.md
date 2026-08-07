@@ -71,9 +71,9 @@ only then.
 `npm test` runs the guard that fails if any app grows a local copy again.
 This replaced a cross-repo sync workflow and its PAT.
 
-Related: [`grantpaisley/dingo-shares`](https://github.com/grantpaisley/dingo-shares)
-stays a separate repo on purpose — it is GitHub-as-CDN, its raw URLs are
-load-bearing, and its commit history *is* the moderation model.
+Pack share links are served by dingodirt.com (the `site` app) — Plan
+publishes there and Nav's `?b=` links download from it. The old
+`dingo-shares` GitHub-as-CDN repo is retired (archived; its links are dead).
 
 ## Getting started
 
