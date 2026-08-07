@@ -31,6 +31,16 @@ const LINKS = [
   ['apps/plan/public/behaviors', 'core/behaviors'],
   ['apps/studio/js/applier-nav.js', 'core/appliers/applier-nav.js'],
   ['apps/studio/js/scheme.js', 'core/appliers/scheme.js'],
+  ['apps/studio/js/detail.js', 'core/appliers/detail.js'],
+  ['apps/nav/basemap/layers.json', 'core/basemap/layers.json'],
+  ['apps/nav/basemap/layers-light.json', 'core/basemap/layers-light.json'],
+  ['apps/nav/basemap/fonts', 'core/basemap/fonts'],
+  ['apps/nav/basemap/sprites', 'core/basemap/sprites'],
+  ['apps/studio/basemap/layers.json', 'core/basemap/layers.json'],
+  ['apps/studio/basemap/layers-light.json', 'core/basemap/layers-light.json'],
+  ['apps/studio/basemap/fonts', 'core/basemap/fonts'],
+  ['apps/studio/basemap/sprites', 'core/basemap/sprites'],
+  ['apps/plan/public/basemap', 'core/basemap'],
 ];
 
 test('core holds the canonical presets', () => {

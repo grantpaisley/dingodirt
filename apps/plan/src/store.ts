@@ -28,6 +28,10 @@ export type BaseStyle = string
 /** Day/night variant of the active local style (night = the palette remap
  *  stored in the style's metadata; ignored by styles without one). */
 export type BaseStyleMode = 'day' | 'night'
+/** Detail level of the Dingo base style — when tracks/minor roads appear
+ *  (core/appliers/detail.js). 'auto' follows the active scheme's
+ *  basemap.detail token; the other values override it. */
+export type DetailLevel = 'auto' | 'populated' | 'regional' | 'outback'
 
 export const ALL_MODES: RideMode[] = ['adv', 'enduro', 'mtb', 'watersport', 'other']
 
@@ -182,6 +186,8 @@ interface SettingsState {
      *  or topo (classic topographic) */
     baseStyle: BaseStyle
     baseStyleMode: BaseStyleMode
+    /** Dingo-style detail level ('auto' = the scheme's basemap.detail) */
+    detailLevel: DetailLevel
     /** Hillshade relief shading over the base map */
     hillshade: boolean
     /** 3D terrain (visible when the map is pitched — right-drag). Tracks
@@ -255,6 +261,7 @@ interface SettingsState {
     setRideScheme: (id: string) => void
     setBaseStyle: (s: BaseStyle) => void
     setBaseStyleMode: (m: BaseStyleMode) => void
+    setDetailLevel: (d: DetailLevel) => void
     setHillshade: (v: boolean) => void
     setTerrain3d: (v: boolean) => void
     setShowAreas: (v: boolean) => void
@@ -300,6 +307,7 @@ export const useSettings = create<SettingsState>()(
             rideScheme: 'default',
             baseStyle: 'satellite',
             baseStyleMode: 'day',
+            detailLevel: 'auto',
             hillshade: false,
             terrain3d: false,
             showAreas: false,
@@ -371,6 +379,7 @@ export const useSettings = create<SettingsState>()(
             setRideScheme: (rideScheme) => set({ rideScheme }),
             setBaseStyle: (baseStyle) => set({ baseStyle }),
             setBaseStyleMode: (baseStyleMode) => set({ baseStyleMode }),
+            setDetailLevel: (detailLevel) => set({ detailLevel }),
             setHillshade: (hillshade) => set({ hillshade }),
             setTerrain3d: (terrain3d) => set({ terrain3d }),
             setShowAreas: (showAreas) => set({ showAreas }),
@@ -470,6 +479,9 @@ export const useSettings = create<SettingsState>()(
                 }
                 if (merged.baseStyleMode !== 'day' && merged.baseStyleMode !== 'night') {
                     merged.baseStyleMode = 'day'
+                }
+                if (!['auto', 'populated', 'regional', 'outback'].includes(merged.detailLevel)) {
+                    merged.detailLevel = 'auto'
                 }
                 if (!merged.gradeFilter || typeof merged.gradeFilter !== 'object') {
                     merged.gradeFilter = { '1': true, '2': true, '3': true, '4': true, '5': true, none: true }

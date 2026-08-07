@@ -73,7 +73,9 @@ export function setToken(key, value) {
   if (value == null) delete store[key];
   else store[key] = value;
   saveDraft();
-  const rebuild = key === 'basemap.base';
+  // Flavour swaps the layer file; detail rewrites minzoom/zoom ramps —
+  // both need a full style rebuild, not a paint patch.
+  const rebuild = key === 'basemap.base' || key === 'basemap.detail';
   ED.view.setScheme(viewScheme(), { rebuild })
     .catch(e => { console.error(e); toast('Preview update failed: ' + e.message); });
   if (ED.grid) ED.grid.refreshCurrent().catch(console.error);

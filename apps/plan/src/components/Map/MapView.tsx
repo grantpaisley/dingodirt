@@ -1115,47 +1115,26 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     // selection, fetches the selection's own summaries. The pending flag (not
     // a rides dependency alone) is what keeps refetches from snapping the
     // camera back after a manual pan.
-    //
-    // A selection must never be invisible, so the intent is pending even with
-    // the autoZoom setting off — but then the camera only moves when some
-    // selected ride is entirely outside the viewport (a fully off-screen pick
-    // from search / All tracks). Clicking a track already on screen never
-    // yanks the view.
     const selectionKey = selectedIds.join(',')
     const pendingAutoZoom = useRef(false)
     useEffect(() => {
-        pendingAutoZoom.current = selectedIds.length > 0
+        pendingAutoZoom.current = autoZoom && selectedIds.length > 0
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoZoom, selectionKey])
     useEffect(() => {
         if (!pendingAutoZoom.current || !map.current) return
         const fit = (paths: [number, number][][]) => {
             let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity
-            const boxes: [number, number, number, number][] = []
             for (const path of paths) {
-                let pMinLon = Infinity, pMinLat = Infinity, pMaxLon = -Infinity, pMaxLat = -Infinity
                 for (const [lon, lat] of path) {
-                    if (lon < pMinLon) pMinLon = lon
-                    if (lon > pMaxLon) pMaxLon = lon
-                    if (lat < pMinLat) pMinLat = lat
-                    if (lat > pMaxLat) pMaxLat = lat
+                    if (lon < minLon) minLon = lon
+                    if (lon > maxLon) maxLon = lon
+                    if (lat < minLat) minLat = lat
+                    if (lat > maxLat) maxLat = lat
                 }
-                if (pMinLon === Infinity) continue // no geometry — nothing to show
-                boxes.push([pMinLon, pMinLat, pMaxLon, pMaxLat])
-                if (pMinLon < minLon) minLon = pMinLon
-                if (pMaxLon > maxLon) maxLon = pMaxLon
-                if (pMinLat < minLat) minLat = pMinLat
-                if (pMaxLat > maxLat) maxLat = pMaxLat
             }
             if (minLon === Infinity || !map.current) return
             pendingAutoZoom.current = false
-            if (!autoZoom) {
-                const b = map.current.getBounds()
-                const allVisible = boxes.every(([lo, la, hi, ha]) =>
-                    lo <= b.getEast() && hi >= b.getWest()
-                    && la <= b.getNorth() && ha >= b.getSouth())
-                if (allVisible) return
-            }
             map.current.fitBounds([[minLon, minLat], [maxLon, maxLat]], {
                 padding: 60,
                 maxZoom: 14,

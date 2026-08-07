@@ -26,6 +26,10 @@ export const TOKEN_GROUPS = [
     'basemap.roadMinor':     { type: 'color', def: null, label: 'Minor roads' },
     'basemap.roadTrack':     { type: 'color', def: null, label: 'Tracks / paths' },
     'basemap.trackDashed':   { type: 'bool', def: false, label: 'Dash tracks' },
+    /* when tracks/minor roads appear: populated = base style (~z14 tracks),
+       outback = 2 zooms earlier (z12 — the tile-data floor). Applied by
+       appliers/detail.js; apps may expose their own override on top. */
+    'basemap.detail':        { type: 'select', opts: ['populated', 'regional', 'outback'], def: 'populated', label: 'Track detail' },
     'basemap.labelText':     { type: 'color', def: null, label: 'Label text' },
     'basemap.labelHalo':     { type: 'color', def: null, label: 'Label halo' },
     'basemap.hillshade':     { type: 'bool', def: true, label: 'Hillshade' },

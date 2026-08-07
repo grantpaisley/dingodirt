@@ -10,7 +10,7 @@ import {
     Footprints, Satellite, TreePine, Map as MapIcon, Mountain, MountainSnow, SquareDashed,
     PencilLine, Locate,
 } from 'lucide-react'
-import { useSettings, useUiState, effectiveLayerState, hasActiveRangeFilters, MODE_COLORS, ALL_POI_CATEGORIES, type RideMode, type TrackClass, type TrackShape, type ArrowMode, type BaseStyle, type GradeKey } from '../../store'
+import { useSettings, useUiState, effectiveLayerState, hasActiveRangeFilters, MODE_COLORS, ALL_POI_CATEGORIES, type RideMode, type TrackClass, type TrackShape, type ArrowMode, type BaseStyle, type DetailLevel, type GradeKey } from '../../store'
 import { useStyleManifest } from '../../mapStyles'
 import { getMapInstance } from './mapRegistry'
 import { deriveSnapLevels, nextSnap, prevSnap } from './styleZoom'
@@ -78,6 +78,16 @@ const BASE_STYLE_META: Array<[BaseStyle, string, string, typeof Compass]> = [
     ['topo', 'Topo', 'Classic topographic map', MapIcon],
 ]
 
+// Dingo-style track detail (radio: exactly one active). 'auto' follows the
+// active scheme's basemap.detail token; the rest override it. Outback's two
+// zooms is the tile-data floor — see core/appliers/detail.js.
+const DETAIL_META: Array<[DetailLevel, string, string, typeof Compass]> = [
+    ['auto', 'Auto', 'Follow the active scheme (its basemap.detail token)', Palette],
+    ['populated', 'City', 'Tracks and minor roads at the usual zooms (~z14)', MapIcon],
+    ['regional', 'Regional', 'Tracks one zoom earlier', TreePine],
+    ['outback', 'Outback', 'Tracks two zooms earlier (z12) — out bush the track IS the road', Compass],
+]
+
 /** Grade tooltips (Grant's published 1-5 difficulty scale) */
 const GRADE_LABELS: Record<string, string> = {
     '1': 'Easiest: bitumen, wide flat gravel',
@@ -137,6 +147,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
         heatZoomScaling, setHeatZoomScaling,
         arrowMode, setArrowMode,
         setBaseStyle,
+        detailLevel, setDetailLevel,
         hillshade, setHillshade,
         terrain3d, setTerrain3d,
         showAreas, setShowAreas,
@@ -145,6 +156,13 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
 
     // Local base styles from /styles/index.json (community style JSONs)
     const localStyles = useStyleManifest()
+
+    // Detail is baked into the Dingo style's layers (minzoom + zoom ramps),
+    // so changing it must rebuild the style, not patch paint.
+    const pickDetailLevel = (level: DetailLevel) => {
+        setDetailLevel(level)
+        useUiState.getState().bumpStyleReload()
+    }
 
     // Per-owner facet under "Other rides": who owns the other-class tracks,
     // with counts. Metadata is fetched once the layers pane opens (whole
@@ -508,6 +526,28 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                 onClick={() => setBaseStyle(style)}
                             />
                         ))}
+                        {/* Track detail (radio) — Dingo style only: when tracks and
+                            minor roads appear. Outback pulls them two zooms earlier
+                            (the tile-data floor); Auto follows the active scheme. */}
+                        {eff.baseStyle === 'dingo' && <>
+                            <div style={{
+                                borderTop: '1px solid #555', margin: '8px 0 4px',
+                                paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            }}>
+                                Track detail
+                            </div>
+                            {DETAIL_META.map(([level, label, title, Icon]) => (
+                                <PaneRow
+                                    key={level}
+                                    icon={<Icon size={PANE_ICON_SIZE} />}
+                                    label={label}
+                                    title={title}
+                                    on={detailLevel === level}
+                                    disabled={previewing}
+                                    onClick={() => pickDetailLevel(level)}
+                                />
+                            ))}
+                        </>}
                         {/* Direction arrows — when the chevrons show (radio) */}
                         <div style={{
                             borderTop: '1px solid #555', margin: '8px 0 4px',

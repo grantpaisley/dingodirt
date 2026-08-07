@@ -10,6 +10,7 @@ import { REF, setRef, toXY, toLL, dist, bearing, angDiff, nearestOnTrack } from 
 import { SILENT_KINDS, kindOf, MARKS } from './cues.js';
 import { bv } from './behavior.js';
 import { applyScheme, basePaintOverrides, applyBaseOverrides, hillPaint } from './applier-nav.js';
+import { applyDetailBias } from './detail.js';
 import { tok } from './scheme.js';
 
 /* ---------------- shared map base (PMTiles protocol + layer files) ----------------
@@ -53,6 +54,7 @@ async function buildStyle(scheme) {
     glyphs: BASE.urlRef + 'fonts/{fontstack}/{range}.pbf',
     sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': tok(scheme, 'hud.bg') || '#0e1216' } }] };
   let layersArr = applyBaseOverrides(BASE.layerCache[file], basePaintOverrides(scheme));
+  layersArr = applyDetailBias(layersArr, tok(scheme, 'basemap.detail'));
   const sources = { protomaps: { type: 'vector', url: 'pmtiles://base', attribution: '© OpenStreetMap, Protomaps' } };
   const hill = hillPaint(scheme);
   if (BASE.hasHill && hill) {

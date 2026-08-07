@@ -1227,7 +1227,7 @@ function angDiff(a, b) { let d = b - a; while (d > 180) d -= 360; while (d < -18
    a clean slate before laying a preset over the top */
 const SET_D = { sound: true, confirm: true, autoZoom: true, wake: true, name: '', email: '', code: '', orient: 'north',
   profile: false, vehicle: 'enduro', trackColour: 'none', trail: true,
-  compassAuto: 'turns', countUnit: 'm', showAdv: false, mapStyle: 'daylight', hillshade: true,
+  compassAuto: 'turns', countUnit: 'm', showAdv: false, mapStyle: 'daylight', hillshade: true, detail: 'populated',
   varg: false, vargOwn: false, vargVin: '', vargPin: '', vargExtra: false, rideProfile: 'adventure', bigLeft: '',
   navMode: 'follow', startBrief: true };  // navMode: follow | explore | snap — survives restarts by design
 const factorySet = () => ({ ...SET_D, zoomPresets: {}, adv: {}, keys: {}, layout: {} });
@@ -2148,6 +2148,44 @@ const MAP_STYLES = {
 function styleCycle() { return MAP_STYLES.scheme ? ['scheme', 'satellite'] : ['daylight', 'contrast', 'dark', 'satellite']; }
 let baseUrlRef = '', hasBasemap = false;
 const baseLayerCache = {};
+
+/* Detail-level zoom bias — hand-translation of core/appliers/detail.js (the
+   canonical copy; grow the behaviour THERE first). Out bush tracks should
+   read from further out; in town the base thresholds are right. outback's
+   -2 is the tile-data floor: track features first exist in z12 tiles of the
+   Protomaps AU build. Shifts explicit minzoom/maxzoom AND the zoom-driven
+   interpolate/step ramps whose rise from zero fades a road class in. */
+const DETAIL_BIAS = { populated: 0, regional: -1, outback: -2 };
+const DETAIL_LAYER_IDS = new Set([
+  'roads_other', 'roads_bridges_other', 'roads_bridges_other_casing',
+  'roads_tunnels_other', 'roads_tunnels_other_casing',
+  'roads_minor', 'roads_minor_casing',
+  'roads_minor_service', 'roads_minor_service_casing',
+  'roads_bridges_minor', 'roads_bridges_minor_casing',
+  'roads_tunnels_minor', 'roads_tunnels_minor_casing',
+  'roads_labels_minor',
+]);
+function shiftZoomStops(value, bias) {
+  if (!Array.isArray(value)) return value;
+  const isZoom = x => Array.isArray(x) && x.length === 1 && x[0] === 'zoom';
+  if ((value[0] === 'interpolate' && isZoom(value[2])) || (value[0] === 'step' && isZoom(value[1])))
+    return value.map((x, i) => i >= 3 && (i - 3) % 2 === 0 ? Math.max(0, x + bias) : shiftZoomStops(x, bias));
+  return value.map(x => shiftZoomStops(x, bias));
+}
+function applyDetailBias(layersArr, level) {
+  const bias = DETAIL_BIAS[level] || 0;
+  if (!bias) return layersArr;
+  const shiftProps = obj => { if (!obj) return obj;
+    const out = {}; for (const k in obj) out[k] = shiftZoomStops(obj[k], bias); return out; };
+  return layersArr.map(l => {
+    if (!DETAIL_LAYER_IDS.has(l.id)) return l;
+    const out = { ...l };
+    if (typeof out.minzoom === 'number') out.minzoom = Math.max(0, out.minzoom + bias);
+    if (typeof out.maxzoom === 'number') out.maxzoom = Math.max(0, out.maxzoom + bias);
+    out.paint = shiftProps(out.paint); out.layout = shiftProps(out.layout);
+    return out;
+  });
+}
 function curStyle() { return MAP_STYLES[S.set.mapStyle] || MAP_STYLES.daylight; }
 async function buildStyle() {
   // Satellite: raster ESRI imagery as the base (from the sattile:// IDB store).
@@ -2201,6 +2239,7 @@ async function buildStyle() {
       return patch ? { ...l, paint: { ...l.paint, ...patch } } : l;
     });
   }
+  layersArr = applyDetailBias(layersArr, S.set.detail); // tracks earlier out bush
   const sources = { protomaps: sharedBase
     ? { type: 'vector', tiles: ['dtile://basemap/{z}/{x}/{y}'], maxzoom: DTILES.maxzoom.basemap, attribution: '© OpenStreetMap, Protomaps' }
     : { type: 'vector', url: 'pmtiles://base', attribution: '© OpenStreetMap, Protomaps' } };
@@ -7101,6 +7140,10 @@ const SETTINGS = [
     put: v => setRideCode(v) }, // typed by hand — bundles stop overriding it
   // General
   { sec: 'map', k: 'hillshade', t: 'toggle', l: 'Terrain shading', id: 'setHill', apply: applyHill },
+  // when tracks/minor roads appear — Outback pulls them 2 zooms earlier (the tile-data floor)
+  { sec: 'map', k: 'detail', t: 'seg', l: 'Track detail', segId: 'detailSeg',
+    opts: [['populated', 'City'], ['regional', 'Regional'], ['outback', 'Outback']],
+    apply: () => { if (mapReady && S.set.mapStyle !== 'satellite') setMapStyle(S.set.mapStyle); } },
   { sec: 'map', k: 'stravaRide', t: 'toggle', l: 'Strava rides (blue)', id: 'setStravaRide', apply: applyStrava },
   { sec: 'map', k: 'stravaHike', t: 'toggle', l: 'Strava hikes (purple)', id: 'setStravaHike', apply: applyStrava },
   { sec: 'ui', k: 'wake', t: 'toggle', l: 'Keep screen on while navigating', id: 'setWake',
@@ -7487,6 +7530,8 @@ function applySchemeSettings(sch) {
   put('chevSize', tokOf(sch, 'overlays.chevSize')); put('chevGap', tokOf(sch, 'overlays.chevGap'));
   put('colCrumb', tokOf(sch, 'overlays.breadcrumb'));
   S.set.hillshade = !!tokOf(sch, 'basemap.hillshade');
+  const det = tokOf(sch, 'basemap.detail');
+  if (DETAIL_BIAS[det] != null) S.set.detail = det; // scheme default; the settings seg still overrides
   S.set.mapStyle = 'scheme';
 }
 /* behaviour → the params with Nav homes today; the rest (reroute, pitch, lane

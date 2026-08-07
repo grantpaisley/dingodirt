@@ -19,6 +19,7 @@ import maplibregl from 'maplibre-gl'
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import { applyBaseOverrides, basePaintOverrides } from '../../../core/appliers/applier-nav.js'
+import { applyDetailBias } from '../../../core/appliers/detail.js'
 import { resolveScheme, tok } from '../../../core/appliers/scheme.js'
 import type { SchemeLike } from '../../../core/appliers/scheme'
 import { useSettings } from './store'
@@ -91,7 +92,12 @@ export async function buildDingoStyle(mode: 'day' | 'night' = 'day'): Promise<St
     const scheme = await activeScheme(mode)
     const flavour = tok(scheme, 'basemap.base') === 'light' ? 'light' : 'dark'
     const baseLayers = await fetchLayerFile(flavour === 'light' ? 'layers-light.json' : 'layers.json')
-    const layers = applyBaseOverrides(baseLayers, basePaintOverrides(scheme)) as LayerSpecification[]
+    let layers = applyBaseOverrides(baseLayers, basePaintOverrides(scheme)) as LayerSpecification[]
+    // Detail level: when tracks/minor roads appear. The app setting wins;
+    // 'auto' follows the scheme's basemap.detail token.
+    const setting = useSettings.getState().detailLevel
+    const level = setting === 'auto' ? String(tok(scheme, 'basemap.detail')) : setting
+    layers = applyDetailBias(layers, level)
     // String concat past the basemap dir — new URL() would %-encode the
     // {fontstack} tokens (Studio's buildStyle carries the same note).
     const assetBase = new URL(`${import.meta.env.BASE_URL}basemap/`, location.href).href
