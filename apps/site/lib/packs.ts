@@ -1,6 +1,6 @@
 import { randomBytes, createHash } from "crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { put } from "@vercel/blob";
+import { copy, del, put } from "@vercel/blob";
 import { db } from "@/db";
 import { packs, packVersions } from "@/db/schema";
 import {
@@ -60,6 +60,12 @@ export interface PublishOptions {
    * site pack instead of forking a new one.
    */
   packId?: string;
+  /**
+   * Landing-zone pathname of a bundle already PUT to Blob storage via the
+   * presigned flow (/api/packs/upload). The version blob is server-side
+   * copied from it instead of re-uploaded, and the landing blob is deleted.
+   */
+  preUploadedPathname?: string;
 }
 
 /**
@@ -129,11 +135,17 @@ export async function publishPack(
   const packId = existing ? existing.id : crypto.randomUUID();
   const ext = validated.type === "ride" ? "dingonav" : "dingoscheme";
 
-  const blob = await put(
-    `packs/${packId}/v${version}.${ext}`,
-    buf,
-    { access: "public", addRandomSuffix: true },
-  );
+  const finalPath = `packs/${packId}/v${version}.${ext}`;
+  const blob = opts.preUploadedPathname
+    ? await copy(opts.preUploadedPathname, finalPath, {
+        access: "public",
+        addRandomSuffix: true,
+      })
+    : await put(finalPath, buf, { access: "public", addRandomSuffix: true });
+  if (opts.preUploadedPathname) {
+    // Landing blob served its purpose; losing this delete only leaks a file.
+    await del(opts.preUploadedPathname).catch(() => {});
+  }
 
   let previewUrl: string | null = null;
   if (validated.preview) {

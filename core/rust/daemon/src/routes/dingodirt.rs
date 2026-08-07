@@ -37,6 +37,18 @@ fn http() -> &'static reqwest::Client {
     })
 }
 
+/// Client for the presigned blob PUT — a 40+ MB pack on a slow uplink can
+/// easily outlive the 120 s API timeout.
+fn http_upload() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(900))
+            .build()
+            .expect("reqwest client")
+    })
+}
+
 pub async fn get_setting(pool: &PgPool, key: &str) -> Result<Option<String>, ApiError> {
     let row: Option<(String,)> =
         sqlx::query_as("SELECT value FROM app_settings WHERE key = $1")
@@ -180,9 +192,30 @@ pub struct SitePack {
     pub is_new: bool,
 }
 
-/// Multipart-upload a built bundle to `{site}/api/packs`. Site errors come
-/// back verbatim with their status so Plan can show them.
+/// Bundles above this take the presigned path: Vercel caps serverless
+/// request bodies at 4.5 MB, so the multipart route can't carry real packs.
+/// Margin under the cap covers multipart framing overhead.
+const MULTIPART_MAX_BYTES: usize = 3_500_000;
+
+/// Upload a built bundle to the site. Small files go multipart to
+/// `{site}/api/packs`; anything bigger is PUT straight to Blob storage via
+/// a presigned URL, then confirmed with `{site}/api/packs/complete`. Site
+/// errors come back verbatim with their status so Plan can show them.
 pub async fn upload_pack(
+    token: &str,
+    filename: &str,
+    bytes: Vec<u8>,
+    visibility: Option<&str>,
+    site_pack_id: Option<&str>,
+) -> Result<SitePack, ApiError> {
+    if bytes.len() > MULTIPART_MAX_BYTES {
+        upload_pack_presigned(token, filename, bytes, visibility, site_pack_id).await
+    } else {
+        upload_pack_multipart(token, filename, bytes, visibility, site_pack_id).await
+    }
+}
+
+async fn upload_pack_multipart(
     token: &str,
     filename: &str,
     bytes: Vec<u8>,
@@ -216,6 +249,96 @@ pub async fn upload_pack(
                 format!("can't reach dingodirt.com ({url}): {e}"),
             )
         })?;
+    parse_pack_response(res).await
+}
+
+/// Three-step big-pack publish: mint a presigned URL, PUT the bytes to Blob
+/// storage, then ask the site to validate and version the upload.
+async fn upload_pack_presigned(
+    token: &str,
+    filename: &str,
+    bytes: Vec<u8>,
+    visibility: Option<&str>,
+    site_pack_id: Option<&str>,
+) -> Result<SitePack, ApiError> {
+    let url = format!("{}/api/packs/upload", site_base());
+    let res = http()
+        .post(&url)
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "filename": filename, "size": bytes.len() }))
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("can't reach dingodirt.com ({url}): {e}"),
+            )
+        })?;
+    let status = res.status();
+    let body: serde_json::Value = res.json().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err((
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            body.get("error")
+                .and_then(|e| e.as_str())
+                .unwrap_or("upload set-up failed")
+                .to_string(),
+        ));
+    }
+    let get_str = |k: &str| {
+        body.get(k)
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| internal(format!("site response missing {k}")))
+    };
+    let upload_url = get_str("uploadUrl")?;
+    let pathname = get_str("pathname")?;
+
+    let res = http_upload()
+        .put(&upload_url)
+        .header(reqwest::header::CONTENT_TYPE, "application/zip")
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("blob upload failed: {e}")))?;
+    if !res.status().is_success() {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            format!(
+                "blob upload rejected ({status}): {}",
+                text.chars().take(200).collect::<String>()
+            ),
+        ));
+    }
+
+    let mut payload = serde_json::json!({ "pathname": pathname, "filename": filename });
+    if let Some(v) = visibility {
+        payload["visibility"] = v.into();
+    }
+    if let Some(id) = site_pack_id {
+        payload["packId"] = id.into();
+    }
+    let url = format!("{}/api/packs/complete", site_base());
+    let res = http()
+        .post(&url)
+        .bearer_auth(token)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("can't reach dingodirt.com ({url}): {e}"),
+            )
+        })?;
+    parse_pack_response(res).await
+}
+
+/// Shared tail of both upload paths: surface site errors verbatim, or parse
+/// the `{ pack, version, isNew }` success body into a SitePack.
+async fn parse_pack_response(res: reqwest::Response) -> Result<SitePack, ApiError> {
     let status = res.status();
     let body: serde_json::Value = res.json().await.unwrap_or_default();
     if !status.is_success() {
@@ -249,6 +372,10 @@ pub async fn upload_pack(
 mod tests {
     use super::*;
 
+    /// DINGO_SITE_URL is process-global; tests that point it at a mock
+    /// site must not interleave.
+    static SITE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn suffix_shows_only_the_tail() {
         assert_eq!(suffix("ddt_abcdefgh1234"), "ddt_…1234");
@@ -260,6 +387,7 @@ mod tests {
     #[tokio::test]
     async fn upload_pack_roundtrip() {
         use axum::routing::post;
+        let _guard = SITE_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let (tx, mut rx) = tokio::sync::mpsc::channel::<(String, String)>(1);
         let app = Router::new().route(
             "/api/packs",
@@ -304,6 +432,87 @@ mod tests {
         assert!(body.contains("name=\"visibility\""));
         assert!(body.contains("public"));
         assert!(body.contains("name=\"packId\""));
+
+        unsafe { std::env::remove_var("DINGO_SITE_URL") };
+    }
+
+    /// Big bundles skip multipart: mint a presigned URL, PUT raw bytes to
+    /// the (mock) blob store, then confirm via /api/packs/complete.
+    #[tokio::test]
+    async fn upload_pack_presigned_roundtrip() {
+        use axum::routing::{post, put};
+        let _guard = SITE_ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let (blob_tx, mut blob_rx) = tokio::sync::mpsc::channel::<usize>(1);
+        let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<(String, String)>(1);
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route(
+                "/api/packs/upload",
+                post(move |body: Json<serde_json::Value>| async move {
+                    assert_eq!(
+                        body.get("filename").and_then(|v| v.as_str()),
+                        Some("Flinders.dingonav")
+                    );
+                    Json(serde_json::json!({
+                        "ok": true,
+                        "uploadUrl": format!("http://{addr}/blob/uploads/u1/x/Flinders.dingonav"),
+                        "pathname": "uploads/u1/x/Flinders.dingonav",
+                    }))
+                }),
+            )
+            .route(
+                "/blob/{*path}",
+                put(move |body: axum::body::Bytes| {
+                    let blob_tx = blob_tx.clone();
+                    async move {
+                        blob_tx.send(body.len()).await.ok();
+                        Json(serde_json::json!({ "url": "https://store/blob" }))
+                    }
+                })
+                .layer(axum::extract::DefaultBodyLimit::max(16 * 1024 * 1024)),
+            )
+            .route(
+                "/api/packs/complete",
+                post(move |headers: axum::http::HeaderMap, body: Json<serde_json::Value>| {
+                    let done_tx = done_tx.clone();
+                    async move {
+                        let auth = headers
+                            .get("authorization")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("")
+                            .to_string();
+                        done_tx.send((auth, body.to_string())).await.ok();
+                        Json(serde_json::json!({
+                            "ok": true, "isNew": true, "version": 1,
+                            "pack": { "id": "site-id-2", "name": "Flinders",
+                                      "shareToken": "tok456", "visibility": "unlisted" }
+                        }))
+                    }
+                }),
+            );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        // Test-only env mutation; guarded by SITE_ENV_LOCK.
+        unsafe { std::env::set_var("DINGO_SITE_URL", format!("http://{addr}")) };
+
+        let big = vec![0u8; MULTIPART_MAX_BYTES + 1];
+        let sent = big.len();
+        let got = upload_pack("ddt_secret", "Flinders.dingonav", big, Some("unlisted"), None)
+            .await
+            .expect("presigned upload should succeed");
+        assert_eq!(got.id, "site-id-2");
+        assert_eq!(got.share_token, "tok456");
+        assert_eq!(got.visibility, "unlisted");
+        assert_eq!(got.version, 1);
+        assert!(got.is_new);
+
+        assert_eq!(blob_rx.recv().await, Some(sent));
+        let (auth, body) = done_rx.recv().await.expect("mock saw complete");
+        assert_eq!(auth, "Bearer ddt_secret");
+        assert!(body.contains("uploads/u1/x/Flinders.dingonav"));
+        assert!(body.contains("unlisted"));
+        assert!(!body.contains("packId"));
 
         unsafe { std::env::remove_var("DINGO_SITE_URL") };
     }

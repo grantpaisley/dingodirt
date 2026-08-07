@@ -95,6 +95,17 @@ parses, has tracks, ~5 MB cap.
   this wrong; the real page must not).
 - Verdict rule: majority among voters; `no` wins ties over `maybe`;
   `yes` ≥ `maybe` reads as yes.
+- **Map type switcher** (v1): corner control cycling topo / topo+hillshade /
+  satellite — sources permitting (shared R2 tiles; satellite only if a
+  publicly shareable source exists, the personal aerial set is not one).
+
+### Naming (open idea, not acted on)
+
+The new page may deserve the name **Plan** — it is where planning actually
+happens — with the current Plan app's ride collection recast as the
+**Library**. Cheap first step: user-facing copy only (call the page "plan
+view", call the app's collection "library"); rename `apps/plan` later only
+if the vocabulary sticks.
 
 ## Daemon and Plan
 

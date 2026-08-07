@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { del, head } from "@vercel/blob";
 import { requirePublisher } from "@/lib/publish-auth";
 import {
   publishPack,
@@ -8,20 +9,32 @@ import {
 
 export const runtime = "nodejs";
 
+// Second half of the presigned upload flow (see ../upload/route.ts): the
+// daemon has PUT the bundle to Blob storage; this validates it and turns it
+// into a pack version, mirroring the multipart /api/packs response shape.
+
 export async function POST(req: NextRequest) {
-  const user = await requirePublisher(req, { spend: true });
+  const user = await requirePublisher(req);
   if (user instanceof NextResponse) return user;
 
-  const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
-  if (!file || typeof file === "string") {
+  const body = await req.json().catch(() => null);
+  const pathname = body?.pathname;
+  const filename = body?.filename;
+  if (typeof pathname !== "string" || typeof filename !== "string") {
     return NextResponse.json(
-      { ok: false, error: "Attach a .dingonav or .dingoscheme file." },
+      { ok: false, error: "Missing pathname or filename." },
       { status: 400 },
     );
   }
+  // Only the uploader's own landing zone can be completed.
+  if (!pathname.startsWith(`uploads/${user.id}/`)) {
+    return NextResponse.json(
+      { ok: false, error: "That upload doesn't belong to you." },
+      { status: 403 },
+    );
+  }
 
-  const rawVisibility = form?.get("visibility");
+  const rawVisibility = body?.visibility;
   if (
     typeof rawVisibility === "string" &&
     rawVisibility !== "" &&
@@ -36,13 +49,27 @@ export async function POST(req: NextRequest) {
     typeof rawVisibility === "string" && rawVisibility !== ""
       ? (rawVisibility as "private" | "unlisted" | "public")
       : undefined;
-  const packId = form?.get("packId");
+  const packId = body?.packId;
 
-  const buf = Buffer.from(await file.arrayBuffer());
+  let buf: Buffer;
   try {
-    const { pack, version, isNew } = await publishPack(user, buf, file.name, {
+    const meta = await head(pathname);
+    const res = await fetch(meta.downloadUrl ?? meta.url);
+    if (!res.ok) throw new Error(`blob fetch ${res.status}`);
+    buf = Buffer.from(await res.arrayBuffer());
+  } catch (err) {
+    console.error("uploaded blob unreadable", err);
+    return NextResponse.json(
+      { ok: false, error: "Uploaded file not found — upload it again." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const { pack, version, isNew } = await publishPack(user, buf, filename, {
       visibility,
       packId: typeof packId === "string" && packId ? packId : undefined,
+      preUploadedPathname: pathname,
     });
     return NextResponse.json({
       ok: true,
@@ -58,6 +85,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     if (err instanceof PackValidationError) {
+      // The landing-zone blob is useless now; don't leave it orphaned.
+      await del(pathname).catch(() => {});
       return NextResponse.json(
         { ok: false, error: err.message },
         { status: 400 },
@@ -69,7 +98,7 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-    console.error("publish failed", err);
+    console.error("publish (complete) failed", err);
     return NextResponse.json(
       { ok: false, error: "Publish failed — try again later." },
       { status: 500 },
