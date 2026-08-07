@@ -328,6 +328,9 @@ export default function PlanView({
       zoom: 3.5,
     });
     mapRef.current = map;
+    // Debug handle + surfaced errors, mirroring Plan's __dingoMap convention.
+    (window as unknown as Record<string, unknown>).__planMap = map;
+    map.on("error", (e) => console.error("[plan-map]", e.error ?? e));
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     new ResizeObserver(() => map.resize()).observe(mapDiv.current);
 
