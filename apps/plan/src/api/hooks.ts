@@ -1128,6 +1128,29 @@ export async function publishPlan(
     return res.json()
 }
 
+/** One planning-page item's group feedback (see the site's feedback API). */
+export interface PlanItemFeedback {
+    /** voter name → 'yes' | 'maybe' | 'no' */
+    votes: Record<string, string>
+    comments: { who: string, text: string, at: string }[]
+}
+
+/** Votes/comments from the pack's planning page, keyed `track:<ride id>` /
+ *  `mark:<id>`. Only enabled once a plan is published; polls slowly so
+ *  tallies drift in while the pack pane is open. */
+export function usePlanFeedback(packId: string | null, enabled: boolean) {
+    return useQuery({
+        queryKey: ['packs', packId, 'plan-feedback'],
+        queryFn: async (): Promise<Record<string, PlanItemFeedback>> => {
+            const res = await fetch(`${API_BASE}/packs/${packId}/plan-feedback`)
+            if (!res.ok) throw new Error(await res.text())
+            return (await res.json()).items ?? {}
+        },
+        enabled: !!packId && enabled,
+        refetchInterval: 60_000,
+    })
+}
+
 // ---- dingodirt.com connection (Settings) ----
 
 export interface DingodirtStatus {

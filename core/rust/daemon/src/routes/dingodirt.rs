@@ -349,6 +349,34 @@ async fn upload_pack_presigned(
     parse_pack_response(res).await
 }
 
+/// Fetch the votes/comments on a published plan from the site. Public by
+/// share token (same gate as the plan page itself), so no bearer needed.
+pub async fn plan_feedback(share_token: &str) -> Result<serde_json::Value, ApiError> {
+    let url = format!("{}/api/packs/{share_token}/feedback", site_base());
+    let res = http()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("can't reach dingodirt.com ({url}): {e}"),
+            )
+        })?;
+    let status = res.status();
+    let body: serde_json::Value = res.json().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err((
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            body.get("error")
+                .and_then(|e| e.as_str())
+                .unwrap_or("feedback fetch failed")
+                .to_string(),
+        ));
+    }
+    Ok(body.get("items").cloned().unwrap_or(serde_json::json!({})))
+}
+
 /// Undo URL percent-encoding (a blob pathname with spaces comes back as
 /// `%20` in the store's object URL).
 fn percent_decode(s: &str) -> String {
