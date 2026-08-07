@@ -908,9 +908,9 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         getSourcePosition: (d: typeof gradientSegments[0]) => d.sourcePosition,
                         getTargetPosition: (d: typeof gradientSegments[0]) => d.targetPosition,
                         getColor: [255, 255, 255, 230],
-                        getWidth: 14,
-                        widthMinPixels: 9,
-                        widthMaxPixels: 26,
+                        // 13/9px matches the site's PlanView selected treatment
+                        getWidth: 13,
+                        widthUnits: 'pixels',
                     }))
                     layers.push(new LineLayer({
                         id: 'selected-core-layer',
@@ -920,8 +920,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         getColor: (d: typeof gradientSegments[0]) =>
                             [d.color[0], d.color[1], d.color[2], 255] as RGBA,
                         getWidth: 9,
-                        widthMinPixels: 6,
-                        widthMaxPixels: 20,
+                        widthUnits: 'pixels',
                     }))
                 }
             } else {
@@ -942,9 +941,9 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         jointRounded: true,
                         getPath: (d: typeof ridesData[0]) => d.path,
                         getColor: [255, 255, 255, 230],
-                        getWidth: 10,
-                        widthMinPixels: 9,
-                        widthMaxPixels: 24,
+                        // 13/9px matches the site's PlanView selected treatment
+                        getWidth: 13,
+                        widthUnits: 'pixels',
                     }))
                     layers.push(new PathLayer({
                         id: 'selected-core-layer',
@@ -953,9 +952,8 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         jointRounded: true,
                         getPath: (d: typeof ridesData[0]) => d.path,
                         getColor: coreColor,
-                        getWidth: 6,
-                        widthMinPixels: 6,
-                        widthMaxPixels: 18,
+                        getWidth: 9,
+                        widthUnits: 'pixels',
                     }))
                 }
             }
