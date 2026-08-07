@@ -34,3 +34,5 @@ Thumbs.db
 
 # Pages build output
 _site/
+.vercel
+.env*
