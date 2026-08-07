@@ -1,6 +1,7 @@
 //! API route handlers
 
 pub mod areas;
+pub mod closures;
 pub mod dingodirt;
 pub mod export;
 pub mod heat;
@@ -28,6 +29,7 @@ pub fn api_routes() -> Router {
         .nest("/strava-heatmap", strava::routes())
         .nest("/heat", heat::routes())
         .nest("/areas", areas::routes())
+        .nest("/closures", closures::routes())
         .nest("/owners", owners::routes())
         .nest("/import", import::routes())
         .nest("/pois", pois::routes())

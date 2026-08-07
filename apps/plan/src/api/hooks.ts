@@ -566,6 +566,54 @@ export function useAreas(enabled: boolean) {
     })
 }
 
+// ---- Road closures (live advisory overlay) ----
+
+export interface ClosureProperties {
+    src: 'SA' | 'NSW' | 'VIC'
+    id: string
+    name: string
+    /** SA carries the full grading; NSW/VIC features are always 'closed' */
+    status: 'closed' | 'warning' | '4wd'
+    /** Full source text — closures are advisory (often bike-passable), so the
+     *  rider reads this and judges */
+    detail: string
+    kind: string
+    area?: string
+    updated?: string
+    url: string
+}
+
+export interface ClosureFeature {
+    type: 'Feature'
+    geometry: {
+        type: 'LineString' | 'MultiLineString' | 'Point'
+        coordinates: number[] | number[][] | number[][][]
+    }
+    properties: ClosureProperties
+}
+
+export interface ClosuresPayload {
+    type: 'FeatureCollection'
+    features: ClosureFeature[]
+    /** Upstreams that failed this refresh (the rest still renders) */
+    warnings: string[]
+}
+
+export function useClosures(enabled: boolean) {
+    return useQuery({
+        queryKey: ['closures'],
+        queryFn: async (): Promise<ClosuresPayload> => {
+            const res = await fetch(`${API_BASE}/closures`)
+            if (!res.ok) throw new Error('Failed to fetch closures')
+            return res.json()
+        },
+        enabled,
+        staleTime: 5 * 60 * 1000,
+        // Live-conditions layer: keep it fresh while the map sits open
+        refetchInterval: 15 * 60 * 1000,
+    })
+}
+
 // ---- Location hierarchy (Places view) ----
 
 /** Distinct State/Region/LGA/Suburb combination with its live-ride count —
