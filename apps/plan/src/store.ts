@@ -149,6 +149,10 @@ interface SettingsState {
     dateTo: string
     /** Hide all unselected tracks when a selection exists */
     focusMode: boolean
+    /** One-time migration marker: focus mode used to default ON, which made a
+     *  map click rewrite the track list. Selection now only highlights, so
+     *  pre-existing profiles get pulled onto the new off default exactly once. */
+    focusOffDefault2026?: boolean
     /** Opacity of non-highlighted tracks while a highlight context (selection,
      *  search matches, or the export basket) is active. 0.05–0.6. */
     dimmedOpacity: number
@@ -295,7 +299,10 @@ export const useSettings = create<SettingsState>()(
             requireSpeed: false,
             dateFrom: '',
             dateTo: '',
-            focusMode: true,
+            focusMode: false,
+            // In the defaults so fresh stores persist it immediately — only
+            // blobs that predate the off default lack it and get migrated.
+            focusOffDefault2026: true,
             dimmedOpacity: 0.2,
             autoZoom: false,
             showPhotos: true,
@@ -432,6 +439,14 @@ export const useSettings = create<SettingsState>()(
                 if (!p.heatRetuned2026) {
                     merged.heatZoomScaling = 1
                     merged.heatRetuned2026 = true
+                }
+                // 2026-08-08 selection stability: focus mode's old ON default
+                // meant a map click rewrote the track list. Selection now only
+                // highlights + scrolls the list, so profiles that never chose
+                // focus mode move onto the new off default once.
+                if (!p.focusOffDefault2026) {
+                    merged.focusMode = false
+                    merged.focusOffDefault2026 = true
                 }
                 if (!(['mode', 'hr', 'speed', 'grade'] as const).includes(merged.colorMode)) {
                     merged.colorMode = 'mode'
