@@ -44,6 +44,12 @@ cp -RL "$src"/. "$out"/
 
 # Fail loudly rather than shipping an app whose presets never arrived — a
 # dangling link would otherwise produce a silently preset-less deploy.
+# The basemap layer files/fonts/sprites are symlinked into core/basemap the
+# same way (canonicalised 2026-08-07), so assert those dereferenced too.
+for f in basemap/layers.json basemap/layers-light.json \
+         "basemap/fonts/Noto Sans Regular/0-255.pbf" basemap/sprites/dark.json; do
+  [ -s "$out/$f" ] || { echo "error: $f missing/empty in the artefact — broken core/basemap symlink?" >&2; exit 1; }
+done
 for kind in schemes behaviors; do
   d="$out/$kind"
   [ -d "$d" ] || { echo "error: $kind/ missing from the artefact — is apps/$app/$kind a broken symlink?" >&2; exit 1; }

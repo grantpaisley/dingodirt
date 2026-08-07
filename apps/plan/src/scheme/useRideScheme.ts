@@ -6,20 +6,37 @@
  *  re-writes settings). 'default' clears the mount and restores factory
  *  heat colours. A schema that fails to load clears back to 'default' —
  *  it must never wedge the app theme. */
-import { useEffect } from 'react'
-import { useSettings } from '../store'
+import { useEffect, useRef } from 'react'
+import { useSettings, useUiState } from '../store'
 import { getScheme } from './scheme'
 import { applySchemeVars, heatColorsOf } from './applierPlan'
+import { DINGO_STYLE_ID } from '../dingoBasemap'
+
+/** The Dingo base style is themed BY the scheme, so a scheme change must
+ *  rebuild it (other styles don't care — the nonce bump is gated to avoid
+ *  pointless refetches of MapTiler styles). */
+function refreshDingoStyle(): void {
+    if (useSettings.getState().baseStyle === DINGO_STYLE_ID) {
+        useUiState.getState().bumpStyleReload()
+    }
+}
 
 /** Boot + change: (re-)mount the active schema's CSS variables. */
 export function useRideSchemeMount(): void {
     const rideScheme = useSettings(s => s.rideScheme)
     const setRideScheme = useSettings(s => s.setRideScheme)
+    // No Dingo-style rebuild on the boot run: the base-style effect is about
+    // to build it from this same scheme anyway, and a second setStyle racing
+    // the first lands mid-parse. Only a genuine scheme CHANGE rebuilds.
+    const mounted = useRef(false)
     useEffect(() => {
         let alive = true
-        if (rideScheme === 'default') { applySchemeVars(null); return }
+        const changed = mounted.current
+        mounted.current = true
+        const done = () => { if (changed) refreshDingoStyle() }
+        if (rideScheme === 'default') { applySchemeVars(null); done(); return }
         getScheme(rideScheme)
-            .then(scheme => { if (alive) applySchemeVars(scheme) })
+            .then(scheme => { if (alive) { applySchemeVars(scheme); done() } })
             .catch(() => { if (alive) { applySchemeVars(null); setRideScheme('default') } })
         return () => { alive = false }
     }, [rideScheme, setRideScheme])

@@ -85,6 +85,11 @@ jobs:
             test -s "_site/$a/behaviors/index.json" || { echo "::error::$a behaviors missing"; exit 1; }
           done
           test -s _site/plan/schemes/index.json || { echo "::error::plan schemes missing"; exit 1; }
+          # Basemap layer files live in core/basemap behind symlinks; all
+          # three apps must ship dereferenced copies (Plan via vite's public/).
+          for a in nav studio plan; do
+            test -s "_site/$a/basemap/layers.json" || { echo "::error::$a basemap layers missing"; exit 1; }
+          done
           grep -q '/dingodirt/plan/assets/' _site/plan/index.html \
             || { echo "::error::plan was not built for the /dingodirt/plan/ subpath"; exit 1; }
           grep -qE 'dingonav-v[0-9]+-[0-9a-f]{8}' _site/nav/sw.js \

@@ -2,13 +2,16 @@
  *  js/applier-nav.js (see DingoStudio/sync-appliers.sh for which copies are
  *  canonical vs translated).
  *
- *  Plan's base maps are MapTiler / local MapLibre style JSONs, not Nav's
- *  basemap layer lineage, so a scheme's basemap paint tokens don't apply
- *  here. What a scheme drives in Plan (per the Studio design's Plan scope):
+ *  What a scheme drives in Plan:
  *    - the app theme: hud.* tokens → Plan's CSS variables
  *    - Dingo's own overlay colours: overlays.heat* → the heat colour settings
- *  Day tokens only — Plan's night handling stays with the local styles'
- *  dingo:nightMap machinery. */
+ *    - the 'dingo' base style: basemap.* paint tokens, applied by the
+ *      canonical core applier inside dingoBasemap.ts (the MapTiler built-ins
+ *      and local styles still ignore basemap tokens — they are not the
+ *      shared layer lineage).
+ *  Day tokens only here — the dingo style resolves the scheme's night
+ *  overlay itself via baseStyleMode; local styles keep their dingo:nightMap
+ *  machinery. */
 import { type DingoScheme, tok } from './scheme'
 
 /** hud tokens → Plan's CSS variables (App.css :root). --accent-hover is

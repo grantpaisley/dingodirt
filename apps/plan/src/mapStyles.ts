@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 import type { StyleSpecification } from 'maplibre-gl'
 import { applyNightMap, nightMapOf, overlaysOf, parseColor, withAlpha } from './components/Map/styleAttrs'
+import { buildDingoStyle, DINGO_STYLE_ID } from './dingoBasemap'
 
 /** Client-side MapTiler key. Public by design — it ships in every browser
  *  bundle — and safe to publish because it is domain-restricted to the
@@ -52,7 +53,7 @@ export function fetchStyleManifest(): Promise<LocalStyleEntry[]> {
         .then((entries: unknown) => (Array.isArray(entries) ? entries : [])
             .filter((e): e is LocalStyleEntry =>
                 !!e && typeof e.id === 'string' && typeof e.url === 'string'
-                && !(e.id in BUILTIN_STYLE_URLS)))
+                && !(e.id in BUILTIN_STYLE_URLS) && e.id !== DINGO_STYLE_ID))
         .catch(() => [])
     return manifestPromise
 }
@@ -118,6 +119,16 @@ export async function resolveBaseStyle(
     id: string,
     mode: 'day' | 'night' = 'day',
 ): Promise<string | StyleSpecification> {
+    if (id === DINGO_STYLE_ID) {
+        // Shared basemap, built in code from the core layer lineage + the
+        // active scheme (see dingoBasemap.ts). Only the layer-file fetch can
+        // fail; degrade like an unloadable local style.
+        try {
+            return await buildDingoStyle(mode)
+        } catch {
+            return BUILTIN_STYLE_URLS.satellite
+        }
+    }
     if (id in BUILTIN_STYLE_URLS) return BUILTIN_STYLE_URLS[id]
     try {
         const cached = await getLocalStyle(id)
@@ -141,7 +152,10 @@ export async function styleOverlaysFor(
     id: string,
     mode: 'day' | 'night' = 'day',
 ): Promise<Record<string, string> | null> {
-    if (id in BUILTIN_STYLE_URLS) return null
+    // The Dingo style's overlay colours are already driven by the active
+    // scheme (pickRideScheme writes the heat settings) — a second source
+    // here would double-drive them.
+    if (id === DINGO_STYLE_ID || id in BUILTIN_STYLE_URLS) return null
     try {
         const cached = await getLocalStyle(id)
         const overlays = overlaysOf(cached.pristine as never)
