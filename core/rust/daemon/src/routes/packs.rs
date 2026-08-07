@@ -34,6 +34,7 @@ pub fn routes() -> Router {
         )
         .route("/{id}/publish", post(publish_pack))
         .route("/{id}/publish-plan", post(publish_plan))
+        .route("/{id}/plan-feedback", get(plan_feedback))
         .merge(super::marks::routes())
 }
 
@@ -687,6 +688,27 @@ async fn publish_plan(
         "tracks": tracks.len(),
         "marks": marks.len(),
     })))
+}
+
+/// Group votes/comments from the pack's planning page, keyed
+/// `track:<ride_id>` / `mark:<id>` — Plan shows tallies per ride so the
+/// shortlist can be trimmed where the group already decided.
+async fn plan_feedback(
+    Extension(pool): Extension<PgPool>,
+    AxumPath(id): AxumPath<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let row = sqlx::query("SELECT plan_share_token FROM packs WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(internal)?
+        .ok_or((StatusCode::NOT_FOUND, format!("no pack {id}")))?;
+    let token: Option<String> = row.get("plan_share_token");
+    let Some(token) = token else {
+        return Err(bad_request("no plan published for this pack"));
+    };
+    let items = dingodirt::plan_feedback(&token).await?;
+    Ok(Json(serde_json::json!({ "items": items })))
 }
 
 // ---- Delete ----

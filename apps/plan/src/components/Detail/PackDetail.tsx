@@ -8,10 +8,29 @@ import {
 import {
     usePack, useRidesByIds, updatePack, deletePack, publishPack, publishPlan, useCoverageEstimate,
     usePackMarks, checkPackMarks, pastePackMarks, setMarkStatus, useDingodirtStatus,
-    type LayerCoverage, type PackMark, type PackRideEntry,
+    usePlanFeedback,
+    type LayerCoverage, type PackMark, type PackRideEntry, type PlanItemFeedback,
 } from '../../api/hooks'
 import { useBasket, useUiState, type PackPreview } from '../../store'
 import { rectPolygon, type MaskShape } from '../Map/maskGeometry'
+
+/** Group verdict for one planning-page item: majority among voters, `no`
+ *  wins ties, `yes` beats `maybe` on a tie — same rule as the plan page. */
+function planVerdict(f?: PlanItemFeedback): 'yes' | 'maybe' | 'no' | null {
+    if (!f) return null
+    const c = { yes: 0, maybe: 0, no: 0 }
+    for (const v of Object.values(f.votes)) if (v in c) c[v as keyof typeof c]++
+    const total = c.yes + c.maybe + c.no
+    if (!total) return null
+    if (c.no >= Math.max(c.yes, c.maybe)) return 'no'
+    return c.yes >= c.maybe ? 'yes' : 'maybe'
+}
+
+const VERDICT_CHIP: Record<string, { color: string, label: string }> = {
+    yes: { color: '#57a557', label: 'liked' },
+    maybe: { color: '#c9a227', label: 'maybe' },
+    no: { color: '#c96a5a', label: 'vetoed' },
+}
 
 /** Icon + label for one mark row. Removal edits show the eraser regardless
  *  of kind — the edit is about deleting a cue at that spot. */
@@ -313,6 +332,20 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
         }
     }
 
+    // Group verdicts from the planning page, per ride. Enabled once a plan
+    // exists; the tally chips let Grant trim the shortlist where the group
+    // already decided.
+    const { data: planFeedback } = usePlanFeedback(packId, !!pack?.plan_url)
+    const rideFeedback = (rideId: string) => planFeedback?.[`track:${rideId}`]
+    const vetoedIds = pack
+        ? pack.rides.filter(r => planVerdict(rideFeedback(r.id)) === 'no').map(r => r.id)
+        : []
+    const removeVetoed = () => {
+        if (!pack) return
+        if (!window.confirm(`Remove ${vetoedIds.length} vetoed track${vetoedIds.length === 1 ? '' : 's'} from the pack?`)) return
+        patch({ ride_ids: pack.rides.filter(r => !vetoedIds.includes(r.id)).map(r => r.id) })
+    }
+
     // Planning page: a tiles-free, tracks-only share the group picks a route
     // from. Separate site pack; first publish defaults to unlisted.
     const [planPublishing, setPlanPublishing] = useState(false)
@@ -562,6 +595,17 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                         Add basket ({addable})
                     </button>
                 )}
+                {vetoedIds.length > 0 && (
+                    <button
+                        className="list-toggle"
+                        onClick={removeVetoed}
+                        style={{ color: VERDICT_CHIP.no.color }}
+                        title="Drop every track the group voted down on the planning page"
+                    >
+                        <X size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
+                        Remove vetoed ({vetoedIds.length})
+                    </button>
+                )}
             </div>
             <div className="pack-tracks">
                 {pack.rides.map((r: PackRideEntry, i: number) => (
@@ -580,6 +624,28 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                             {r.name}
                         </span>
                         {i === 0 && <span className="pack-default-badge">default</span>}
+                        {(() => {
+                            const f = rideFeedback(r.id)
+                            const v = planVerdict(f)
+                            if (!v || !f) return null
+                            const c = { yes: 0, maybe: 0, no: 0 }
+                            for (const x of Object.values(f.votes)) if (x in c) c[x as keyof typeof c]++
+                            const bits = [c.yes && `${c.yes}y`, c.maybe && `${c.maybe}m`, c.no && `${c.no}n`].filter(Boolean).join('·')
+                            const detail = [
+                                ...Object.entries(f.votes).map(([who, x]) => `${who}: ${x}`),
+                                ...f.comments.map(cm => `${cm.who}: “${cm.text}”`),
+                            ].join('\n')
+                            return (
+                                <span
+                                    title={`Planning-page votes\n${detail}`}
+                                    style={{
+                                        flexShrink: 0, fontSize: 10, fontWeight: 600, padding: '0 5px',
+                                        borderRadius: 8, lineHeight: '15px',
+                                        color: VERDICT_CHIP[v].color, border: `1px solid ${VERDICT_CHIP[v].color}55`,
+                                    }}
+                                >{bits}</span>
+                            )
+                        })()}
                         {(r.superseded || r.no_geometry) && <AlertTriangle size={12} style={{ color: 'var(--warning, #e6a23c)', flexShrink: 0 }} />}
                         <button
                             className="pack-track-remove"
