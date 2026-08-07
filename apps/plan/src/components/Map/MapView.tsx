@@ -6,7 +6,7 @@ import { PathLayer, LineLayer, ScatterplotLayer, TextLayer, IconLayer } from '@d
 import { ChevronLeft, ChevronRight, ExternalLink, Magnet, X } from 'lucide-react'
 import { GeoJsonLayer } from '@deck.gl/layers'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRides, useAllRidePoints, usePhotos, useHeatmap, usePois, useAreas, fetchRideIdsInPolygon, fetchRidesByIds, createPlan, SERVER_BASE, type Bounds, type PhotoSummary, type Poi } from '../../api/hooks'
+import { useRides, useAllRidePoints, usePhotos, useHeatmap, usePois, useAreas, useClosures, fetchRideIdsInPolygon, fetchRidesByIds, createPlan, SERVER_BASE, type Bounds, type PhotoSummary, type Poi, type ClosureFeature, type ClosureProperties } from '../../api/hooks'
 import { MapToolbar } from './MapToolbar'
 import { buildHeatmapLayers, HEAT_COLORS, type HeatPath } from './heatmapLayers'
 import { getPoiIconAtlas, POI_CATEGORY_META, type PoiIconAtlas } from './poiIcons'
@@ -17,6 +17,14 @@ import { setMapInstance } from './mapRegistry'
 
 /** Mark-kind dot colours — the DingoNav picker palette. `remove` overrides
  *  (a removal edit is about the spot, not the kind). */
+// Closure status colours (advisory layer): red closed, amber open-with-
+// warnings, orange 4WD-only. Matched by the swatch in MapToolbar's row.
+const CLOSURE_COLORS: Record<string, [number, number, number]> = {
+    closed: [229, 72, 77],
+    warning: [245, 165, 36],
+    '4wd': [255, 138, 61],
+}
+
 const MARK_COLORS: Record<string, [number, number, number]> = {
     turn: [109, 177, 255],
     danger: [240, 194, 75],
@@ -253,6 +261,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         shapeClasses, heatIntensity, heatWidth, heatZoomScaling,
         baseStyle: rawBaseStyle, hillshade: rawHillshade, terrain3d,
         showAreas: rawShowAreas,
+        showClosures,
         gradeFilter,
         arrowMode,
         hrScale, speedScale, gradeScale,
@@ -327,6 +336,10 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     const { data: heatTracks } = useHeatmap(showHeatmap || showPlannedHeat, viewState.zoom, bounds)
     // Area boundaries (fetched once when the overlay is on)
     const { data: areas } = useAreas(showAreas)
+    // Live road closures (SA outback + NSW/VIC near library tracks) — read
+    // straight from settings, not the pack-preview recipe: live data, never
+    // pack content
+    const { data: closures } = useClosures(showClosures)
     // POIs (fuel/camps/water… from planned-route imports): viewport-windowed
     // fetch, gated behind the toggle and a min zoom so a zoomed-out map never
     // drowns in pins.
@@ -343,6 +356,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     // POI popover (click a pin → name/category/description card; X or a
     // click elsewhere on the map dismisses)
     const [poiCard, setPoiCard] = useState<{ x: number, y: number, poi: Poi } | null>(null)
+    const [closureCard, setClosureCard] = useState<{ x: number, y: number, closure: ClosureProperties } | null>(null)
     // Photo hover card (kept open while the cursor is over the card itself)
     const [photoCard, setPhotoCard] = useState<PhotoCard | null>(null)
 
@@ -1030,6 +1044,33 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             }))
         }
 
+        // Road closures: above the tracks (a closure must beat line clutter),
+        // below POIs/photos. Advisory — click for the source text; a "closed"
+        // road is often still bike-passable. Point features are closures the
+        // upstream ships without line geometry.
+        if (showClosures && closures && closures.features.length > 0) {
+            layers.push(new GeoJsonLayer({
+                id: 'closures-layer',
+                data: closures.features as unknown as import('geojson').Feature[],
+                pickable: true,
+                stroked: true,
+                filled: true,
+                getLineColor: f => {
+                    const p = f.properties as ClosureProperties
+                    return [...(CLOSURE_COLORS[p.status] ?? CLOSURE_COLORS.closed), 220] as [number, number, number, number]
+                },
+                getLineWidth: 3,
+                lineWidthUnits: 'pixels',
+                pointType: 'circle',
+                getFillColor: f => {
+                    const p = (f as ClosureFeature).properties
+                    return [...(CLOSURE_COLORS[p.status] ?? CLOSURE_COLORS.closed), 235] as [number, number, number, number]
+                },
+                getPointRadius: 6,
+                pointRadiusUnits: 'pixels',
+            }))
+        }
+
         // POI pins: lucide-icon badges from the shared atlas (see poiIcons.ts).
         // Above the tracks (a fuel stop must beat line clutter), below photos.
         if (poisEnabled && poiAtlas && visiblePois.length > 0) {
@@ -1082,7 +1123,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         return layers
     }, [ridesData, selectedIds, hoveredId, gradientSegments, hiddenIds, greyIds, colorMode,
         showPhotos, photoGroups, showRides, rideChevrons, highlightIds, dimAlpha, graphCursor,
-        showAreas, areas, drawPath, coveragePreview, markPreview, packPreview,
+        showAreas, areas, showClosures, closures, drawPath, coveragePreview, markPreview, packPreview,
         showHeatmap, heatPaths, heatIntensity, heatWidth, heatZoomScaling, heatZoomQ,
         showPlannedHeat, plannedHeatPaths, heatColorOwn, heatColorPlanned,
         poisEnabled, poiAtlas, visiblePois])
@@ -1666,12 +1707,27 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                 if (layerId === 'pois-layer') {
                     // POI pin → popover card; never touches the ride selection
                     setPhotoCard(null)
+                    setClosureCard(null)
                     setPoiCard({ x: e.point.x, y: e.point.y, poi: pickInfo.object as Poi })
+                    return
+                }
+                if (layerId?.startsWith('closures-layer')) {
+                    // Closure line → source-text card; advisory, so the full
+                    // description is the payload, not the colour. GeoJsonLayer
+                    // is composite: picks report sub-layer ids
+                    // ('closures-layer-linestrings'…), hence the prefix match.
+                    setPhotoCard(null)
+                    setPoiCard(null)
+                    setClosureCard({
+                        x: e.point.x, y: e.point.y,
+                        closure: (pickInfo.object as ClosureFeature).properties,
+                    })
                     return
                 }
                 // Clicking anything else dismisses a pinned photo/POI card
                 setPhotoCard(null)
                 setPoiCard(null)
+                setClosureCard(null)
                 // Support both rideId (gradient segments) and id (path layer)
                 const id = (pickInfo.object.rideId || pickInfo.object.id) as string
                 // Clicks BUILD the selection: every track clicked is added, and
@@ -1684,9 +1740,10 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                     onSelect([...selectedIds, id])
                 }
             } else {
-                // Clicked empty map — dismiss any pinned photo/POI card
+                // Clicked empty map — dismiss any pinned photo/POI/closure card
                 setPhotoCard(null)
                 setPoiCard(null)
+                setClosureCard(null)
             }
         }
 
@@ -1705,8 +1762,9 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             }
 
             const layerId = pickInfo?.layer?.id
-            if (layerId === 'pois-layer') {
-                // POI pins aren't rides: pointer cursor only, no ride hover
+            if (layerId === 'pois-layer' || layerId?.startsWith('closures-layer')) {
+                // POI pins / closure lines aren't rides: pointer cursor only,
+                // no ride hover
                 onHover(null)
                 onTrackHoverPoint?.(null)
                 return
@@ -2107,6 +2165,79 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                                 {poiCard.poi.description}
                             </div>
                         )}
+                    </div>
+                )
+            })()}
+
+            {/* Closure card — the source's full text is the point: closures
+                are advisory and often bike-passable, so the rider reads and
+                judges. Link goes to the official page for the live version. */}
+            {closureCard && (() => {
+                const cardW = 300
+                const left = Math.min(Math.max(closureCard.x - cardW / 2, 8), (mapContainer.current?.clientWidth || 800) - cardW - 8)
+                const showAbove = closureCard.y > 260
+                const c = closureCard.closure
+                const [r, g, b] = CLOSURE_COLORS[c.status] ?? CLOSURE_COLORS.closed
+                const statusLabel = c.status === 'closed' ? 'Closed'
+                    : c.status === '4wd' ? '4WD only' : 'Open with warnings'
+                return (
+                    <div style={{
+                        position: 'absolute',
+                        left,
+                        ...(showAbove ? { bottom: (mapContainer.current?.clientHeight || 600) - closureCard.y + 16 } : { top: closureCard.y + 16 }),
+                        width: cardW,
+                        background: 'rgba(15, 15, 20, 0.95)',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        zIndex: 4,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                        color: 'white',
+                        fontSize: 12,
+                    }}>
+                        <button
+                            onClick={() => setClosureCard(null)}
+                            title="Close"
+                            style={{
+                                position: 'absolute', top: 4, right: 4,
+                                width: 22, height: 22,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'transparent', color: '#aaa',
+                                border: 'none', cursor: 'pointer',
+                            }}
+                        >
+                            <X size={13} />
+                        </button>
+                        <div style={{ fontWeight: 600, fontSize: 13, paddingRight: 18 }}>{c.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                            <span style={{
+                                background: `rgba(${r},${g},${b},0.25)`,
+                                border: `1px solid rgb(${r},${g},${b})`,
+                                color: `rgb(${Math.min(r + 60, 255)},${Math.min(g + 60, 255)},${Math.min(b + 60, 255)})`,
+                                borderRadius: 4, padding: '1px 6px', fontWeight: 600,
+                            }}>{statusLabel}</span>
+                            <span style={{ color: '#999' }}>
+                                {c.src}{c.kind ? ` · ${c.kind}` : ''}
+                            </span>
+                        </div>
+                        {c.detail && (
+                            <div style={{
+                                marginTop: 8,
+                                color: '#ddd',
+                                whiteSpace: 'pre-wrap', // source text carries real line breaks
+                                maxHeight: 180,
+                                overflowY: 'auto',
+                            }}>
+                                {c.detail}
+                            </div>
+                        )}
+                        <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-block', marginTop: 8, color: '#9ab8ff' }}
+                        >
+                            {c.src === 'SA' ? 'DIT outback road warnings' : 'View on VicTraffic'}
+                        </a>
                     </div>
                 )
             })()}
