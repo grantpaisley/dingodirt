@@ -150,6 +150,8 @@ pub struct RideDetail {
     pub description: Option<String>,
     /// Folder home (filter pills); NULL = Unfiled
     pub folder_id: Option<Uuid>,
+    /// Labels attached to this ride (multi-membership, across all sets)
+    pub label_ids: Vec<Uuid>,
     pub geometry: Option<serde_json::Value>,
     pub time_series: Option<serde_json::Value>,
 }
@@ -661,6 +663,9 @@ async fn get_ride(
             r.state, r.region, r.lgas, r.suburbs,
             r.kind::text as kind,
             r.collection, r.color, r.description, r.folder_id,
+            COALESCE((SELECT array_agg(il.label_id) FROM item_labels il
+                      WHERE il.item_type = 'ride' AND il.item_id = r.id),
+                     '{}'::uuid[]) as label_ids,
             r.owner_id, o.name as owner_name, o.kind as owner_kind,
             r.original_name,
             f.original_name as file_name,
@@ -724,6 +729,7 @@ async fn get_ride(
                 color: row.get("color"),
                 description: row.get("description"),
                 folder_id: row.get("folder_id"),
+                label_ids: row.get("label_ids"),
                 geometry: row.get("geometry"),
                 time_series,
             }))

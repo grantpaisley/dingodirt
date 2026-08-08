@@ -43,19 +43,41 @@ const IS_LOOP: &str = "(ST_Distance(ST_StartPoint(r.cleaned_geometry)::geography
 
 /// The dimension registry. `kind` drives the pill UI: flat = checkbox list,
 /// hierarchical = expandable tree checkable at any level, boolean = the pill
-/// itself toggles. Future user labelsets appear here with zero UI change.
-async fn dimensions() -> Json<serde_json::Value> {
-    Json(serde_json::json!([
-        { "id": "type",           "name": "Type",      "kind": "flat" },
-        { "id": "owner",          "name": "Owner",     "kind": "flat" },
-        { "id": "start_location", "name": "Start",     "kind": "hierarchical" },
-        { "id": "end_location",   "name": "End",       "kind": "hierarchical" },
-        { "id": "touches",        "name": "Touches",   "kind": "hierarchical" },
-        { "id": "folder",         "name": "Folder",    "kind": "hierarchical" },
-        { "id": "has_hr",         "name": "Has HR",    "kind": "boolean" },
-        { "id": "has_speed",      "name": "Has speed", "kind": "boolean" },
-        { "id": "is_loop",        "name": "Is loop",   "kind": "boolean" },
-    ]))
+/// itself toggles. User label sets are appended as `labelset:<id>`
+/// dimensions — the UI cannot tell them from the virtual ones.
+async fn dimensions(
+    Extension(pool): Extension<PgPool>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut dims = vec![
+        serde_json::json!({ "id": "type",           "name": "Type",      "kind": "flat" }),
+        serde_json::json!({ "id": "owner",          "name": "Owner",     "kind": "flat" }),
+        serde_json::json!({ "id": "start_location", "name": "Start",     "kind": "hierarchical" }),
+        serde_json::json!({ "id": "end_location",   "name": "End",       "kind": "hierarchical" }),
+        serde_json::json!({ "id": "touches",        "name": "Touches",   "kind": "hierarchical" }),
+        serde_json::json!({ "id": "folder",         "name": "Folder",    "kind": "hierarchical" }),
+        serde_json::json!({ "id": "has_hr",         "name": "Has HR",    "kind": "boolean" }),
+        serde_json::json!({ "id": "has_speed",      "name": "Has speed", "kind": "boolean" }),
+        serde_json::json!({ "id": "is_loop",        "name": "Is loop",   "kind": "boolean" }),
+    ];
+    let sets = sqlx::query("SELECT id, name FROM label_sets ORDER BY name")
+        .fetch_all(&pool)
+        .await
+        .map_err(internal)?;
+    for s in sets {
+        dims.push(serde_json::json!({
+            "id": format!("labelset:{}", s.get::<Uuid, _>("id")),
+            "name": s.get::<String, _>("name"),
+            "kind": "hierarchical",
+        }));
+    }
+    Ok(Json(serde_json::Value::Array(dims)))
+}
+
+/// `labelset:<uuid>` → the set id; None for every other dimension string.
+fn labelset_id(dimension: &str) -> Option<Uuid> {
+    dimension
+        .strip_prefix("labelset:")
+        .and_then(|s| Uuid::parse_str(s).ok())
 }
 
 // ---- Query shapes ----
@@ -97,7 +119,8 @@ async fn query_items(
     Json(q): Json<ItemsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     for f in &q.filters {
-        if !KNOWN_DIMENSIONS.contains(&f.dimension.as_str()) {
+        if !KNOWN_DIMENSIONS.contains(&f.dimension.as_str()) && labelset_id(&f.dimension).is_none()
+        {
             return Err(bad_request(format!("unknown dimension '{}'", f.dimension)));
         }
     }
@@ -194,6 +217,35 @@ fn push_location_clause(
     }
     if first {
         qb.push("TRUE");
+    }
+    qb.push(")");
+}
+
+/// Labelset membership for `id_col` (r.id / p.id): the item carries any
+/// checked label or a descendant of one — the same subtree rollup rule as
+/// folders, but multi-membership through item_labels.
+fn push_labels_clause(
+    qb: &mut QueryBuilder<'_, Postgres>,
+    item_type: &str,
+    id_col: &str,
+    values: &[String],
+) {
+    let ids: Vec<Uuid> = values.iter().filter_map(|v| Uuid::parse_str(v).ok()).collect();
+    qb.push(" AND (");
+    if ids.is_empty() {
+        // Unparseable values match nothing — never everything.
+        qb.push("FALSE");
+    } else {
+        qb.push(format!(
+            "EXISTS (SELECT 1 FROM item_labels il WHERE il.item_type = '{item_type}' \
+             AND il.item_id = {id_col} AND il.label_id IN ( \
+             WITH RECURSIVE lsub(id) AS (SELECT id FROM labels WHERE id = ANY("
+        ));
+        qb.push_bind(ids);
+        qb.push(
+            "::uuid[]) UNION ALL SELECT l2.id FROM labels l2 JOIN lsub ON l2.parent_id = lsub.id) \
+             SELECT id FROM lsub))",
+        );
     }
     qb.push(")");
 }
@@ -321,6 +373,9 @@ fn push_ride_filter(qb: &mut QueryBuilder<'_, Postgres>, f: &PillFilter) {
         "is_loop" => {
             qb.push(format!(" AND {IS_LOOP}"));
         }
+        dim if labelset_id(dim).is_some() => {
+            push_labels_clause(qb, "ride", "r.id", &str_values(f));
+        }
         _ => {}
     }
 }
@@ -362,6 +417,10 @@ fn push_pack_filter(qb: &mut QueryBuilder<'_, Postgres>, f: &PillFilter) -> Opti
         }
         "has_speed" => {
             qb.push(" AND p.has_speed");
+            Some(())
+        }
+        dim if labelset_id(dim).is_some() => {
+            push_labels_clause(qb, "pack", "p.id", &str_values(f));
             Some(())
         }
         _ => Some(()),
@@ -567,7 +626,10 @@ async fn facet(
         "touches" => facet_touches(pool, q).await?,
         "folder" => facet_folder(pool, q).await?,
         "has_hr" | "has_speed" | "is_loop" => facet_boolean(pool, q, dim).await?,
-        other => return Err(bad_request(format!("unknown facet dimension '{other}'"))),
+        other => match labelset_id(other) {
+            Some(set_id) => facet_labelset(pool, q, dim, set_id).await?,
+            None => return Err(bad_request(format!("unknown facet dimension '{other}'"))),
+        },
     };
     Ok(Json(serde_json::json!({ "dimension": dim, "values": values })))
 }
@@ -751,6 +813,42 @@ async fn facet_folder(pool: &PgPool, q: &ItemsQuery) -> Result<Vec<serde_json::V
         .collect())
 }
 
+/// Labelset facet: direct item counts per label id, narrowed by the other
+/// pills. Flat rows — the client folds the tree from /api/labels (same
+/// pattern as folders). Set ids come from parsed Uuids, so the join
+/// interpolation is safe.
+async fn facet_labelset(
+    pool: &PgPool,
+    q: &ItemsQuery,
+    dim: &str,
+    set_id: Uuid,
+) -> Result<Vec<serde_json::Value>, ApiError> {
+    let mut counts: HashMap<Uuid, i64> = HashMap::new();
+    let join = |item_type: &str, id_col: &str| {
+        format!(
+            " JOIN item_labels il ON il.item_type = '{item_type}' AND il.item_id = {id_col} \
+             JOIN labels lb ON lb.id = il.label_id AND lb.label_set_id = '{set_id}'"
+        )
+    };
+    let queries = [
+        ride_query(q, "il.label_id AS v, count(*) AS n", Some(dim), &join("ride", "r.id")),
+        pack_query(q, "il.label_id AS v, count(*) AS n", Some(dim), &join("pack", "p.id")),
+    ];
+    for qb in queries.into_iter().flatten() {
+        let mut qb = qb;
+        qb.push(" GROUP BY 1");
+        for r in qb.build().fetch_all(pool).await.map_err(internal)? {
+            *counts.entry(r.get("v")).or_default() += r.get::<i64, _>("n");
+        }
+    }
+    let mut out: Vec<_> = counts.into_iter().collect();
+    out.sort_by_key(|(id, _)| id.to_string());
+    Ok(out
+        .into_iter()
+        .map(|(id, n)| serde_json::json!({ "value": id.to_string(), "count": n }))
+        .collect())
+}
+
 async fn facet_boolean(
     pool: &PgPool,
     q: &ItemsQuery,
@@ -906,6 +1004,30 @@ mod tests {
         assert!(sql.contains("r.description ILIKE"));
         let psql = pack_query(&q, "p.id", None, "").unwrap().sql().to_string();
         assert!(psql.contains("p.description ILIKE"));
+    }
+
+    #[test]
+    fn labelset_dimension_filters_both_sides() {
+        let dim = "labelset:b7f1a2ee-0000-0000-0000-00000000aaaa";
+        let q = query(
+            vec![pill(dim, serde_json::json!(["b7f1a2ee-0000-0000-0000-000000000001"]))],
+            vec![],
+        );
+        let sql = ride_query(&q, "r.id", None, "").unwrap().sql().to_string();
+        assert!(sql.contains("il.item_type = 'ride'"));
+        assert!(sql.contains("WITH RECURSIVE lsub"));
+        let psql = pack_query(&q, "p.id", None, "").unwrap().sql().to_string();
+        assert!(psql.contains("il.item_type = 'pack'"));
+        // The facet for the same dimension must not narrow by its own pill.
+        let fsql = ride_query(&q, "r.id", Some(dim), "").unwrap().sql().to_string();
+        assert!(!fsql.contains("item_labels"));
+    }
+
+    #[test]
+    fn labelset_id_parses_only_valid_dimensions() {
+        assert!(labelset_id("labelset:b7f1a2ee-0000-0000-0000-00000000aaaa").is_some());
+        assert!(labelset_id("labelset:nope").is_none());
+        assert!(labelset_id("folder").is_none());
     }
 
     #[test]

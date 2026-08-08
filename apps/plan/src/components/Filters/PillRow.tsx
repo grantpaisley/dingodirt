@@ -9,13 +9,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, ChevronRight, ChevronDown } from 'lucide-react'
 import {
-    useDimensions, useFolders, fetchFacet,
-    type Dimension, type FacetValue, type PillState, type Folder,
+    useDimensions, useFolders, useLabels, fetchFacet,
+    type Dimension, type FacetValue, type PillState, type Folder, type Label,
 } from '../../api/hooks'
 import { useSettings } from '../../store'
 
 /** Pill label summary: "Start: Maroota +2". */
-function pillSummary(pill: PillState, dims: Dimension[], folders: Folder[]): string {
+function pillSummary(
+    pill: PillState,
+    dims: Dimension[],
+    folders: Folder[],
+    labels: Label[],
+): string {
     const dim = dims.find(d => d.id === pill.dimension)
     const name = dim?.name ?? pill.dimension
     if (dim?.kind === 'boolean') return name
@@ -27,6 +32,8 @@ function pillSummary(pill: PillState, dims: Dimension[], folders: Folder[]): str
     } else if (pill.dimension === 'folder') {
         label = first === 'unfiled' ? 'Unfiled'
             : folders.find(f => f.id === first)?.name ?? String(first)
+    } else if (pill.dimension.startsWith('labelset:')) {
+        label = labels.find(l => l.id === first)?.name ?? String(first)
     } else if (pill.dimension === 'type') {
         label = { track: 'Tracks', route: 'Routes', pack: 'Packs' }[String(first)] ?? String(first)
     } else {
@@ -113,6 +120,25 @@ function buildFolderTree(folders: Folder[], counts: Map<string, number>): TreeNo
     return roots
 }
 
+/** Label tree for one set. Counts stay DIRECT (no subtree rollup): labels
+ *  are multi-membership, so summing children would double-count items that
+ *  carry both a parent and a child label. */
+function buildLabelTree(labels: Label[], setId: string, counts: Map<string, number>): TreeNode[] {
+    const inSet = labels.filter(l => l.label_set_id === setId)
+    const nodes = new Map<string, TreeNode>()
+    for (const l of inSet) {
+        nodes.set(l.id, { key: l.id, label: l.name, value: l.id, count: counts.get(l.id) ?? 0, children: [] })
+    }
+    const roots: TreeNode[] = []
+    for (const l of inSet) {
+        const node = nodes.get(l.id)!
+        const parent = l.parent_id ? nodes.get(l.parent_id) : null
+        if (parent) parent.children.push(node)
+        else roots.push(node)
+    }
+    return roots
+}
+
 const valueKey = (v: string | string[] | boolean): string =>
     Array.isArray(v) ? v.join('') : String(v)
 
@@ -131,6 +157,7 @@ function PillDropdown({ pill, dim, onChange, onClose, pills, search }: DropdownP
     const [error, setError] = useState<string | null>(null)
     const [open, setOpen] = useState<Set<string>>(new Set())
     const { data: folders } = useFolders()
+    const { data: labelsData } = useLabels()
     const ref = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -166,9 +193,13 @@ function PillDropdown({ pill, dim, onChange, onClose, pills, search }: DropdownP
             const counts = new Map(facet.map(v => [String(v.value), v.count]))
             return buildFolderTree(folders ?? [], counts)
         }
+        if (dim.id.startsWith('labelset:')) {
+            const counts = new Map(facet.map(v => [String(v.value), v.count]))
+            return buildLabelTree(labelsData?.labels ?? [], dim.id.slice('labelset:'.length), counts)
+        }
         if (dim.kind === 'hierarchical') return buildTree(facet)
         return null
-    }, [facet, dim, folders])
+    }, [facet, dim, folders, labelsData])
 
     const renderNode = (node: TreeNode, depth: number) => {
         const expandable = node.children.length > 0
@@ -229,6 +260,7 @@ export function PillRow() {
     const { pills, addPill, setPillValues, removePill, searchPills, removeSearchPill } = useSettings()
     const { data: dims } = useDimensions()
     const { data: folders } = useFolders()
+    const { data: labelsData } = useLabels()
     const [openPill, setOpenPill] = useState<number | null>(null)
     const [menuOpen, setMenuOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -266,7 +298,7 @@ export function PillRow() {
                                 }
                             }}
                         >
-                            {pillSummary(pill, dims ?? [], folders ?? [])}
+                            {pillSummary(pill, dims ?? [], folders ?? [], labelsData?.labels ?? [])}
                         </button>
                         <button
                             className="pill-remove"

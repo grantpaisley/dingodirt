@@ -6,6 +6,7 @@ pub mod dingodirt;
 pub mod export;
 pub mod folders;
 pub mod items;
+pub mod labels;
 pub mod heat;
 pub mod heatmap;
 pub mod import;
@@ -39,6 +40,7 @@ pub fn api_routes() -> Router {
         .nest("/dimensions", items::routes())
         .nest("/items", items::item_routes())
         .nest("/folders", folders::routes())
+        .nest("/labels", labels::routes())
         .nest("/styles", styles::routes())
         .nest("/settings/dingodirt", dingodirt::routes())
 }
