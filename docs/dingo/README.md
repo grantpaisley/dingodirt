@@ -1,12 +1,12 @@
 # Dingo
 
-A local-first, segment-centric trail knowledge system for off-road riding.
+Dingo is a local-first, segment-centric trail knowledge system for off-road riding.
 
 ## Overview
 
-Dingo turns raw ride history into a maintained, directed trail network with
-rich metadata, run history, and personalized Dingo scores. Segments—not GPX
-files—are the source of truth.
+Dingo changes raw ride history into a maintained, directed trail network. The
+network has rich metadata, a run history, and personal Dingo scores.
+Segments are the source of truth, not GPX files.
 
 ## Quick Start
 

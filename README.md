@@ -1,10 +1,10 @@
 # dingodirt
 
-Open-source tools for off-road riding: turn ride history into a maintained
-trail network, plan routes from it, follow them offline on the bike, and make
-the maps look the way you want.
+Open-source tools for off-road riding. Turn your ride history into a
+maintained trail network. Plan routes from the network. Follow the routes
+offline on the bike. Make the maps look the way you want.
 
-Four apps, one repo, shared cartography and behaviour.
+There are four apps in one repo, with shared cartography and behaviour.
 
 | App | What it is | Who it's for |
 |---|---|---|
@@ -15,28 +15,29 @@ Four apps, one repo, shared cartography and behaviour.
 
 ## Who this is built for
 
-The people below are the reason each design decision went the way it did. None
-of them needs a GitHub account to use any of this.
+The people below are the reason for each design decision. None of them needs
+a GitHub account to use these tools.
 
-- **Jules — the rider.** Opens Nav from a link, installs it as a PWA, rides
-  with it fully offline. Never sees a repo, never sees a settings screen she
-  didn't ask for.
-- **Macca — the online pack builder.** Clicks a plan link and a wizard walks
-  him through bringing his own infrastructure: a Neon or Supabase database,
-  his own Strava API app, optionally a MapTiler key — roughly $0 on free
-  tiers. Harvest, heatmap and pack builds run in his browser; his library
-  lives in his own database, not ours.
-- **Deano — the laptop pack builder.** Clones this repo, `docker compose up`,
-  and runs the *same* Plan app pointed at localhost. Headless batch jobs,
-  fully local planning, `pg_dump` for migrations. Online versus laptop is a
-  configuration of one app, never two apps.
-- **Tan — the hobbyist cartographer.** Opens Studio in a browser, designs a
-  scheme, test-drives it at speed, publishes it to the gallery. Contributes
-  JSON tokens, not code.
-- **The club.** Sharing the tool is sharing the database: trusted co-admins
-  come in through the database provider's own project invites, so the trust
-  boundary is the database rather than app code. Members contribute, the admin
-  curates.
+- **Jules — the rider.** She opens Nav from a link and installs it as a PWA.
+  She rides with it fully offline. She never sees a repo. She never sees a
+  settings screen that she did not ask for.
+- **Macca — the online pack builder.** He clicks a plan link, and a wizard
+  helps him bring his own infrastructure: a Neon or Supabase database, his
+  own Strava API app, and an optional MapTiler key. The cost is near $0 on
+  the free tiers. Harvest, heatmap, and pack builds run in his browser. His
+  library lives in his own database, not ours.
+- **Deano — the laptop pack builder.** He clones this repo and runs
+  `docker compose up`. He then runs the *same* Plan app, pointed at
+  localhost. He gets headless batch jobs, fully local planning, and
+  `pg_dump` for migrations. Online use and laptop use are two configurations
+  of one app, never two apps.
+- **Tan — the hobbyist cartographer.** She opens Studio in a browser and
+  designs a scheme. She test-drives the scheme at speed and publishes it to
+  the gallery. She contributes JSON tokens, not code.
+- **The club.** To share the tool is to share the database. Trusted
+  co-admins come in through the project invites of the database provider.
+  Because of this, the trust boundary is the database, not the app code.
+  Members contribute, and the admin curates.
 
 ## Layout
 
@@ -58,29 +59,30 @@ tools/        assemble-app.sh — deploy-time artefact assembly
 tests/        repo-level checks (npm test)
 ```
 
-Map schemes, behaviours and appliers live in `core/` in **exactly one copy**.
-Each app reaches them through a symlink, so editing `core/schemes/default.json`
-changes it everywhere at once — there is nothing to sync.
+Map schemes, behaviours, and appliers live in `core/` in **exactly one
+copy**. Each app reaches them through a symlink. When you edit
+`core/schemes/default.json`, the change shows in each app at the same time —
+there is nothing to sync.
 
-Symlinks don't survive a static host, so deploys run
-`tools/assemble-app.sh <nav|studio> <out>` to dereference them into real
-files. For Nav that step also appends a content hash of the presets to the
-service-worker cache name, so offline riders refetch when presets change and
-only then.
+Symlinks do not stay on a static host. Because of this, deploys run
+`tools/assemble-app.sh <nav|studio> <out>` to change the symlinks into real
+files. For Nav, this step also adds a content hash of the presets to the
+service-worker cache name. Because of this, offline riders get the presets
+again when the presets change, and only then.
 
-`npm test` runs the guard that fails if any app grows a local copy again.
-This replaced a cross-repo sync workflow and its PAT.
+`npm test` runs the guard that fails if an app gets a local copy again. This
+guard replaced a cross-repo sync workflow and its PAT.
 
-Pack share links are served by dingodirt.com (the `site` app) — Plan
-publishes there and Nav's `?b=` links download from it. The old
+Pack share links are served by dingodirt.com (the `site` app). Plan
+publishes to the site, and Nav's `?b=` links download from it. The old
 `dingo-shares` GitHub-as-CDN repo is retired (archived; its links are dead).
 
 ## Getting started
 
-Per-app setup, and the rules for which app to grow a feature in, are in
+Per-app setup, and the rules that say which app gets a feature, are in
 [CONTRIBUTING.md](CONTRIBUTING.md). The short version: Nav is one file on
-purpose, Studio is modules, Plan is React, `core/` is shared — grow shared
-vocabulary in `core/` first.
+purpose, Studio is modules, Plan is React, and `core/` is shared. Grow the
+shared vocabulary in `core/` first.
 
 ## Licence
 

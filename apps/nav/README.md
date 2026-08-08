@@ -1,45 +1,60 @@
 # DingoNav
 
-Offline GPX track follower for the bike. Separate project from
-[Dingo](https://github.com/grantpaisley/Dingo) — it consumes Dingo's exports.
-MapLibre GL + a PMTiles vector basemap (roads, trails, water, labels — fully offline),
-with the Dingo heatmap and track overlays on top. North is always up.
+DingoNav is an offline GPX track follower for the bike. It is a separate
+project from [Dingo](https://github.com/grantpaisley/Dingo) — it uses
+Dingo's exports. It draws MapLibre GL plus a PMTiles vector basemap (roads,
+trails, water, labels — fully offline). The Dingo heatmap and the track
+overlays draw on top. North is always up.
 
 ## What it does
 
-- **Offline basemap**: one `.pmtiles` file covers the whole riding area (roads, tracks,
-  rivers, place labels). Auto-downloaded on first open and stored on-device (IndexedDB);
-  swap areas via ☰ → *Load .pmtiles basemap…*.
-- **Shared tile archive (pack v2)**: with no local `.pmtiles`, maps come from the
-  shared archive at `tiles.dingodirt.com` — each pack's ride corridor is prefetched
-  once (resumable, with progress) and cached for offline; deleting a pack releases
-  its tiles. v2 packs are a few hundred KB (`bundle.json` only, `formatVersion: 2`);
-  v1 packs with embedded tiles keep working unchanged. Self-hosters: point
-  `localStorage['dtiles-base']` (or a pack's `tiles` override) at any archive built
-  with `Dingo/tools/build-tiles/`. Once the shared archive is live, the bundled
-  `basemap/*.pmtiles` can be dropped from the deploy.
-- **Aerial imagery (personal)**: ☰ → set a `{z}/{x}/{y}` tile URL (NSW Six Maps
-  preset included, CC BY 4.0) and the *Sat* style renders from it — corridor-cached
-  at z12–15 for offline. Device-only; never part of packs.
-- **Terrain shading**: an optional second `.pmtiles` (elevation, ~8 MB per area) adds
-  hillshade relief under the trails — gullies and ridges readable at a glance, still flat
-  north-up 2D so nothing about the fast-follower UX changes. Auto-downloaded like the
-  basemap; toggle in settings; cut other areas with `make_hillshade.py`.
-- Load **GPX tracks** + a **heatmap GeoJSON** exported from Dingo — persisted on-device,
-  everything works with zero signal after first load.
-- Select a track → **START** → follows you from the **nearest point on the track**, either
-  direction (auto-detects reverse riding and mirrors turn arrows + chevrons).
-- **Beeps on approach** to alert points, plus vibration and a big arrow + distance HUD:
-  - ~160 m: single low beep (turns only)
+- **Offline basemap**: one `.pmtiles` file covers the full riding area
+  (roads, tracks, rivers, place labels). The app downloads the file
+  automatically on first open and stores it on-device (IndexedDB). To change
+  areas, use ☰ → *Load .pmtiles basemap…*.
+- **Shared tile archive (pack v2)**: if there is no local `.pmtiles` file,
+  maps come from the shared archive at `tiles.dingodirt.com`. The app
+  prefetches the ride corridor of each pack one time (resumable, with
+  progress) and caches it for offline use. When you delete a pack, the app
+  releases its tiles. v2 packs are a few hundred KB (`bundle.json` only,
+  `formatVersion: 2`). v1 packs with embedded tiles continue to work
+  unchanged. Self-hosters: point `localStorage['dtiles-base']` (or a pack's
+  `tiles` override) at any archive built with `Dingo/tools/build-tiles/`.
+  When the shared archive is live, you can drop the bundled
+  `basemap/*.pmtiles` from the deploy.
+- **Aerial imagery (personal)**: use ☰ to set a `{z}/{x}/{y}` tile URL (an
+  NSW Six Maps preset is included, CC BY 4.0). The *Sat* style then renders
+  from that URL. The corridor is cached at z12–15 for offline use. This
+  setting is device-only, and it is never part of packs.
+- **Terrain shading**: an optional second `.pmtiles` file (elevation, ~8 MB
+  per area) adds hillshade relief under the trails. Gullies and ridges are
+  easy to read at a glance. The map stays flat, north-up 2D, so the
+  fast-follower UX does not change. The app downloads the file
+  automatically, the same as the basemap. Toggle it in the settings. Cut
+  other areas with `make_hillshade.py`.
+- Load **GPX tracks** plus a **heatmap GeoJSON** exported from Dingo. The
+  app keeps them on-device. After the first load, all functions work with
+  zero signal.
+- Select a track → **START** → the app follows you from the **nearest point
+  on the track**, in either direction. It detects reverse riding
+  automatically, and it mirrors the turn arrows and the chevrons.
+- **Beeps on approach** give an alert before alert points, plus vibration
+  and a big arrow with a distance HUD:
+  - ~160 m: one low beep (turns only)
   - ~55 m: 2× high = turn, 3× rising = hairpin, low-high = junction
-- Alerts come from the track geometry (bearing change ≥45° in ~40 m) **and the heatmap**:
-  anywhere another ridden trail crosses at an angle becomes a *junction* alert.
-- **Off-track**: >60 m = buzz + red banner with live distance; chirp when back on.
-- **Auto-zoom with speed** (fire trail = wide, singletrack = close), pinch/± zoom,
-  ⛶ fit track, ◎ re-centre. Rotation is disabled — north stays up.
-- **Group ride**: share the app + a ride code; riders on the same code see each other as
-  green dots (ntfy.sh, ~20 s updates when online, silently off without signal).
-- Wake lock while navigating; **demo mode** replays the selected track at 30 km/h.
+- Alerts come from the track geometry (a bearing change ≥45° in ~40 m)
+  **and from the heatmap**. Each point where another ridden trail crosses at
+  an angle becomes a *junction* alert.
+- **Off-track**: more than 60 m away = a buzz plus a red banner with the
+  live distance. The app chirps when you are back on the track.
+- **Auto-zoom with speed** (fire trail = wide, singletrack = close),
+  pinch/± zoom, ⛶ to fit the track, ◎ to re-centre. Rotation is off — north
+  stays up.
+- **Group ride**: share the app plus a ride code. Riders on the same code
+  see each other as green dots (ntfy.sh, updates each ~20 s when online, off
+  without signal and with no error).
+- The screen stays on (wake lock) while you navigate. **Demo mode** replays
+  the selected track at 30 km/h.
 
 ## Files
 
@@ -78,9 +93,10 @@ brew install pmtiles
 pmtiles extract https://build.protomaps.com/$(date -v-1d +%Y%m%d).pmtiles my-area.pmtiles \
   --bbox=<minLon>,<minLat>,<maxLon>,<maxLat>
 ```
-The Central Coast + Watagans extract (150.85,-33.75 → 151.85,-32.85, zoom 0-15) is 33 MB.
-Drop the file at `basemap/central-coast.pmtiles` for auto-download, or load any `.pmtiles`
-in-app via ☰. Protomaps daily builds are OSM-derived and free (attribution included).
+The Central Coast + Watagans extract (150.85,-33.75 → 151.85,-32.85, zoom
+0-15) is 33 MB. Put the file at `basemap/central-coast.pmtiles` for
+automatic download, or load any `.pmtiles` file in the app via ☰. Protomaps
+daily builds come from OSM data, and they are free (attribution included).
 
 ## Cutting terrain shading for another area
 
@@ -88,30 +104,38 @@ in-app via ☰. Protomaps daily builds are OSM-derived and free (attribution inc
 pip install pmtiles
 ./make_hillshade.py --bbox <minLon>,<minLat>,<maxLon>,<maxLat>   # or --basemap my-area.pmtiles
 ```
-Downloads Terrarium elevation tiles (AWS Open Data, free, no key) at z6–12 and packs them
-into a raster-dem `.pmtiles`; MapLibre renders the hillshade on-device (a cheap shading
-pass — not live 3D terrain). With no arguments it reuses the bounds of
-`basemap/central-coast.pmtiles` (~8 MB output). Drop the file at `basemap/hillshade.pmtiles`
-for auto-download, or load any file in-app via ☰ → *Load .pmtiles terrain…*.
+The script downloads Terrarium elevation tiles (AWS Open Data, free, no key)
+at z6–12. It packs them into a raster-dem `.pmtiles` file. MapLibre renders
+the hillshade on-device (a cheap shading pass — not live 3D terrain). With
+no arguments, the script uses the bounds of `basemap/central-coast.pmtiles`
+(~8 MB output). Put the file at `basemap/hillshade.pmtiles` for automatic
+download, or load any file in the app via ☰ → *Load .pmtiles terrain…*.
 
 ## Putting it on the phone
 
-GPS + service workers need a **secure context** (https or localhost):
+GPS and service workers need a **secure context** (https or localhost):
 
-1. **Host it** (easiest, works for friends): push this folder to GitHub Pages / Netlify /
-   Vercel. Open once on the phone (downloads app + 33 MB basemap + bundle), *Add to Home
-   screen* — fully offline from then on. New GPX loads from phone storage need no network.
-2. **On-device server**: Termux + `python -m http.server` in this folder on the phone,
-   open `http://localhost:8000`. Zero network ever.
+1. **Host it** (the easy option, works for friends): push this folder to
+   GitHub Pages / Netlify / Vercel. Open the page one time on the phone
+   (this downloads the app + the 33 MB basemap + the bundle). Then use *Add
+   to Home screen*. The app is fully offline from then on. New GPX loads
+   from phone storage need no network.
+2. **On-device server**: install Termux and run `python -m http.server` in
+   this folder on the phone. Open `http://localhost:8000`. This needs zero
+   network at all times.
 
-`http://<laptop-ip>:8139` over Wi-Fi renders but Chrome blocks GPS/SW on insecure
-origins — fine for a look, not for riding.
+`http://<laptop-ip>:8139` over Wi-Fi renders the app, but Chrome blocks
+GPS/SW on insecure origins. This is good for a look, but not for riding.
 
 ## Riding it
 
-1. ☰ → pick track → **START**. Mount phone. It beeps before every turn and junction.
-2. Multi-day: load the week's GPX the night before (they persist); pick each day's track.
-3. Drag to look around (follow pauses) → ◎ snaps back. Off-track buzz = check the banner.
+1. ☰ → select the track → **START**. Mount the phone. The app beeps before
+   each turn and each junction.
+2. Multi-day: load the GPX files for the week the night before (they stay on
+   the device). Select the track for each day.
+3. Drag to look around (follow pauses) → ◎ snaps back. Off-track buzz =
+   check the banner.
 
-Privacy: the friends layer publishes name + position to a public ntfy.sh topic named after
-your ride code — use an unguessable code, or leave it blank.
+Privacy: the friends layer publishes your name and position to a public
+ntfy.sh topic. The topic name is your ride code. Use a code that no one can
+guess, or leave the code blank.

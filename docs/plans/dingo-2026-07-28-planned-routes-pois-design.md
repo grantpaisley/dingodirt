@@ -1,35 +1,42 @@
 # Planned routes & POIs — design
 
-2026-07-28. Brainstormed against `N_NSW_G.O.A.T-0728060910.gpx` (39 named tracks with
-grade/distance/condition notes, 328 waypoints with Garmin symbols — campgrounds, fuel,
-bars, hazards). Many files like it will follow, plus self-authored planned rides.
+2026-07-28. We brainstormed this design against `N_NSW_G.O.A.T-0728060910.gpx`
+(39 named tracks with grade, distance, and condition notes, plus 328 waypoints
+with Garmin symbols — campgrounds, fuel, bars, hazards). Many files like it
+will follow. Planned rides that we author ourselves will also follow.
 
 ## Purpose
 
-Curated route files are **planned rides**: routes without timings that carry
+Curated route files are **planned rides**: routes without timings. They carry
 descriptions, colors, and points of interest. They must be visible for planning
-(fuel and camping matter most), groupable per network, exportable as navigable
-routes (OsmAnd/Locus, packs, DingoNav), and kept out of recorded-ride stats.
+(fuel and camping matter most). They must be groupable per network. They must
+export as navigable routes (OsmAnd/Locus, packs, DingoNav). They must stay out
+of the recorded-ride stats.
 
 ## Data model
 
-Planned routes live in the `rides` table (Option A — reuses geometry serving,
-layers, packs, areas, exports for free):
+Planned routes live in the `rides` table (Option A). This reuses geometry
+serving, layers, packs, areas, and exports for free:
 
-- `kind ride_kind NOT NULL DEFAULT 'recorded'` — new enum `('recorded','planned')`.
-- `collection text NULL` — human label grouping a network ("NSW GOAT"). Stable
-  across re-downloads (file hash changes, label doesn't). Editable.
-- `color text NULL` — `#rrggbb`. From GPX extensions when present, else assigned
-  at import (golden-angle HSL rotation within the collection, ordered by track
-  name, so colors are distinct and stable). User-editable later.
-- `description text NULL` — track `<desc>`; the parser already extracts it, it
-  just never reached the DB. HTML (`<br />`) normalised to newlines.
+- `kind ride_kind NOT NULL DEFAULT 'recorded'` — a new enum `('recorded','planned')`.
+- `collection text NULL` — a human label that groups a network ("NSW GOAT").
+  The label is stable across re-downloads (the file hash changes, the label
+  does not). The label is editable.
+- `color text NULL` — `#rrggbb`. The color comes from the GPX extensions when
+  present. Otherwise the import assigns a color (golden-angle HSL rotation in
+  the collection, ordered by track name, so the colors are distinct and
+  stable). The user can edit the color later.
+- `description text NULL` — the track `<desc>`. The parser already extracts
+  it; it just never reached the DB. The import normalises HTML (`<br />`) to
+  newlines.
 
-Time/HR/speed/weather columns stay NULL for planned rides. `grade` stays NULL —
-grades are manually assigned by policy; GOAT names carry their own G-scale.
+The time, HR, speed, and weather columns stay NULL for planned rides. `grade`
+stays NULL — by policy, you assign grades manually. The GOAT names carry their
+own G-scale.
 
-New `pois` table (standalone layer with provenance — POIs belong to the map, not
-to a single route; proximity answers "which POIs go with this route" at export):
+A new `pois` table is a standalone layer with provenance. POIs belong to the
+map, not to a single route. At export, proximity answers the question "which
+POIs go with this route":
 
 ```sql
 CREATE TYPE poi_category AS ENUM ('fuel','camp','water','food','lodging',
@@ -49,12 +56,13 @@ CREATE TABLE pois (
 );
 ```
 
-Garmin `<sym>` → category via a static map (Gas Station→fuel, Campground/RV
-Park→camp, Swimming Area/Shower→water, Bar/Restaurant→food, Skull and
-Crossbones/Circle with X→hazard, …); unmapped syms → `poi` with `raw_sym` kept.
+A static map converts the Garmin `<sym>` to a category (Gas Station→fuel,
+Campground/RV Park→camp, Swimming Area/Shower→water, Bar/Restaurant→food,
+Skull and Crossbones/Circle with X→hazard, …). Unmapped syms become `poi`,
+and `raw_sym` keeps the original.
 
-`files` gains `source_path text NULL` — the absolute path a file was imported
-from (`original_name` already exists).
+`files` gains `source_path text NULL` — the absolute source path of an
+imported file (`original_name` already exists).
 
 ## Import
 
@@ -62,72 +70,85 @@ from (`original_name` already exists).
 dingo routes import <file.gpx> --collection "NSW GOAT" [--replace]
 ```
 
-1. Store file content-addressed as today, recording `source_path`.
-2. Each `<trk>` → one ride, `kind='planned'`, with collection/description/color.
-   Timestamps, if present, are ignored.
-3. Top-level `<wpt>` → `pois` rows (the gpx crate already exposes them).
-4. Colors: read `gpx_style:line`/OsmAnd/Locus extensions; else palette-assign.
-5. `--replace` deletes the collection's planned rides + POIs first (the
-   "network got updated, re-download" path). Without it, importing an existing
-   collection errors. No silent duplicates.
+1. Store the file content-addressed as today. Record `source_path`.
+2. Each `<trk>` becomes one ride with `kind='planned'`, the collection, the
+   description, and the color. The import ignores timestamps, if present.
+3. Each top-level `<wpt>` becomes a `pois` row (the gpx crate already exposes
+   them).
+4. Colors: read the `gpx_style:line`, OsmAnd, or Locus extensions. Otherwise
+   assign a color from the palette.
+5. `--replace` first deletes the planned rides and POIs of the collection.
+   This is the "network got updated, re-download" path. Without it, an import
+   of an existing collection errors. There are no silent duplicates.
 
-Planned rides skip enrichment (needs times), mode classification, dedupe,
+Planned rides skip enrichment (it needs times), mode classification, dedupe,
 merge-parts, and organize. Web drag-drop import can reuse the same service
 function later.
 
 ## Serving & web UI
 
-- Ride endpoints expose `kind`, `collection`, `color`, `description`. Heat,
-  stats, and aggregates filter to `kind='recorded'` (audited by grep).
-- `GET /api/pois?bbox=&categories=&collections=` — viewport-windowed.
+- The ride endpoints expose `kind`, `collection`, `color`, and `description`.
+  Heat, stats, and aggregates filter to `kind='recorded'` (we audited this
+  with grep).
+- `GET /api/pois?bbox=&categories=&collections=` — windowed to the viewport.
 - `GET /api/collections` — label, route count, POI count, distance, bbox.
-- Layers pane: "Planned routes" section listing collections, each with a
-  visibility toggle and nested POI toggle. Focus mode applies as usual.
-- Planned routes render through the per-track path machinery using stored
-  `color`, styled slightly distinct from other-people's recorded tracks.
-  Detail pane shows name, collection, distance, description (line breaks kept —
-  closure/permit notes are the payload).
-- POI layer: deck.gl IconLayer with an atlas built from the same lucide-react
-  icons the UI uses (fuel→Fuel, camp→Tent, water→Droplets, food→Beer,
-  lodging→Bed, scenic→Camera, hazard→TriangleAlert, medical→Cross, info→Info,
-  summit→Mountain, poi→MapPin). Category filter chips; min-zoom/clustering so
-  328 pins don't smother the map; click → popover with name/category/description.
+- The Layers pane gets a "Planned routes" section. The section lists the
+  collections. Each collection has a visibility toggle and a nested POI
+  toggle. Focus mode applies as usual.
+- Planned routes render through the per-track path machinery with the stored
+  `color`. Their style is slightly different from the recorded tracks of
+  other people. The detail pane shows the name, the collection, the distance,
+  and the description. The pane keeps the line breaks — closure and permit
+  notes are the payload.
+- POI layer: a deck.gl IconLayer with an atlas built from the same
+  lucide-react icons that the UI uses (fuel→Fuel, camp→Tent, water→Droplets,
+  food→Beer, lodging→Bed, scenic→Camera, hazard→TriangleAlert, medical→Cross,
+  info→Info, summit→Mountain, poi→MapPin). Category filter chips are
+  included. Min-zoom and clustering make sure that 328 pins do not smother
+  the map. A click opens a popover with the name, the category, and the
+  description.
 
 ### Planned heat
 
-A density heat layer over **all** planned geometry, same tuned renderer as own
-heat (constant ~1.5 CSS-px strokes, per-zoom normalization), toggleable
-independently. Workflow: select a few plans as colored tracks; planned heat
-shows where every other route runs.
+A density heat layer covers **all** planned geometry. It uses the same tuned
+renderer as own heat (constant ~1.5 CSS-px strokes, per-zoom normalization).
+You can toggle it independently. The workflow: select a few plans as colored
+tracks; the planned heat shows where every other route runs.
 
-Color convention: **orange = me** (own recorded heat); **blue = everything not
-ridden by me** — harvested Strava overlays (MTB, hike) and planned heat all
-default to the Strava blue palette. Every heat layer gets a color override in
-settings ("Heat colors": own / Strava overlays / planned). Planned heat is
-vector-rendered so tint is a uniform; Strava MBTiles are raster — future
-harvests request Strava's blue palette parameter, existing archives get a
-client-side tint (tiles are near-monochrome ramps).
+The color convention: **orange = me** (own recorded heat); **blue =
+everything not ridden by me**. Harvested Strava overlays (MTB, hike) and
+planned heat all default to the Strava blue palette. Every heat layer gets a
+color override in the settings ("Heat colors": own / Strava overlays /
+planned). Planned heat is vector-rendered, so the tint is a uniform. Strava
+MBTiles are raster — future harvests request the blue palette parameter of
+Strava, and existing archives get a client-side tint (the tiles are
+near-monochrome ramps).
 
 ## Exports, packs, DingoNav
 
-- `export offline`: planned routes carry stored color + `<desc>`; POIs written
-  as `<wpt>` with `<sym>` mapped back from category — OsmAnd/Locus show
-  campgrounds and fuel natively.
-- Packs: can include planned collections/routes as layers and POIs within the
-  pack area (corridor/box logic exists). Planned heat can be a pack layer.
-- DingoNav: planned routes + POIs ride along in the pack bundle format it
-  already reads (full-res geometry, color, description). Turn guidance is a
-  separate future project; this design only guarantees the data arrives.
+- `export offline`: planned routes carry the stored color and the `<desc>`.
+  The export writes POIs as `<wpt>`, with the `<sym>` mapped back from the
+  category — OsmAnd and Locus then show campgrounds and fuel natively.
+- Packs can include planned collections and routes as layers. Packs can also
+  include the POIs in the pack area (the corridor and box logic exists).
+  Planned heat can be a pack layer.
+- DingoNav: planned routes and POIs travel in the pack bundle format that
+  DingoNav already reads (full-res geometry, color, description). Turn
+  guidance is a separate future project. This design only makes sure that
+  the data arrives.
 
 ## Out of scope (deliberate)
 
-- Authoring/editing planned rides in the web UI (schema is ready; import-only for now).
-- Auto-parsing GOAT G-grades into `grade` (manual-only policy stands).
+- Authoring or editing of planned rides in the web UI. The schema is ready;
+  the feature is import-only for now.
+- Auto-parse of GOAT G-grades into `grade`. The manual-only policy stands.
 - DingoNav turn-by-turn guidance.
-- POI↔route join table — proximity at render/export time instead.
+- A POI↔route join table — we use proximity at render and export time
+  instead.
 
 ## Sequencing note
 
-Implementation starts only after `claude/gps-upload-dialog-storage-4c0868`
-(library storage / placement engine / import dialog rework) is merged — it
-touches the same import surfaces and owns migration `20260728000001`.
+Implementation starts only after the merge of
+`claude/gps-upload-dialog-storage-4c0868` (library storage / placement engine
+/ import dialog rework). That branch touches the same import surfaces and
+owns migration `20260728000001`.

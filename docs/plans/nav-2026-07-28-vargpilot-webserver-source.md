@@ -1,61 +1,64 @@
 # VargPilot webserver source — removed, and how to bring it back
 
 **Status:** removed from the app on 2026-07-28. This document is the complete
-record needed to restore it. Live code is in git history: the commit that
-removed it, and everything before it (search `vpConnect`).
+record that you need to restore it. The live code is in the git history: the
+commit that removed it, and everything before it (search `vpConnect`).
 
 ## What it was
 
-DingoNav had **two** telemetry sources for the Stark Varg, chosen by a
-`Source` segmented control in Settings → Stark:
+DingoNav had **two** telemetry sources for the Stark Varg. A `Source`
+segmented control in Settings → Stark selected the source:
 
 | Source | How it got data |
 |---|---|
-| **VargPilot** (`vargSrc: 'vp'`) | WebSocket to VargPilot's built-in BikeStore webserver, which holds the bike's BLE link and re-serves fully-decoded telemetry |
+| **VargPilot** (`vargSrc: 'vp'`) | A WebSocket to the built-in BikeStore webserver of VargPilot. That webserver holds the BLE link of the bike and serves the fully decoded telemetry again |
 | **Direct BLE** (`vargSrc: 'ble'`) | Web Bluetooth straight to the VCU |
 
-VargPilot was the *preferred* source when it was written (2026-07-14): direct
+VargPilot was the *preferred* source when we wrote it (2026-07-14): direct
 BLE was unproven, and VP had already done the decoding work.
 
 ## Why it was removed
 
 Direct BLE now works on the real bike (battery, speed, ride mode, blinkers,
-neutral, reverse/crawl, alerts — confirmed 2026-07-28 on Grant's '25 EX), and
-maintaining two sources meant every feature and every status string had two
-code paths. The VP path also required the rider to find VP's LAN URL and keep
-both devices on the same Wi-Fi, which is fragile at a trailhead.
+neutral, reverse/crawl, alerts — confirmed 2026-07-28 on Grant's '25 EX).
+With two sources, every feature and every status string had two code paths.
+The VP path also made the rider find the LAN URL of VP. The rider then had
+to keep both devices on the same Wi-Fi, which is fragile at a trailhead.
 
-**Note the subtlety:** removing the VP *webserver source* does **not** stop
-DingoNav from working with the VargPilot *app*. Direct BLE piggybacks on
-VargPilot's BLE connection — the VCU only streams once VP (or the stock Stark
-app) has started the telemetry. VP the app is still part of the working
-setup; only its WebSocket source is gone.
+**Note the subtlety:** the removal of the VP *webserver source* does **not**
+stop DingoNav from working with the VargPilot *app*. Direct BLE piggybacks
+on the BLE connection of VargPilot — the VCU only streams after VP (or the
+stock Stark app) has started the telemetry. The VP app is still part of the
+working setup; only its WebSocket source is gone.
 
 ## What was lost
 
-1. **hp / regen / TC per-mode values.** These are per-map *configuration*, not
-   telemetry — they have no known BLE characteristic (and no field in
-   `svag-telemetry-format`'s `v1.proto`). Only VP served them. The telemetry
-   page now labels them "VP only". Recovering them over BLE means identifying
-   the unmapped characteristics (see the "Probe extra channels" button).
-2. **Automatic VIN + pair-PIN capture** (`vpSniff`). VP's catalog contained
-   both, so connecting to VP once pre-configured Direct BLE. Now the rider
-   types the VIN (and reads the PIN from VP's own UI) once.
-3. **iOS support.** Web Bluetooth is Chrome/Android-only; the VP WebSocket
-   worked in any browser. **If iOS support is ever needed, restoring this is
-   the way** — that is the single strongest reason to bring it back.
+1. **hp / regen / TC per-mode values.** These are *configuration* per map,
+   not telemetry — they have no known BLE characteristic (and no field in
+   the `v1.proto` of `svag-telemetry-format`). Only VP served them. The
+   telemetry page now labels them "VP only". To recover them over BLE, you
+   must identify the unmapped characteristics (see the "Probe extra
+   channels" button).
+2. **Automatic VIN + pair-PIN capture** (`vpSniff`). The catalog of VP
+   contained both, so one connection to VP pre-configured Direct BLE. Now
+   the rider types the VIN one time (and reads the PIN from the UI of VP).
+3. **iOS support.** Web Bluetooth is Chrome/Android-only. The VP WebSocket
+   worked in any browser. **If iOS support is ever needed, restore this
+   source** — that is the single strongest reason to bring it back.
 
 ## Protocol (confirmed against live VP 0.1.125, 2026-07)
 
 One WebSocket at `<base>/ws`:
 
-1. Server greets with `{op:'hello'}`
-2. Server sends `{op:'catalog', paths:[{path, writable}, …]}`
-3. Client sends `{op:'sub', paths:[…]}`
-4. Server sends `{op:'prop', path, value, t}` per update
-5. Server pings every 15 s (browsers auto-pong — nothing to implement)
+1. The server greets with `{op:'hello'}`
+2. The server sends `{op:'catalog', paths:[{path, writable}, …]}`
+3. The client sends `{op:'sub', paths:[…]}`
+4. The server sends `{op:'prop', path, value, t}` per update
+5. The server pings every 15 s (browsers auto-pong — there is nothing to
+   implement)
 
-Paths are dot-hierarchical. Subscribing is what marks the client live.
+The paths are dot-hierarchical. The subscription is what marks the client
+live.
 
 ### Path map (verified live on a '25 EX, 2026-07)
 
@@ -82,22 +85,23 @@ const vpMapPaths = m => [
 ];
 ```
 
-These same `STATUS_BITS` words are what the BLE status characteristic
-(`00001002`) carries — VP just decodes them for you. The `walking_mode`
-values 8 = reverse and 12 = crawl were **confirmed on the bike through VP**,
-and that is where the BLE decoder's values came from.
+The BLE status characteristic (`00001002`) carries these same `STATUS_BITS`
+words — VP just decodes them for you. We **confirmed the `walking_mode`
+values 8 = reverse and 12 = crawl on the bike through VP**. That is the
+source of the values in the BLE decoder.
 
 ### Decode notes worth keeping
 
-- `drive_state` is authoritative for reverse/crawl/neutral; `walking_mode` was
-  only a fallback for when `drive_state` never arrived (`vp.sawDrive` flag).
-- Blinker paths pulse true/false at ~3 Hz with the bulb. Only the `true`
-  pulses matter — feed them to `vargBlink(side)`, whose watchdog
-  (`BLINK_OFF_MS` 700 ms) collapses them into a steady telltale. That
+- `drive_state` is authoritative for reverse/crawl/neutral. `walking_mode`
+  was only a fallback for when `drive_state` never arrived (the
+  `vp.sawDrive` flag).
+- The blinker paths pulse true/false at ~3 Hz with the bulb. Only the
+  `true` pulses matter — feed them to `vargBlink(side)`. Its watchdog
+  (`BLINK_OFF_MS` 700 ms) collapses the pulses into a steady telltale. That
   debounce logic is still in the app; the BLE status decoder uses it.
-- URL normalising: prepend `http://` if absent, strip trailing slashes, then
-  swap `http` → `ws` for the socket (`vpUrlBase()`).
-- Reconnect was a flat 3 s retry on `onclose`.
+- URL normalising: prepend `http://` if absent. Strip the trailing slashes.
+  Then swap `http` → `ws` for the socket (`vpUrlBase()`).
+- The reconnect was a flat 3 s retry on `onclose`.
 
 ## To re-enable
 
@@ -112,17 +116,19 @@ and that is where the BLE decoder's values came from.
    `Probe API → console`).
 4. Restore `vp`, `VP_P`, `vpMapPaths`, `vpUrlBase`, `vpClose`, `vpConnect`,
    `vpSniff`, `vpProp`, `vpApplyMode`, `vpProbe`.
-5. Re-add the source branches: `vargUI` (row visibility + VP status strings),
-   `applyVarg` (`vpConnect` vs `vargBoot`), the telemetry page's source cell
-   and Reconnect handler, and the `vargSrc === 'ble'` guards in
-   `vargDropped` / `vargRetry` / `vargEnsure` / the stale-stream watchdog.
+5. Re-add the source branches: `vargUI` (row visibility + VP status
+   strings), `applyVarg` (`vpConnect` vs `vargBoot`), the source cell and
+   the Reconnect handler on the telemetry page, and the `vargSrc === 'ble'`
+   guards in `vargDropped` / `vargRetry` / `vargEnsure` / the stale-stream
+   watchdog.
 
 Everything decoded from VP fed the same `vargApplyState({mode, special,
-neutral, hp, regen, tc})` entry point the BLE decoders use, so the UI layer
-needs no changes — only the source plumbing.
+neutral, hp, regen, tc})` entry point that the BLE decoders use. Thus the
+UI layer needs no changes — only the source plumbing.
 
 ## Related
 
 - `docs/varg-ble.html` — the BLE protocol spec (rev 2) for the direct path.
-- The mock VP server used for testing was a small dependency-free Node script
-  with a raw WebSocket handshake, kept in a scratchpad; rebuild if needed.
+- The mock VP server for the tests was a small dependency-free Node script
+  with a raw WebSocket handshake, kept in a scratchpad. Rebuild it if
+  needed.
