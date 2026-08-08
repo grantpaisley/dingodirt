@@ -118,6 +118,7 @@ async fn create_pack(
     .map_err(internal)?;
     let id: Uuid = row.get("id");
     insert_rides(&mut tx, id, &body.ride_ids).await?;
+    recompute_attributes(&mut tx, id).await?;
     tx.commit().await.map_err(internal)?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -197,9 +198,26 @@ async fn update_pack(
             .await
             .map_err(internal)?;
         insert_rides(&mut tx, id, ride_ids).await?;
+        recompute_attributes(&mut tx, id).await?;
     }
     tx.commit().await.map_err(internal)?;
     Ok(Json(serde_json::json!({ "updated": id })))
+}
+
+/// Refresh the pack's cached filter attributes (locality arrays, start/end
+/// singles, HR/speed booleans) after any membership change. The logic lives
+/// in the recompute_pack_attributes SQL function so the migration backfill
+/// and this path cannot drift.
+async fn recompute_attributes(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    pack_id: Uuid,
+) -> Result<(), ApiError> {
+    sqlx::query("SELECT recompute_pack_attributes($1)")
+        .bind(pack_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(internal)?;
+    Ok(())
 }
 
 /// Insert the ordered membership rows, deduping while keeping first positions.

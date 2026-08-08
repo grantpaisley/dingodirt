@@ -1215,3 +1215,169 @@ select.export-input {
   border-top: 1px solid var(--border-color);
 }
 
+
+/* ---- Filter pills (docs/plans/plan-2026-08-07-list-filter-pills-design.md) ---- */
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 8px;
+}
+
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.pill.active {
+  border-color: var(--accent);
+  color: white;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.pill-label {
+  padding: 5px 2px 5px 10px;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pill-remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 7px 5px 3px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.pill-remove:hover { opacity: 1; }
+
+.pill-add { position: relative; }
+
+.pill-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.pill-add-button:hover { color: white; border-color: var(--accent); }
+
+.pill-menu,
+.pill-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  max-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-secondary, #23272e);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+}
+
+.pill-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-primary, #ddd);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pill-menu-item:hover { background: var(--accent); color: white; }
+
+.pill-menu-empty {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pill-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-primary, #ddd);
+}
+
+.pill-dropdown-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pill-dropdown-row label:hover { background: rgba(255, 255, 255, 0.06); }
+
+.pill-value-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill-value-count {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.pill-tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.pill-dropdown-loading,
+.pill-dropdown-error {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pill-dropdown-error { color: #e66; }
+
+/* Unified list: per-type item icons tint routes and packs */
+.list-item-icon.route { color: #7f9dff; }
+.list-item-icon.pack { color: #d9a743; }

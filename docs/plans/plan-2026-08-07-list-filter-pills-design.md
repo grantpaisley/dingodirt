@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-07
 **App:** Plan (left panel `ListPane`), server
-**Status:** Design agreed, not yet implemented
+**Status:** Implemented 2026-08-09 (v1: pills, folders, faceted API; user labelsets stay future work)
 
 ## Summary
 

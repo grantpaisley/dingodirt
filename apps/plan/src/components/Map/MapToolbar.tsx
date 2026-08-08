@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import {
     Compass, Flame, Bike, Waves, MapPin,
     Layers, Camera,
@@ -14,7 +14,7 @@ import { useSettings, useUiState, effectiveLayerState, hasActiveRangeFilters, MO
 import { useStyleManifest } from '../../mapStyles'
 import { getMapInstance } from './mapRegistry'
 import { deriveSnapLevels, nextSnap, prevSnap } from './styleZoom'
-import { useAllRideMeta, useCollections } from '../../api/hooks'
+import { useCollections } from '../../api/hooks'
 import { POI_CATEGORY_META } from './poiIcons'
 import { FilterPaneContent } from '../Filters/FilterPanel'
 import { SettingsPaneContent } from '../Settings/SettingsPanel'
@@ -135,7 +135,6 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
         showHeatmap, toggleShowHeatmap,
         showStravaRide, toggleShowStravaRide,
         showStravaHike, toggleShowStravaHike,
-        toggleMyRides, toggleOtherRides,
         plannedCollectionsOff, togglePlannedCollection,
         showPois, setShowPois,
         poiCategories, togglePoiCategory,
@@ -152,7 +151,6 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
         terrain3d, setTerrain3d,
         showAreas, setShowAreas,
         showClosures, setShowClosures,
-        ownersOff, toggleOwnerOff,
     } = settings
 
     // Local base styles from /styles/index.json (community style JSONs)
@@ -164,23 +162,6 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
         setDetailLevel(level)
         useUiState.getState().bumpStyleReload()
     }
-
-    // Per-owner facet under "Other rides": who owns the other-class tracks,
-    // with counts. Metadata is fetched once the layers pane opens (whole
-    // library, no geometry — same payload the Places tree uses).
-    const { data: allMeta } = useAllRideMeta(openPane === 'layers')
-    const ownerRows = useMemo(() => {
-        const counts = new Map<string, { name: string, count: number }>()
-        for (const r of allMeta ?? []) {
-            if (r.class !== 'other' || !r.owner_id) continue
-            const row = counts.get(r.owner_id)
-            if (row) row.count++
-            else counts.set(r.owner_id, { name: r.owner ?? 'Unknown', count: 1 })
-        }
-        return [...counts.entries()]
-            .map(([id, v]) => ({ id, ...v }))
-            .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-    }, [allMeta])
 
     const toggle = (pane: string) => setOpenPane(p => (p === pane ? null : pane))
 
@@ -305,44 +286,9 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                             </div>
                         )}
                         {/* Rows are listed in DRAW order — top of the list is
-                            drawn on top of everything below it. */}
-                        <PaneRow
-                            icon={<Route size={PANE_ICON_SIZE} color={CLASS_SWATCH.own} />}
-                            label="My rides"
-                            title="Your recorded rides and planned routes"
-                            on={eff.trackClasses.own || eff.trackClasses.plan}
-                            disabled={previewing}
-                            onClick={toggleMyRides}
-                            swatch={CLASS_SWATCH.own}
-                        />
-                        <PaneRow
-                            icon={<Route size={PANE_ICON_SIZE} color={CLASS_SWATCH.other} />}
-                            label="Other rides"
-                            title="Other people's tracks (ingested with --origin other)"
-                            on={eff.trackClasses.other}
-                            disabled={previewing}
-                            onClick={toggleOtherRides}
-                            swatch={CLASS_SWATCH.other}
-                        />
-                        {/* Per-owner facet: who the other-class tracks belong
-                            to. Only filters within "Other rides" — hiding an
-                            owner here never touches My rides. */}
-                        {eff.trackClasses.other && ownerRows.length > 0 && (
-                            <div style={{ marginLeft: 22 }}>
-                                {ownerRows.map(o => (
-                                    <PaneRow
-                                        key={o.id}
-                                        icon={null}
-                                        label={`${o.name} (${o.count})`}
-                                        title={`Other-ride tracks owned by ${o.name}`}
-                                        on={!ownersOff.includes(o.id)}
-                                        disabled={previewing}
-                                        onClick={() => toggleOwnerOff(o.id)}
-                                        swatch={CLASS_SWATCH.other}
-                                    />
-                                ))}
-                            </div>
-                        )}
+                            drawn on top of everything below it. The old
+                            "My rides / Other rides / per-owner" rows dissolved
+                            into the list's Type and Owner filter pills. */}
                         {/* Planned routes — curated collections (GOAT etc).
                             Each row toggles its collection; the crosshair
                             button flies to its bbox. POIs + planned heat are
