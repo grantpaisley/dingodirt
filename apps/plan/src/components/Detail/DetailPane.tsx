@@ -1,4 +1,4 @@
-import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, RIDE_MODES, SERVER_BASE, type PhotoSummary } from '../../api/hooks'
+import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, useLabels, createLabel, createLabelSet, assignLabel, RIDE_MODES, SERVER_BASE, type PhotoSummary } from '../../api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { PackageMinus, PackagePlus } from 'lucide-react'
@@ -46,6 +46,97 @@ function FolderPicker({ value, disabled, onChange }: {
             {rows.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             <option value="__new__">New folder…</option>
         </select>
+    )
+}
+
+/** Multi-membership labels: assigned chips (single-ride mode) + an add
+ *  select grouped by label set, with per-set "New…" and a set creator.
+ *  In bulk mode (assigned = null) the select attaches to every id. */
+function LabelEditor({ rideIds, assigned, disabled, onChanged }: {
+    rideIds: string[]
+    /** The single ride's label ids, or null in bulk mode */
+    assigned: string[] | null
+    disabled?: boolean
+    onChanged: () => void
+}) {
+    const { data } = useLabels()
+    const sets = data?.sets ?? []
+    const labels = data?.labels ?? []
+    const byId = new Map(labels.map(l => [l.id, l]))
+    const setName = (l: { label_set_id: string }) =>
+        sets.find(s => s.id === l.label_set_id)?.name ?? '?'
+    // Depth via the parent chain, for option indentation.
+    const depth = (l: { parent_id: string | null }): number => {
+        let d = 0
+        let p = l.parent_id
+        while (p) { d++; p = byId.get(p)?.parent_id ?? null }
+        return d
+    }
+    const act = async (fn: () => Promise<unknown>) => {
+        try { await fn(); onChanged() }
+        catch (err) { window.alert(err instanceof Error ? err.message : String(err)) }
+    }
+    return (
+        <div>
+            {assigned && assigned.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                    {assigned.map(id => {
+                        const l = byId.get(id)
+                        if (!l) return null
+                        return (
+                            <span key={id} className="pill active" title={`${setName(l)}: ${l.name}`}>
+                                <span className="pill-label">{l.name}</span>
+                                <button
+                                    className="pill-remove"
+                                    disabled={disabled}
+                                    title="Detach this label"
+                                    onClick={() => act(() => assignLabel('ride', rideIds, id, false))}
+                                >×</button>
+                            </span>
+                        )
+                    })}
+                </div>
+            )}
+            <select
+                className="mode-select"
+                value=""
+                disabled={disabled}
+                onChange={async e => {
+                    const v = e.target.value
+                    if (!v) return
+                    if (v === '__new_set__') {
+                        const name = window.prompt('New label set name (e.g. Trip, Surface)')
+                        if (name?.trim()) await act(() => createLabelSet(name.trim()))
+                        return
+                    }
+                    if (v.startsWith('__new_label__:')) {
+                        const setId = v.slice('__new_label__:'.length)
+                        const name = window.prompt('New label name')
+                        if (name?.trim()) {
+                            await act(async () => {
+                                const { id } = await createLabel(setId, name.trim())
+                                await assignLabel('ride', rideIds, id, true)
+                            })
+                        }
+                        return
+                    }
+                    await act(() => assignLabel('ride', rideIds, v, true))
+                }}
+            >
+                <option value="">{rideIds.length > 1 ? `Add label to all ${rideIds.length}…` : 'Add label…'}</option>
+                {sets.map(s => (
+                    <optgroup key={s.id} label={s.name}>
+                        {labels.filter(l => l.label_set_id === s.id).map(l => (
+                            <option key={l.id} value={l.id} disabled={assigned?.includes(l.id)}>
+                                {'  '.repeat(depth(l))}{l.name}
+                            </option>
+                        ))}
+                        <option value={`__new_label__:${s.id}`}>New label in {s.name}…</option>
+                    </optgroup>
+                ))}
+                <option value="__new_set__">New label set…</option>
+            </select>
+        </div>
     )
 }
 
@@ -323,6 +414,24 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                     </div>
                 </div>
 
+                {/* Bulk labelling — attach one label to the whole selection */}
+                <div className="detail-section" style={{ marginTop: 16 }}>
+                    <div className="detail-label">Labels for all {selectedIds.length}</div>
+                    <div style={{ marginTop: 4 }}>
+                        <LabelEditor
+                            rideIds={selectedIds}
+                            assigned={null}
+                            disabled={isUpdating}
+                            onChanged={() => {
+                                queryClient.invalidateQueries({ queryKey: ['labels'] })
+                                queryClient.invalidateQueries({ queryKey: ['items'] })
+                                queryClient.invalidateQueries({ queryKey: ['dimensions'] })
+                                selectedIds.forEach(id => queryClient.invalidateQueries({ queryKey: ['ride', id] }))
+                            }}
+                        />
+                    </div>
+                </div>
+
                 <div className="detail-section" style={{ marginTop: 16 }}>
                     <div className="detail-label">Selected Rides</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -565,6 +674,25 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                                 } finally {
                                     setIsUpdating(false)
                                 }
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {!previewId && (
+                <div className="detail-section" style={{ marginTop: 8 }}>
+                    <div className="detail-label">Labels</div>
+                    <div style={{ marginTop: 4 }}>
+                        <LabelEditor
+                            rideIds={[ride.id]}
+                            assigned={ride.label_ids ?? []}
+                            disabled={isUpdating}
+                            onChanged={() => {
+                                queryClient.invalidateQueries({ queryKey: ['ride', ride.id] })
+                                queryClient.invalidateQueries({ queryKey: ['labels'] })
+                                queryClient.invalidateQueries({ queryKey: ['items'] })
+                                queryClient.invalidateQueries({ queryKey: ['dimensions'] })
                             }}
                         />
                     </div>

@@ -104,6 +104,8 @@ export interface RideDetail {
     description?: string | null
     /** Folder home (filter pills); null = Unfiled */
     folder_id?: string | null
+    /** Labels attached to this ride (across all label sets) */
+    label_ids?: string[]
     geometry: {
         type: 'LineString'
         coordinates: [number, number][]
@@ -562,6 +564,79 @@ export async function assignToFolder(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
         body: JSON.stringify({ item_type: itemType, ids, folder_id: folderId }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+}
+
+// ---- Labelsets (multi-membership labels on top of folders) ----
+
+export interface LabelSet {
+    id: string
+    name: string
+}
+
+export interface Label {
+    id: string
+    label_set_id: string
+    name: string
+    parent_id: string | null
+    position: number
+    item_count: number
+}
+
+export interface LabelsData {
+    sets: LabelSet[]
+    labels: Label[]
+}
+
+export function useLabels() {
+    return useQuery({
+        queryKey: ['labels'],
+        queryFn: async (): Promise<LabelsData> => {
+            const res = await fetch(`${API_BASE}/labels`)
+            if (!res.ok) throw new Error(await res.text())
+            return res.json()
+        },
+        staleTime: 5 * 60 * 1000,
+    })
+}
+
+export async function createLabelSet(name: string): Promise<{ id: string }> {
+    const res = await fetch(`${API_BASE}/labels/sets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ name }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+export async function createLabel(
+    labelSetId: string,
+    name: string,
+    parentId?: string | null,
+): Promise<{ id: string }> {
+    const res = await fetch(`${API_BASE}/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ label_set_id: labelSetId, name, parent_id: parentId ?? null }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+/** Attach (on=true) or detach one label on many items. Multi-membership:
+ *  attaching never displaces other labels. */
+export async function assignLabel(
+    itemType: 'ride' | 'pack',
+    ids: string[],
+    labelId: string,
+    on: boolean,
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/labels/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ item_type: itemType, ids, label_id: labelId, on }),
     })
     if (!res.ok) throw new Error(await res.text())
 }

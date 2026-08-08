@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-07
 **App:** Plan (left panel `ListPane`), server
-**Status:** Implemented 2026-08-09 (v1: pills, folders, faceted API; user labelsets stay future work)
+**Status:** Implemented 2026-08-09 — v1 (pills, folders, faceted API) and v2 (user labelsets)
 
 ## Summary
 
@@ -106,7 +106,7 @@ existing packs.
 booleans at ingest if presence now needs a segments join. Check
 `ride_stats_columns` at implementation time.
 
-**Future (designed, not built):**
+**Future (built 2026-08-09 as v2):**
 
 ```sql
 label_sets(id, name)
@@ -129,7 +129,7 @@ materialised.
 | Touches | virtual, hierarchical | `suburbs[]` / `lgas[]` arrays (GIN-indexed) |
 | Has HR / Has Speed / Is loop | virtual, boolean | cached booleans |
 | Folder | materialised, hierarchical | `folder_id` + folders tree |
-| *(future)* user labelsets | materialised | labels tables |
+| user labelsets (v2) | materialised | labels tables |
 
 Endpoints:
 
@@ -203,5 +203,5 @@ Each step ships independently:
 
 ## Out of scope (designed for, not built)
 
-User labelsets/tags, search-suggests-pills autocomplete, per-pill NOT /
-exclude, and heatmaps as list items.
+Search-suggests-pills autocomplete, per-pill NOT / exclude, and heatmaps
+as list items. (User labelsets/tags shipped as v2 on 2026-08-09.)
