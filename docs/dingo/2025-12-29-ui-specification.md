@@ -6,19 +6,22 @@
 
 ## Overview
 
-A segment-centric trail management interface for defining, organizing, and planning off-road rides. Segments are user-defined (not auto-discovered). The UI must handle thousands of runs with high point counts while remaining responsive.
+This is a segment-centric trail management interface. Use it to define,
+organize, and plan off-road rides. The user defines the segments; the system
+does not auto-discover them. The UI must handle thousands of runs with high
+point counts and stay responsive.
 
 ---
 
 ## Core Concept
 
 **Segments are user-defined:**
-- User selects runs, marks start/end points
-- System creates segment with consensus geometry (averaged from selected runs)
-- No automatic graph building
+- The user selects runs and marks the start/end points
+- The system creates a segment with a consensus geometry (averaged from the selected runs)
+- The system does no automatic graph building
 
 **Run states:**
-- Associated — linked to ≥1 segment (shown full color)
+- Associated — linked to ≥1 segment (shown in full color)
 - Unassociated — not yet linked (shown washed-out)
 
 ---
@@ -46,36 +49,37 @@ A segment-centric trail management interface for defining, organizing, and plann
 | Element | Behavior |
 |---------|----------|
 | Toggle | Runs / Segments / Routes / All |
-| Search box | Natural language query (vector search via LanceDB) |
-| Date range picker | Structured filter, ANDed with search |
-| List rows | One line per item, compact |
+| Search box | A natural language query (vector search via LanceDB) |
+| Date range picker | A structured filter, ANDed with the search |
+| List rows | One compact line per item |
 
 **Row elements:**
 
 | Element | Behavior |
 |---------|----------|
-| Visibility icon | Click to show/hide on map |
-| Zoom icon | Click to zoom map to item bounds |
-| Name/date | Primary identifier |
-| Association indicator | Dot or badge for unassociated runs |
+| Visibility icon | Click to show or hide the item on the map |
+| Zoom icon | Click to zoom the map to the item bounds |
+| Name/date | The primary identifier |
+| Association indicator | A dot or badge for unassociated runs |
 
 **Behavior:**
-- Click row → show/hide on map
-- Multi-select supported (shift-click, cmd-click)
-- Unassociated runs visually distinct (lighter text, badge)
-- Search results update list and map simultaneously
+- Click a row → show or hide the item on the map
+- Multi-select is supported (shift-click, cmd-click)
+- Unassociated runs look distinct (lighter text, a badge)
+- Search results update the list and the map at the same time
 
 ---
 
 ## Right Pane — Detail
 
-**Purpose:** Show details for hovered or selected item. Editable fields for segments and routes.
+**Purpose:** Show the details for the hovered or selected item. Segments and
+routes have editable fields.
 
 ### Run Details
 
 | Field | Description |
 |-------|-------------|
-| Date/time | When recorded |
+| Date/time | When the run was recorded |
 | Distance | Total km |
 | Duration | Total time |
 | Elevation gain/loss | Meters |
@@ -91,20 +95,20 @@ A segment-centric trail management interface for defining, organizing, and plann
 | Name | Editable inline |
 | Length | Meters |
 | Elevation gain/loss | Per direction |
-| Run count | Number of linked runs |
+| Run count | The number of linked runs |
 | Last ridden | Date |
-| Direction | A→B or B→A, user can override |
-| Corridor width | Display setting |
+| Direction | A→B or B→A; the user can override it |
+| Corridor width | A display setting |
 
 ### Route Details
 
 | Field | Description |
 |-------|-------------|
-| Name | Editable, default from template (start → end) |
+| Name | Editable; the default comes from a template (start → end) |
 | Total distance | Segments + bridges |
-| Total elevation | Sum |
-| Estimated time | Based on historical data |
-| Time range | Min/max from runs |
+| Total elevation | The sum |
+| Estimated time | Based on the historical data |
+| Time range | Min/max from the runs |
 | Wet/dry breakdown | Stats per condition |
 | Segment list | Ordered, with directions |
 | Notes | Editable |
@@ -117,14 +121,15 @@ A segment-centric trail management interface for defining, organizing, and plann
 | HR line graph | X = distance or time (toggle), Y = heart rate |
 
 **Linked interaction:**
-- Hover on graph → highlight point on map
-- Hover on map → highlight point on graphs
+- Hover on the graph → the map highlights the point
+- Hover on the map → the graphs highlight the point
 
 ---
 
 ## Map Pane — Center
 
-**Purpose:** Primary interaction area. Display and manipulate runs, segments, routes.
+**Purpose:** The primary interaction area. Display and manipulate runs,
+segments, and routes.
 
 ### Technology
 
@@ -132,14 +137,14 @@ A segment-centric trail management interface for defining, organizing, and plann
 |-----------|--------|
 | Basemap | MapLibre GL JS |
 | Data layers | Deck.gl PathLayer |
-| Tile caching | Online with local cache |
+| Tile caching | Online, with a local cache |
 
 ### Basemap Options
 
 - Satellite imagery
 - Topo/contour
 - Hybrid (satellite + topo overlay)
-- User switches via control
+- The user switches via a control
 
 ### Visual Options (Cog Menu)
 
@@ -150,7 +155,7 @@ A segment-centric trail management interface for defining, organizing, and plann
 - Elevation
 - Gradient (slope)
 
-Color scale: global (min/max across all visible items).
+The color scale is global (min/max across all visible items).
 
 **Filter by direction:**
 - All
@@ -172,10 +177,10 @@ Color scale: global (min/max across all visible items).
 
 | Item | Appearance |
 |------|------------|
-| Associated runs | Full color (by selected color mode) |
+| Associated runs | Full color (by the selected color mode) |
 | Unassociated runs | Washed-out / desaturated |
-| Selected items | Full color + highlight (glow or thicker stroke) |
-| Segments | Distinct style, corridor buffer |
+| Selected items | Full color + a highlight (a glow or a thicker stroke) |
+| Segments | A distinct style, with a corridor buffer |
 | Routes | Segments + dashed bridges |
 
 ---
@@ -186,28 +191,28 @@ Color scale: global (min/max across all visible items).
 
 | Action | Behavior |
 |--------|----------|
-| Click run/segment | Toggle selection |
-| Lasso drag | Select all items touched by lasso |
-| Lasso visual feedback | Runs "light up" to full color as lasso touches them |
-| Shift-click | Add to selection |
-| Escape | Clear selection |
+| Click run/segment | Toggle the selection |
+| Lasso drag | Select all items that the lasso touches |
+| Lasso visual feedback | Runs "light up" to full color as the lasso touches them |
+| Shift-click | Add to the selection |
+| Escape | Clear the selection |
 
 ### Segment Creation
 
 | Step | Action |
 |------|--------|
 | 1 | Select runs (click or lasso) |
-| 2 | Click start point on map |
-| 3 | Marker snaps to nearest point on selected runs |
-| 4 | Click end point on map |
-| 5 | Marker snaps, segment created immediately |
-| 6 | Right pane shows segment details, name editable |
-| 7 | Drag markers to refine start/end if needed |
+| 2 | Click the start point on the map |
+| 3 | The marker snaps to the nearest point on the selected runs |
+| 4 | Click the end point on the map |
+| 5 | The marker snaps; the system creates the segment immediately |
+| 6 | The right pane shows the segment details; the name is editable |
+| 7 | Drag the markers to refine the start/end if needed |
 
 **Geometry:**
-- Consensus centerline averaged from selected runs
-- Fixed-width corridor buffer for display
-- Click order defines A→B direction (override in right pane)
+- The system averages the consensus centerline from the selected runs
+- A fixed-width corridor buffer is used for display
+- The click order defines the A→B direction (override it in the right pane)
 
 ### Segment Editing
 
@@ -215,39 +220,39 @@ Color scale: global (min/max across all visible items).
 
 | Step | Action |
 |------|--------|
-| 1 | Select segment |
+| 1 | Select the segment |
 | 2 | Select one or more runs |
 | 3 | Click "Link to segment" or "Unlink from segment" |
-| 4 | Associations updated, stats recalculated |
+| 4 | The system updates the associations and recalculates the stats |
 
 **Split segment:**
 
 | Step | Action |
 |------|--------|
-| 1 | Select segment |
-| 2 | Click "Split" action |
-| 3 | Click point on segment where split occurs |
-| 4 | Two new segments created, original deleted |
-| 5 | Runs auto-reassociated by geometry coverage |
-| 6 | Routes containing original segment flagged for review |
+| 1 | Select the segment |
+| 2 | Click the "Split" action |
+| 3 | Click the point on the segment where the split occurs |
+| 4 | The system creates two new segments and deletes the original |
+| 5 | The system re-associates the runs by geometry coverage |
+| 6 | The system flags routes that contain the original segment for review |
 
 ### Route Creation
 
 | Step | Action |
 |------|--------|
 | 1 | Select multiple segments (click or lasso) |
-| 2 | Right pane shows route preview immediately |
-| 3 | System auto-generates bridge routes via Valhalla (OSM data) |
-| 4 | Bridges shown dashed, distinct color |
-| 5 | Click bridge to add waypoint, drag to adjust route |
-| 6 | Delete waypoint to revert to direct route |
-| 7 | Name editable (default: start → end template) |
-| 8 | Save to create route entity |
+| 2 | The right pane shows the route preview immediately |
+| 3 | The system auto-generates the bridge routes via Valhalla (OSM data) |
+| 4 | The bridges show dashed, in a distinct color |
+| 5 | Click a bridge to add a waypoint; drag the waypoint to adjust the route |
+| 6 | Delete the waypoint to revert to the direct route |
+| 7 | The name is editable (default: the start → end template) |
+| 8 | Save to create the route entity |
 
 **Bridge editing:**
-- Click on bridge → adds draggable waypoint
-- Drag waypoint → Valhalla re-routes through it
-- Delete waypoint → route recalculates without it
+- Click on a bridge → the system adds a draggable waypoint
+- Drag the waypoint → Valhalla re-routes through it
+- Delete the waypoint → the system recalculates the route without it
 
 ---
 
@@ -259,27 +264,28 @@ Color scale: global (min/max across all visible items).
 |-------|-----|
 | `geometry_z10` | Zoomed out, aggressive simplification |
 | `geometry_z14` | Mid zoom, moderate detail |
-| `geometry_full` | Close zoom, stats, detail pane |
+| `geometry_full` | Close zoom, the stats, the detail pane |
 
-Generated on ingest, stored as columns on runs table.
+The system generates these on ingest and stores them as columns on the runs
+table.
 
 ### Rendering Pipeline
 
-1. On map load: fetch simplified geometries for visible bounds
-2. On zoom in: swap to higher resolution
-3. On zoom out: swap to lower resolution
-4. Full resolution only for detail pane, stats, segment creation
+1. On map load: fetch the simplified geometries for the visible bounds
+2. On zoom in: swap to a higher resolution
+3. On zoom out: swap to a lower resolution
+4. Use the full resolution only for the detail pane, the stats, and segment creation
 
 ### Lasso Performance
 
-- Deck.gl GPU picking for intersection testing
-- Fast even with thousands of paths
-- Selection state managed client-side
+- Deck.gl GPU picking does the intersection tests
+- Fast, even with thousands of paths
+- The client manages the selection state
 
 ### Tile Caching
 
-- Basemap tiles cached locally after first fetch
-- Works offline for previously viewed areas
+- The system caches basemap tiles locally after the first fetch
+- The map works offline for areas viewed before
 
 ---
 
@@ -287,23 +293,23 @@ Generated on ingest, stored as columns on runs table.
 
 ### Vector Search
 
-- User types natural language: "muddy climbs near Beerburrum"
-- Query embedded via local model (all-MiniLM-L6-v2, ~80MB)
-- LanceDB similarity search returns matches
-- Results filter both list pane and map
+- The user types natural language: "muddy climbs near Beerburrum"
+- A local model embeds the query (all-MiniLM-L6-v2, ~80MB)
+- A LanceDB similarity search returns the matches
+- The results filter both the list pane and the map
 
 ### Structured Filters
 
-- Date range picker
-- ANDed with vector search results
-- Future: area, condition, mode dropdowns
+- A date range picker
+- ANDed with the vector search results
+- Future: area, condition, and mode dropdowns
 
 ### Embedding
 
 On ingest/segment creation:
-- Embed metadata (name, tags, area, conditions, stats)
-- Store in LanceDB
-- Query at search time
+- Embed the metadata (name, tags, area, conditions, stats)
+- Store the embedding in LanceDB
+- Query it at search time
 
 ---
 
@@ -314,20 +320,20 @@ On ingest/segment creation:
 | Component | Choice |
 |-----------|--------|
 | Engine | Valhalla (local) |
-| Data | OpenStreetMap extract |
+| Data | An OpenStreetMap extract |
 | Profiles | Cycling, MTB (configurable) |
 
 ### Time Estimates
 
 | Source | Usage |
 |--------|-------|
-| Historical run data | Per segment, per mode where available |
-| Valhalla defaults | For bridges |
-| Fallback | Default pace if no data |
+| Historical run data | Per segment, per mode, where available |
+| Valhalla defaults | For the bridges |
+| Fallback | A default pace if no data exists |
 
 **Display:**
-- Estimated time (best guess)
-- Range (min/max from actual runs)
+- The estimated time (the best guess)
+- The range (min/max from the actual runs)
 
 ---
 
@@ -337,17 +343,17 @@ On ingest/segment creation:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | UUID | Primary key |
+| `id` | UUID | The primary key |
 | `name` | TEXT | User-provided or generated |
-| `segment_ids` | UUID[] | Ordered list |
+| `segment_ids` | UUID[] | An ordered list |
 | `segment_directions` | TEXT[] | A→B or B→A per segment |
-| `bridge_geometries` | GEOMETRY[] | Connector lines |
-| `bridge_waypoints` | JSONB | User waypoints per bridge |
+| `bridge_geometries` | GEOMETRY[] | The connector lines |
+| `bridge_waypoints` | JSONB | The user waypoints per bridge |
 | `total_distance` | REAL | Computed |
 | `total_elevation` | REAL | Computed |
 | `estimated_time` | INTERVAL | Computed |
-| `time_range_min` | INTERVAL | From runs |
-| `time_range_max` | INTERVAL | From runs |
+| `time_range_min` | INTERVAL | From the runs |
+| `time_range_max` | INTERVAL | From the runs |
 | `created_at` | TIMESTAMPTZ | |
 | `notes` | TEXT | Optional |
 
@@ -362,14 +368,14 @@ On ingest/segment creation:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `corridor_width` | REAL | Display buffer width (meters) |
+| `corridor_width` | REAL | The display buffer width (meters) |
 
 ---
 
 ## Future Enhancements
 
-- Variable-width segment corridors (per-vertex width from run spread)
-- Run-weighted bridge routing (prefer roads you've ridden)
+- Variable-width segment corridors (per-vertex width from the run spread)
+- Run-weighted bridge routing (prefer the roads you have ridden)
 - Offline Valhalla with regional OSM extracts
 - Segment merge (combine two adjacent segments)
 - Route export to GPS device formats

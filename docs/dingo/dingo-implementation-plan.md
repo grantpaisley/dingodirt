@@ -6,47 +6,47 @@
 
 ## How to Use This Plan
 
-1. Work through tasks in order — each depends on previous tasks
-2. Check off tasks as completed: `- [ ]` → `- [x]`
-3. Each task should be completable in a single Claude Code session
+1. Do the tasks in order. Each task depends on the tasks before it
+2. Mark each task when it is complete: `- [ ]` → `- [x]`
+3. Make sure that each task is possible in a single Claude Code session
 4. Use real GPX/FIT files from your collection as test fixtures
-5. "Done when" criteria define acceptance — don't move on until met
+5. The "Done when" criteria define acceptance. Do not continue until you satisfy them
 
 ---
 
 ## Phase 0: Project Scaffolding
 
 ### 0.1 Repository & Workspace Setup
-- [ ] Initialise git repo with .gitignore (Rust, IDE, .env)
-- [ ] Create Cargo workspace with crates/ directory structure
-- [ ] Add empty crates: core, geo, ingest, enrich, graph, match, stats, vision, google, daemon, cli
-- [ ] Configure shared dependencies in workspace Cargo.toml
+- [ ] Initialise the git repo with a .gitignore (Rust, IDE, .env)
+- [ ] Create the Cargo workspace with the crates/ directory structure
+- [ ] Add the empty crates: core, geo, ingest, enrich, graph, match, stats, vision, google, daemon, cli
+- [ ] Configure the shared dependencies in the workspace Cargo.toml
 
-**Done when:** `cargo check` passes on empty workspace
+**Done when:** `cargo check` passes on the empty workspace
 
 ### 0.2 Development Environment
-- [ ] Create docker-compose.yml with Postgres 16 + PostGIS 3.4
-- [ ] Add .env.example with DATABASE_URL template
+- [ ] Create a docker-compose.yml with Postgres 16 + PostGIS 3.4
+- [ ] Add .env.example with a DATABASE_URL template
 - [ ] Create scripts/dev-db.sh for start/stop/reset
-- [ ] Verify PostGIS extension loads (`SELECT PostGIS_Version()`)
+- [ ] Make sure that the PostGIS extension loads (`SELECT PostGIS_Version()`)
 
-**Done when:** Can connect to local PostGIS from psql
+**Done when:** You can connect to the local PostGIS from psql
 
 ### 0.3 Database Schema Foundation
-- [ ] Add sqlx as dependency, configure offline mode
-- [ ] Create migrations/ directory
-- [ ] Write initial migration: areas, files, rides tables
-- [ ] Set up sqlx-cli for migration running
+- [ ] Add sqlx as a dependency. Configure the offline mode
+- [ ] Create the migrations/ directory
+- [ ] Write the initial migration: the areas, files, and rides tables
+- [ ] Set up sqlx-cli to run the migrations
 
-**Done when:** `sqlx migrate run` creates tables, `cargo sqlx prepare` generates query cache
+**Done when:** `sqlx migrate run` creates the tables, and `cargo sqlx prepare` generates the query cache
 
 ### 0.4 Core Crate Types
-- [ ] Define error types (thiserror)
-- [ ] Define config struct (serde, figment or config-rs)
-- [ ] Define shared domain types: AreaId, FileId, RideId (UUID newtypes)
-- [ ] Add db module with connection pool setup
+- [ ] Define the error types (thiserror)
+- [ ] Define the config struct (serde, figment or config-rs)
+- [ ] Define the shared domain types: AreaId, FileId, RideId (UUID newtypes)
+- [ ] Add a db module with the connection pool setup
 
-**Done when:** Other crates can import `dingo_core::{Config, Error, Result, db}`
+**Done when:** The other crates can import `dingo_core::{Config, Error, Result, db}`
 
 ---
 
@@ -55,663 +55,663 @@
 ### 1.1 File Ingest Pipeline
 
 #### 1.1.1 File Store
-- [ ] Create content-addressed file store in `ingest` crate
-- [ ] Implement: hash file → copy to `files/{sha256}.{ext}`
-- [ ] Handle duplicates (skip if hash exists)
-- [ ] Return FileId + metadata (size, hash, original name)
+- [ ] Create a content-addressed file store in the `ingest` crate
+- [ ] Implement: hash the file → copy it to `files/{sha256}.{ext}`
+- [ ] Handle duplicates (skip the file if the hash exists)
+- [ ] Return the FileId + the metadata (size, hash, original name)
 
-**Done when:** Can store a file, retrieve path by hash, skip duplicates
+**Done when:** You can store a file, get the path by hash, and skip duplicates
 
 #### 1.1.2 Format Detection
-- [ ] Detect format from magic bytes (FIT: `.FIT` header, GPX: XML with `<gpx>`)
+- [ ] Find the format from the magic bytes (FIT: the `.FIT` header, GPX: XML with `<gpx>`)
 - [ ] Support: FIT, GPX, KML, GeoJSON, TCX
-- [ ] Return enum: `FileFormat::Fit | Gpx | Kml | GeoJson | Tcx | Unknown`
+- [ ] Return the enum: `FileFormat::Fit | Gpx | Kml | GeoJson | Tcx | Unknown`
 
-**Done when:** Correctly identifies format for test files of each type
+**Done when:** The code identifies the correct format for test files of each type
 
 #### 1.1.3 GPX Parser
-- [ ] Parse GPX to internal track representation
-- [ ] Extract: points (lat, lon, ele, time), name, metadata
-- [ ] Handle multi-track files (return Vec<Track>)
-- [ ] Determine ride vs route (timestamps present → ride)
+- [ ] Parse GPX to the internal track representation
+- [ ] Extract: the points (lat, lon, ele, time), the name, the metadata
+- [ ] Handle multi-track files (return a Vec<Track>)
+- [ ] Find if the file is a ride or a route (timestamps present → a ride)
 
-**Done when:** Parses your real GPX test files, extracts all points with timestamps
+**Done when:** The parser reads your real GPX test files and extracts all points with timestamps
 
 #### 1.1.4 FIT Parser
-- [ ] Add fit-rs or fitparser dependency
-- [ ] Parse FIT to same internal track representation
-- [ ] Extract: points, timestamps, HR, cadence, power if present
-- [ ] Handle activity vs course files
+- [ ] Add the fit-rs or fitparser dependency
+- [ ] Parse FIT to the same internal track representation
+- [ ] Extract: the points, timestamps, HR, cadence, and power if present
+- [ ] Handle activity files and course files
 
-**Done when:** Parses real FIT files from Garmin, extracts sensor data
+**Done when:** The parser reads real FIT files from Garmin and extracts the sensor data
 
 #### 1.1.5 Files Table & Ride Insertion
-- [ ] Write migration: files table (id, hash, format, original_name, size, imported_at)
-- [ ] Write migration: rides table (id, file_id, name, started_at, raw_geometry, raw_time_series, sensor_data)
-- [ ] Implement: insert file record, insert ride record with raw data
-- [ ] Store geometry as PostGIS LineString, time series as JSONB
+- [ ] Write the migration: the files table (id, hash, format, original_name, size, imported_at)
+- [ ] Write the migration: the rides table (id, file_id, name, started_at, raw_geometry, raw_time_series, sensor_data)
+- [ ] Implement: insert the file record, then insert the ride record with the raw data
+- [ ] Store the geometry as a PostGIS LineString and the time series as JSONB
 
-**Done when:** Ingest a GPX → file row + ride row with geometry queryable via ST_AsGeoJSON
+**Done when:** An ingest of a GPX makes a file row + a ride row, and you can query the geometry with ST_AsGeoJSON
 
 #### 1.1.6 CLI: `dingo ingest`
-- [ ] Create cli crate binary
-- [ ] Implement `dingo ingest <path>` command
-- [ ] Support single file or directory (non-recursive)
-- [ ] Print summary: files found, imported, skipped (duplicates)
+- [ ] Create the cli crate binary
+- [ ] Implement the `dingo ingest <path>` command
+- [ ] Support a single file or a directory (non-recursive)
+- [ ] Print a summary: the files found, imported, and skipped (duplicates)
 
-**Done when:** `dingo ingest ~/tracks/` imports all GPX/FIT files, skips dupes on re-run
+**Done when:** `dingo ingest ~/tracks/` imports all GPX/FIT files and skips the duplicates on a second run
 
 ---
 
 ### 1.2 Ride Cleaning
 
 #### 1.2.1 GPS Jitter Removal
-- [ ] Implement Kalman filter or similar smoothing in `geo` crate
-- [ ] Configurable noise threshold (default ~5m)
-- [ ] Preserve original points, output cleaned geometry
+- [ ] Implement a Kalman filter or similar smoothing in the `geo` crate
+- [ ] Make the noise threshold configurable (default ~5m)
+- [ ] Keep the original points. Output the cleaned geometry
 
-**Done when:** Noisy GPS track becomes smooth without losing genuine turns
+**Done when:** A noisy GPS track becomes smooth and keeps the genuine turns
 
 #### 1.2.2 Point Simplification
-- [ ] Implement Ramer-Douglas-Peucker algorithm
-- [ ] Configurable epsilon (default: preserve detail for trail use)
-- [ ] Balance: reduce points while keeping trail shape
+- [ ] Implement the Ramer-Douglas-Peucker algorithm
+- [ ] Make the epsilon configurable (default: keep the detail for trail use)
+- [ ] Balance: decrease the points and keep the trail shape
 
-**Done when:** Track reduced by ~30-50% points, visually identical on map
+**Done when:** The track has ~30-50% fewer points and looks identical on the map
 
 #### 1.2.3 Stop Detection
-- [ ] Implement sliding window analysis: speed + positional variance
-- [ ] Detect stops: low speed AND low variance AND duration > threshold (default 30s)
-- [ ] Optional: HR delta from rolling baseline if sensor data present
-- [ ] Output: list of stop intervals (start_idx, end_idx, duration)
+- [ ] Implement a sliding window analysis: the speed + the positional variance
+- [ ] Find the stops: low speed AND low variance AND duration > threshold (default 30s)
+- [ ] Optional: the HR delta from a rolling baseline if sensor data is present
+- [ ] Output: a list of the stop intervals (start_idx, end_idx, duration)
 
-**Done when:** Correctly identifies lunch stops vs slow technical sections in real rides
+**Done when:** The code correctly finds the lunch stops, not the slow technical sections, in real rides
 
 #### 1.2.4 Time Series Extraction
-- [ ] Extract cleaned time series: timestamp, lat, lon, ele, speed, hr (if present)
-- [ ] Calculate derived fields: distance_cumulative, speed_smoothed
-- [ ] Store as JSONB array on ride
+- [ ] Extract the cleaned time series: timestamp, lat, lon, ele, speed, hr (if present)
+- [ ] Calculate the derived fields: distance_cumulative, speed_smoothed
+- [ ] Store the data as a JSONB array on the ride
 
-**Done when:** Can query ride and replay point-by-point with timing
+**Done when:** You can query a ride and replay it point by point with the timing
 
 #### 1.2.5 Rides Table Update & Cleaning Storage
-- [ ] Add columns: cleaned_geometry, cleaned_time_series, stops (JSONB), cleaned_at
-- [ ] Implement: update ride with cleaned data
-- [ ] Track cleaning version (for replay if algorithm improves)
+- [ ] Add the columns: cleaned_geometry, cleaned_time_series, stops (JSONB), cleaned_at
+- [ ] Implement: update the ride with the cleaned data
+- [ ] Track the cleaning version (for a replay if the algorithm improves)
 
-**Done when:** Ride row has both raw and cleaned geometry, stops identified
+**Done when:** The ride row has the raw and the cleaned geometry, and the stops are identified
 
 #### 1.2.6 CLI: `dingo clean`
-- [ ] Implement `dingo clean --ride <id>` command
+- [ ] Implement the `dingo clean --ride <id>` command
 - [ ] Implement `dingo clean --all` for batch processing
-- [ ] Print summary: points before/after, stops detected
+- [ ] Print a summary: the points before/after, the stops found
 
-**Done when:** `dingo clean --ride <id>` updates ride with cleaned data
+**Done when:** `dingo clean --ride <id>` updates the ride with the cleaned data
 
 ---
 
 ### 1.3 Context Enrichment
 
 #### 1.3.1 Open-Meteo Client
-- [ ] Create `enrich` crate
-- [ ] Implement Open-Meteo historical weather API client
+- [ ] Create the `enrich` crate
+- [ ] Implement a client for the Open-Meteo historical weather API
 - [ ] Query by: latitude, longitude, date
-- [ ] Parse response: precipitation, temp_max, temp_min
+- [ ] Parse the response: precipitation, temp_max, temp_min
 
-**Done when:** Can fetch weather for a given location + date, returns structured data
+**Done when:** The client can fetch the weather for a given location + date and returns structured data
 
 #### 1.3.2 Weather Fields Extraction
-- [ ] Extract `precip_last_24h` (day of ride)
-- [ ] Extract `precip_last_48h` (day of ride + day before, summed)
-- [ ] Extract `temp_max`, `temp_min` for ride date
-- [ ] Handle API failures gracefully (mark as incomplete)
+- [ ] Extract `precip_last_24h` (the day of the ride)
+- [ ] Extract `precip_last_48h` (the day of the ride + the day before, summed)
+- [ ] Extract `temp_max` and `temp_min` for the ride date
+- [ ] Handle API failures safely (mark the data as incomplete)
 
-**Done when:** Weather struct populated for a real ride location/date
+**Done when:** The weather struct is filled for a real ride location/date
 
 #### 1.3.3 Condition Inference
-- [ ] Implement threshold logic: precip_last_48h > X mm → wet
-- [ ] Configurable thresholds (default: >5mm = wet)
+- [ ] Implement the threshold logic: precip_last_48h > X mm → wet
+- [ ] Make the thresholds configurable (default: >5mm = wet)
 - [ ] Output: `inferred_condition` (dry/wet/unknown), `condition_confidence` (low/medium/high)
 
-**Done when:** Real rides classified as dry/wet matching your memory of conditions
+**Done when:** The system classifies real rides as dry/wet, and this agrees with your memory of the conditions
 
 #### 1.3.4 Solar Position Calculation
-- [ ] Implement sunrise/sunset calculation from timestamp + coordinates
-- [ ] Define dawn/dusk windows (e.g., 30 min before sunrise, 30 min after sunset)
-- [ ] Output: `time_of_day` enum (day/dawn/dusk/night)
+- [ ] Implement the sunrise/sunset calculation from the timestamp + the coordinates
+- [ ] Define the dawn/dusk windows (e.g., 30 min before sunrise, 30 min after sunset)
+- [ ] Output: the `time_of_day` enum (day/dawn/dusk/night)
 
-**Done when:** Morning ride = dawn→day, evening ride = day→dusk, night ride = night
+**Done when:** A morning ride = dawn→day, an evening ride = day→dusk, a night ride = night
 
 #### 1.3.5 Rides Table: Enrichment Columns
-- [ ] Add migration: weather fields (precip_last_24h, precip_last_48h, temp_max, temp_min)
-- [ ] Add migration: inferred_condition, condition_confidence, time_of_day
-- [ ] Add migration: enriched_at timestamp
+- [ ] Add a migration: the weather fields (precip_last_24h, precip_last_48h, temp_max, temp_min)
+- [ ] Add a migration: inferred_condition, condition_confidence, time_of_day
+- [ ] Add a migration: the enriched_at timestamp
 
-**Done when:** Ride row stores all enrichment fields
+**Done when:** The ride row stores all the enrichment fields
 
 #### 1.3.6 CLI: `dingo enrich`
-- [ ] Implement `dingo enrich --ride <id>` command
+- [ ] Implement the `dingo enrich --ride <id>` command
 - [ ] Implement `dingo enrich --all` for batch processing
-- [ ] Print summary: condition inferred, time_of_day
+- [ ] Print a summary: the inferred condition, the time_of_day
 
-**Done when:** `dingo enrich --ride <id>` fetches weather + calculates solar, updates ride
+**Done when:** `dingo enrich --ride <id>` fetches the weather, calculates the solar position, and updates the ride
 
 ---
 
 ### 1.4 Area Resolution
 
 #### 1.4.1 Areas Table
-- [ ] Add migration: areas (id, parent_id, name, boundary, mode_affinity, created_at)
-- [ ] Boundary stored as PostGIS Polygon
-- [ ] Add spatial index on boundary
+- [ ] Add a migration: areas (id, parent_id, name, boundary, mode_affinity, created_at)
+- [ ] Store the boundary as a PostGIS Polygon
+- [ ] Add a spatial index on the boundary
 
-**Done when:** Can insert area with polygon boundary, query by ST_Contains
+**Done when:** You can insert an area with a polygon boundary and query it with ST_Contains
 
 #### 1.4.2 Area CRUD Operations
-- [ ] Implement: create area with name + boundary polygon
-- [ ] Implement: update area (rename, adjust boundary, change parent)
-- [ ] Implement: delete area (cascade rules TBD)
-- [ ] Implement: list areas (tree structure via parent_id)
+- [ ] Implement: create an area with a name + a boundary polygon
+- [ ] Implement: update an area (rename it, adjust the boundary, change the parent)
+- [ ] Implement: delete an area (cascade rules TBD)
+- [ ] Implement: list the areas (a tree structure via parent_id)
 
-**Done when:** Can create, list, update areas via core crate functions
+**Done when:** You can create, list, and update areas with the core crate functions
 
 #### 1.4.3 Ride-to-Area Assignment
-- [ ] Implement: find most specific (deepest) area containing ride start point
-- [ ] Handle rides spanning multiple areas (assign to start point area)
-- [ ] Add area_id column to rides table
-- [ ] Update ride with area assignment on ingest/clean
+- [ ] Implement: find the most specific (deepest) area that holds the ride start point
+- [ ] Handle rides that cross more than one area (assign the ride to the area of the start point)
+- [ ] Add the area_id column to the rides table
+- [ ] Update the ride with the area assignment on ingest/clean
 
-**Done when:** Ride auto-assigned to correct area based on start location
+**Done when:** The system assigns each ride to the correct area from its start location
 
 #### 1.4.4 CLI: `dingo area`
 - [ ] Implement `dingo area create --name <n> --boundary <geojson-file>`
-- [ ] Implement `dingo area list` (tree view)
-- [ ] Implement `dingo area show <id>` (stats summary)
+- [ ] Implement `dingo area list` (a tree view)
+- [ ] Implement `dingo area show <id>` (a stats summary)
 
-**Done when:** Can create area from GeoJSON polygon file, list shows hierarchy
+**Done when:** You can create an area from a GeoJSON polygon file, and the list shows the hierarchy
 
 ---
 
 ### 1.5 Segment Graph Creation
 
 #### 1.5.1 Segments & Segment Dirs Tables
-- [ ] Add migration: segments (id, area_id, geometry_hash, name, visibility, created_at)
-- [ ] Add migration: segment_dirs (id, segment_id, direction, length, elevation_gain, elevation_loss, avg_grade)
-- [ ] Store segment geometry as PostGIS LineString with spatial index
-- [ ] Direction enum: `a_to_b`, `b_to_a`
+- [ ] Add a migration: segments (id, area_id, geometry_hash, name, visibility, created_at)
+- [ ] Add a migration: segment_dirs (id, segment_id, direction, length, elevation_gain, elevation_loss, avg_grade)
+- [ ] Store the segment geometry as a PostGIS LineString with a spatial index
+- [ ] The direction enum: `a_to_b`, `b_to_a`
 
-**Done when:** Can insert segment with two segment_dirs, query by area
+**Done when:** You can insert a segment with two segment_dirs and query it by area
 
 #### 1.5.2 Geometry Canonicalisation
-- [ ] Implement canonical direction: lower lat/lng endpoint first
-- [ ] Implement geometry hashing: SHA256 of WKB representation
-- [ ] Ensure consistent direction regardless of input order
+- [ ] Implement the canonical direction: the lower lat/lng endpoint first
+- [ ] Implement the geometry hash: the SHA256 of the WKB representation
+- [ ] Make sure that the direction is consistent for each input order
 
-**Done when:** Same trail ridden in opposite directions produces same geometry_hash
+**Done when:** The same trail, ridden in opposite directions, gives the same geometry_hash
 
 #### 1.5.3 Spatial Grid Snapping
-- [ ] Implement point snapping to configurable grid (default ~1m)
-- [ ] Snap cleaned ride geometry before comparison
-- [ ] Reduces false "new segment" detections from GPS variance
+- [ ] Implement point snapping to a configurable grid (default ~1m)
+- [ ] Snap the cleaned ride geometry before the comparison
+- [ ] This decreases the false "new segment" detections from GPS variance
 
-**Done when:** Two rides on same trail snap to identical grid points
+**Done when:** Two rides on the same trail snap to identical grid points
 
 #### 1.5.4 Segment Matching Logic
-- [ ] Implement: compare ride geometry against existing segments in area
-- [ ] Calculate overlap percentage (shared length / total length)
+- [ ] Implement: compare the ride geometry with the existing segments in the area
+- [ ] Calculate the overlap percentage (shared length / total length)
 - [ ] Classify: Match (>80% overlap), Fork (partial overlap), New (no overlap)
-- [ ] Configurable overlap threshold per area
+- [ ] Make the overlap threshold configurable for each area
 
-**Done when:** Second ride on same trail returns "Match", parallel trail returns "New"
+**Done when:** A second ride on the same trail returns "Match", and a parallel trail returns "New"
 
 #### 1.5.5 Segment Creation
-- [ ] Implement: create new segment from geometry
-- [ ] Generate what3words name from start point (or placeholder for now)
-- [ ] Create both segment_dirs with computed properties (length, elevation)
-- [ ] Mark as visibility = visible by default
+- [ ] Implement: create a new segment from the geometry
+- [ ] Generate the what3words name from the start point (or a placeholder for now)
+- [ ] Create both segment_dirs with the computed properties (length, elevation)
+- [ ] Set visibility = visible by default
 
-**Done when:** New trail creates segment with two dirs, length/elevation computed
+**Done when:** A new trail creates a segment with two dirs, with the length/elevation computed
 
 #### 1.5.6 Segment Splitting
-- [ ] Implement: detect fork mid-segment (new ride diverges partway)
-- [ ] Delete old segment, create two new segments at fork point
-- [ ] Queue affected rides in rematch_queue with reason `topology_change`
-- [ ] Preserve segment history (old segment_id logged)
+- [ ] Implement: find a fork in the middle of a segment (a new ride diverges partway)
+- [ ] Delete the old segment. Create two new segments at the fork point
+- [ ] Queue the affected rides in the rematch_queue with the reason `topology_change`
+- [ ] Keep the segment history (log the old segment_id)
 
-**Done when:** Ride revealing new fork splits existing segment, old rides queued for rematch
+**Done when:** A ride that shows a new fork splits the existing segment, and the old rides go into the rematch queue
 
 #### 1.5.7 Rematch Queue Table
-- [ ] Add migration: rematch_queue (id, ride_id, reason, priority, queued_at, processed_at)
-- [ ] Reason enum: `topology_change`, `algorithm_update`, `manual`
-- [ ] Implement: queue ride, process queue in priority order
+- [ ] Add a migration: rematch_queue (id, ride_id, reason, priority, queued_at, processed_at)
+- [ ] The reason enum: `topology_change`, `algorithm_update`, `manual`
+- [ ] Implement: queue a ride, then process the queue in priority order
 
-**Done when:** Topology change queues rides, can list pending rematch count
+**Done when:** A topology change queues the rides, and you can list the pending rematch count
 
 #### 1.5.8 CLI: `dingo graph`
-- [ ] Implement `dingo graph rebuild --area <id>` (full rebuild from rides)
-- [ ] Implement `dingo graph stats --area <id>` (segment count, total km)
-- [ ] Print summary: segments created, splits, matches
+- [ ] Implement `dingo graph rebuild --area <id>` (a full rebuild from the rides)
+- [ ] Implement `dingo graph stats --area <id>` (the segment count, the total km)
+- [ ] Print a summary: the segments created, the splits, the matches
 
-**Done when:** `dingo graph rebuild` creates segment network from existing rides
+**Done when:** `dingo graph rebuild` creates the segment network from the existing rides
 
 ---
 
 ### 1.6 Run Matching
 
 #### 1.6.1 Runs Table
-- [ ] Add migration: runs (id, ride_id, segment_dir_id, start_time, end_time, elapsed_time, stopped_time)
-- [ ] Add columns: speed_avg, speed_max, speed_variance, hr_avg, hr_max
-- [ ] Add columns: mode, condition, out_and_back_reason (nullable enum)
-- [ ] Index on (segment_dir_id, ride_id)
+- [ ] Add a migration: runs (id, ride_id, segment_dir_id, start_time, end_time, elapsed_time, stopped_time)
+- [ ] Add the columns: speed_avg, speed_max, speed_variance, hr_avg, hr_max
+- [ ] Add the columns: mode, condition, out_and_back_reason (a nullable enum)
+- [ ] Add an index on (segment_dir_id, ride_id)
 
-**Done when:** Can insert run linking ride to segment_dir with timing stats
+**Done when:** You can insert a run that links a ride to a segment_dir with the timing stats
 
 #### 1.6.2 Ride-to-Segment Matching
-- [ ] Implement: walk ride points, snap each to nearest segment_dir
-- [ ] Track segment transitions (entered segment X at point N)
-- [ ] Determine direction of travel (A→B or B→A) from point sequence
+- [ ] Implement: walk the ride points. Snap each point to the nearest segment_dir
+- [ ] Track the segment transitions (the ride entered segment X at point N)
+- [ ] Find the direction of travel (A→B or B→A) from the point sequence
 - [ ] Handle GPS drift: bridge gaps < 20m for < 5 seconds
 
-**Done when:** Ride matched to sequence of segment_dirs with entry/exit points
+**Done when:** The ride matches a sequence of segment_dirs with entry/exit points
 
 #### 1.6.3 Run Extraction
-- [ ] Extract run from ride for each segment traversal
-- [ ] Calculate: elapsed_time, stopped_time (from stop intervals intersecting run)
-- [ ] Calculate: speed stats from points within run
-- [ ] Calculate: HR stats if sensor data present
+- [ ] Extract a run from the ride for each segment traversal
+- [ ] Calculate: elapsed_time, stopped_time (from the stop intervals that intersect the run)
+- [ ] Calculate: the speed stats from the points in the run
+- [ ] Calculate: the HR stats if sensor data is present
 
-**Done when:** Each segment traversal produces run with accurate timing/speed
+**Done when:** Each segment traversal makes a run with accurate timing/speed
 
 #### 1.6.4 Out-and-Back Detection
-- [ ] Detect when ride crosses same segment twice in opposite directions
-- [ ] Check terminus proximity to POIs → `poi_detour`
-- [ ] Check terminus grade + speed stall → `attempted_climb`
-- [ ] Otherwise → `unknown`, mark segment as `unreviewed`
+- [ ] Find when a ride crosses the same segment two times in opposite directions
+- [ ] Check if the terminus is near a POI → `poi_detour`
+- [ ] Check the terminus grade + a speed stall → `attempted_climb`
+- [ ] If not → `unknown`, mark the segment as `unreviewed`
 
-**Done when:** Out-and-back rides tagged with correct reason, reviewed flag set
+**Done when:** Out-and-back rides get the correct reason tag, and the reviewed flag is set
 
 #### 1.6.5 Mode & Condition Assignment
-- [ ] Inherit condition from ride's `inferred_condition`
-- [ ] Mode: default from area's `mode_affinity`, allow override
-- [ ] Store on run for per-mode/condition stats later
+- [ ] The run gets the condition from the `inferred_condition` of the ride
+- [ ] Mode: the default comes from the `mode_affinity` of the area. Permit an override
+- [ ] Store both on the run for the per-mode/condition stats later
 
-**Done when:** Runs have mode + condition populated
+**Done when:** The runs have the mode + the condition filled
 
 #### 1.6.6 CLI: `dingo match`
 - [ ] Implement `dingo match --ride <id>`
-- [ ] Implement `dingo match --area <id>` (all rides in area)
-- [ ] Print summary: runs created, segments traversed, out-and-backs detected
+- [ ] Implement `dingo match --area <id>` (all rides in the area)
+- [ ] Print a summary: the runs created, the segments traversed, the out-and-backs found
 
-**Done when:** `dingo match --ride <id>` creates runs for all segments traversed
+**Done when:** `dingo match --ride <id>` creates runs for all the segments traversed
 
 ---
 
 ### 1.7 Segment Stats Aggregation
 
 #### 1.7.1 Segment Dir Stats Table
-- [ ] Add migration: segment_dir_stats (id, segment_dir_id, mode, condition)
-- [ ] Add columns: run_count, time_min, time_max, time_median, time_stddev
-- [ ] Add columns: speed_avg, stop_time_avg, hr_avg, hr_max
-- [ ] Unique constraint on (segment_dir_id, mode, condition)
+- [ ] Add a migration: segment_dir_stats (id, segment_dir_id, mode, condition)
+- [ ] Add the columns: run_count, time_min, time_max, time_median, time_stddev
+- [ ] Add the columns: speed_avg, stop_time_avg, hr_avg, hr_max
+- [ ] Add a unique constraint on (segment_dir_id, mode, condition)
 
-**Done when:** Can insert/update stats per segment_dir/mode/condition combo
+**Done when:** You can insert/update the stats for each segment_dir/mode/condition combination
 
 #### 1.7.2 Stats Calculation
-- [ ] Implement: aggregate runs by (segment_dir_id, mode, condition)
-- [ ] Calculate: count, min/max/median/stddev for time
-- [ ] Calculate: averages for speed, stop_time, HR
-- [ ] Handle sparse data gracefully (nulls for insufficient runs)
+- [ ] Implement: aggregate the runs by (segment_dir_id, mode, condition)
+- [ ] Calculate: the count, and the min/max/median/stddev for the time
+- [ ] Calculate: the averages for the speed, stop_time, and HR
+- [ ] Handle sparse data safely (nulls when there are too few runs)
 
-**Done when:** Stats computed from runs match manual calculation
+**Done when:** The stats computed from the runs agree with a manual calculation
 
 #### 1.7.3 Confidence Tiers
-- [ ] Implement confidence assignment: unridden (0), provisional (1-2), confident (3+)
-- [ ] Add confidence column to segment_dir_stats
-- [ ] Expose in queries for UI filtering
+- [ ] Implement the confidence assignment: unridden (0), provisional (1-2), confident (3+)
+- [ ] Add the confidence column to segment_dir_stats
+- [ ] Expose the confidence in queries for the UI filters
 
-**Done when:** Segments correctly tiered based on run count
+**Done when:** The segments get the correct tier from the run count
 
 #### 1.7.4 Incremental Updates
-- [ ] Implement: update stats when new run added (avoid full recalc)
-- [ ] Implement: full rebuild for segment (after topology change)
-- [ ] Track stats_updated_at timestamp
+- [ ] Implement: update the stats when a new run is added (no full recalculation)
+- [ ] Implement: a full rebuild for a segment (after a topology change)
+- [ ] Track the stats_updated_at timestamp
 
-**Done when:** New run triggers incremental stats update, not full rebuild
+**Done when:** A new run starts an incremental stats update, not a full rebuild
 
 #### 1.7.5 CLI: `dingo stats`
 - [ ] Implement `dingo stats rebuild --area <id>`
-- [ ] Implement `dingo stats show --segment <id>` (per-direction breakdown)
-- [ ] Print summary: segments updated, confidence distribution
+- [ ] Implement `dingo stats show --segment <id>` (a breakdown for each direction)
+- [ ] Print a summary: the segments updated, the confidence distribution
 
-**Done when:** `dingo stats rebuild` populates stats for all segments in area
+**Done when:** `dingo stats rebuild` fills the stats for all the segments in the area
 
 ---
 
 ### 1.8 Dingo Scoring
 
 #### 1.8.1 Segment Dir Dingo Score Table
-- [ ] Add migration: segment_dir_dingo_score (id, segment_dir_id, mode, condition, profile)
-- [ ] Add columns: score (0-100), computed_at
-- [ ] Unique constraint on (segment_dir_id, mode, condition, profile)
-- [ ] Profile enum: `flow`, `tech`, `scenic`, `efficient`
+- [ ] Add a migration: segment_dir_dingo_score (id, segment_dir_id, mode, condition, profile)
+- [ ] Add the columns: score (0-100), computed_at
+- [ ] Add a unique constraint on (segment_dir_id, mode, condition, profile)
+- [ ] The profile enum: `flow`, `tech`, `scenic`, `efficient`
 
-**Done when:** Can store Dingo score per segment_dir/mode/condition/profile combo
+**Done when:** You can store a Dingo score for each segment_dir/mode/condition/profile combination
 
 #### 1.8.2 Feature Extraction
-- [ ] Extract geometry features: length, elevation_gain/loss, avg_grade, max_grade, twistiness
-- [ ] Extract stats features: speed_avg, stop_density, hr_intensity (if available)
-- [ ] Compute pace_vs_shape: actual speed vs expected speed for geometry
-- [ ] Output: feature vector per segment_dir/mode/condition
+- [ ] Extract the geometry features: length, elevation_gain/loss, avg_grade, max_grade, twistiness
+- [ ] Extract the stats features: speed_avg, stop_density, hr_intensity (if available)
+- [ ] Compute pace_vs_shape: the actual speed vs the expected speed for the geometry
+- [ ] Output: a feature vector for each segment_dir/mode/condition
 
-**Done when:** Feature vector computed for segment with sufficient runs
+**Done when:** The feature vector is computed for a segment with enough runs
 
 #### 1.8.3 Feature Normalisation
-- [ ] Normalise each feature to 0-1 range
-- [ ] Use min/max from dataset (global or per-area configurable)
-- [ ] Handle missing features (default to neutral 0.5)
+- [ ] Normalise each feature to the 0-1 range
+- [ ] Use the min/max from the dataset (global or per-area, configurable)
+- [ ] Handle missing features (default to a neutral 0.5)
 
-**Done when:** All features scaled consistently for scoring
+**Done when:** All the features have a consistent scale for the score
 
 #### 1.8.4 Profile Weights & Scoring
-- [ ] Define weight vectors for each profile (flow, tech, scenic, efficient)
-- [ ] Implement: score = weighted sum of normalised features × 100
+- [ ] Define the weight vectors for each profile (flow, tech, scenic, efficient)
+- [ ] Implement: score = the weighted sum of the normalised features × 100
 - [ ] Flow: high speed, twistiness; low stops, elevation
 - [ ] Tech: high pace_vs_shape, hr_intensity; low speed
 - [ ] Scenic: low stress overall
-- [ ] Efficient: high speed; penalise stops, obstacles
+- [ ] Efficient: high speed; a penalty for stops and obstacles
 
-**Done when:** Same segment gets different scores per profile matching intuition
+**Done when:** The same segment gets different scores for each profile, and the scores agree with intuition
 
 #### 1.8.5 Slog Detection
-- [ ] Detect technical slow: low speed + high HR + continuous movement
-- [ ] Detect slog: low speed + low HR + high stops + negative tags
-- [ ] Apply slog penalty to all profiles except tech
+- [ ] Find technical slow: low speed + high HR + continuous movement
+- [ ] Find a slog: low speed + low HR + high stops + negative tags
+- [ ] Apply the slog penalty to all profiles except tech
 
-**Done when:** Known slog segments penalised, technical climbs not penalised
+**Done when:** Known slog segments get the penalty, and technical climbs do not
 
 #### 1.8.6 CLI: `dingo score`
 - [ ] Implement `dingo score rebuild --area <id>`
 - [ ] Implement `dingo score show --segment <id>` (all profiles)
-- [ ] Print summary: segments scored, score distribution per profile
+- [ ] Print a summary: the segments scored, the score distribution for each profile
 
-**Done when:** `dingo score rebuild` computes Dingo scores for all segments in area
+**Done when:** `dingo score rebuild` computes the Dingo scores for all the segments in the area
 
 ---
 
 ### 1.9 Area Map & Segment Inspector
 
 #### 1.9.1 Daemon Scaffold
-- [ ] Create `daemon` crate with async runtime (tokio)
-- [ ] Set up HTTP server (axum or actix-web)
-- [ ] Configure connection pool sharing
-- [ ] Serve static files from embedded directory or filesystem
+- [ ] Create the `daemon` crate with an async runtime (tokio)
+- [ ] Set up the HTTP server (axum or actix-web)
+- [ ] Configure the shared connection pool
+- [ ] Serve the static files from an embedded directory or the filesystem
 
-**Done when:** Daemon starts, responds to health check endpoint
+**Done when:** The daemon starts and responds to the health check endpoint
 
 #### 1.9.2 API: Areas & Segments
-- [ ] GET /api/areas → list areas (tree structure)
-- [ ] GET /api/areas/:id → area detail with boundary GeoJSON
-- [ ] GET /api/areas/:id/segments → segments as GeoJSON FeatureCollection
-- [ ] Include segment properties: name, trail_type, confidence, dingo_scores
+- [ ] GET /api/areas → list the areas (a tree structure)
+- [ ] GET /api/areas/:id → the area detail with the boundary GeoJSON
+- [ ] GET /api/areas/:id/segments → the segments as a GeoJSON FeatureCollection
+- [ ] Include the segment properties: name, trail_type, confidence, dingo_scores
 
-**Done when:** Can fetch area segments as GeoJSON, view in geojson.io
+**Done when:** You can fetch the area segments as GeoJSON and view them in geojson.io
 
 #### 1.9.3 API: Segment Detail
-- [ ] GET /api/segments/:id → segment with both directions
-- [ ] Include: stats per direction/mode/condition, dingo scores, run count
-- [ ] GET /api/segments/:id/runs → run history for segment
+- [ ] GET /api/segments/:id → the segment with both directions
+- [ ] Include: the stats for each direction/mode/condition, the dingo scores, the run count
+- [ ] GET /api/segments/:id/runs → the run history for the segment
 
-**Done when:** Full segment detail available via API
+**Done when:** The full segment detail is available from the API
 
 #### 1.9.4 Frontend: Map Shell
-- [ ] Set up frontend (HTMX + Tera or Svelte — your choice at implementation)
+- [ ] Set up the frontend (HTMX + Tera or Svelte — your choice at implementation)
 - [ ] Integrate MapLibre GL JS
-- [ ] Load area boundary, centre map on area
+- [ ] Load the area boundary. Centre the map on the area
 - [ ] Basic controls: zoom, pan
 
-**Done when:** Map renders, shows area boundary
+**Done when:** The map renders and shows the area boundary
 
 #### 1.9.5 Frontend: Segment Layer
-- [ ] Fetch segments GeoJSON from API
-- [ ] Render as LineString layer on map
-- [ ] Colour by: Dingo score (default), trail_type, confidence (switchable)
-- [ ] Style: line width by zoom level
+- [ ] Fetch the segments GeoJSON from the API
+- [ ] Render the segments as a LineString layer on the map
+- [ ] Colour by: the Dingo score (default), trail_type, or confidence (switchable)
+- [ ] Style: the line width follows the zoom level
 
-**Done when:** Segment network visible on map, coloured by score
+**Done when:** The segment network shows on the map, with colours from the score
 
 #### 1.9.6 Frontend: Segment Inspector Panel
-- [ ] Click segment → open inspector panel (RHS)
-- [ ] Show: name, direction toggle (A→B / B→A)
-- [ ] Show: stats table (time, speed, HR per mode/condition)
-- [ ] Show: Dingo scores per profile
-- [ ] Show: run history list
+- [ ] A segment click → open the inspector panel (RHS)
+- [ ] Show: the name, the direction toggle (A→B / B→A)
+- [ ] Show: the stats table (time, speed, HR for each mode/condition)
+- [ ] Show: the Dingo scores for each profile
+- [ ] Show: the run history list
 
-**Done when:** Click segment, see full stats breakdown in panel
+**Done when:** You click a segment and see the full stats breakdown in the panel
 
 #### 1.9.7 Frontend: Map Filters
 - [ ] Filter controls: mode, condition, profile, trail_type, visibility
-- [ ] Apply filters to segment layer (client-side or re-fetch)
-- [ ] Update colour legend to match active colouring
+- [ ] Apply the filters to the segment layer (client-side or with a new fetch)
+- [ ] Update the colour legend to agree with the active colour mode
 
-**Done when:** Can filter to "Enduro + Dry + Flow" and see relevant segments
+**Done when:** You can filter to "Enduro + Dry + Flow" and see the relevant segments
 
 ---
 
 ### 1.10 Route Builder & Export
 
 #### 1.10.1 Saved Routes Table
-- [ ] Add migration: saved_routes (id, area_id, name, created_at, updated_at)
-- [ ] Add migration: saved_route_segments (id, route_id, segment_dir_id, sequence_order)
-- [ ] Route geometry derived from segment sequence, not stored
+- [ ] Add a migration: saved_routes (id, area_id, name, created_at, updated_at)
+- [ ] Add a migration: saved_route_segments (id, route_id, segment_dir_id, sequence_order)
+- [ ] The route geometry comes from the segment sequence. Do not store it
 
-**Done when:** Can save ordered list of segment_dirs as a route
+**Done when:** You can save an ordered list of segment_dirs as a route
 
 #### 1.10.2 API: Route CRUD
-- [ ] POST /api/routes → create route with segment_dir sequence
-- [ ] GET /api/routes/:id → route with derived geometry + stats
-- [ ] PUT /api/routes/:id → update segment sequence
-- [ ] DELETE /api/routes/:id → delete route
+- [ ] POST /api/routes → create a route with a segment_dir sequence
+- [ ] GET /api/routes/:id → the route with the derived geometry + the stats
+- [ ] PUT /api/routes/:id → update the segment sequence
+- [ ] DELETE /api/routes/:id → delete the route
 
-**Done when:** Can create, update, retrieve routes via API
+**Done when:** You can create, update, and get routes from the API
 
 #### 1.10.3 Route Stats Aggregation
-- [ ] Calculate: total distance (sum segment lengths)
-- [ ] Calculate: total elevation gain/loss
-- [ ] Calculate: estimated time (sum median times from stats)
-- [ ] Calculate: aggregate Dingo score (length-weighted average)
+- [ ] Calculate: the total distance (the sum of the segment lengths)
+- [ ] Calculate: the total elevation gain/loss
+- [ ] Calculate: the estimated time (the sum of the median times from the stats)
+- [ ] Calculate: the aggregate Dingo score (a length-weighted average)
 
-**Done when:** Route detail includes totals and aggregate score
+**Done when:** The route detail includes the totals and the aggregate score
 
 #### 1.10.4 Frontend: Route Builder Panel
-- [ ] Click segments to add to route (sequence order)
-- [ ] Display running totals: distance, elevation, time, Dingo score
-- [ ] Drag to reorder segments
-- [ ] Direction auto-selected from sequence, manual override toggle
-- [ ] Remove segment from route
+- [ ] Click segments to add them to the route (in sequence order)
+- [ ] Show the running totals: distance, elevation, time, Dingo score
+- [ ] Drag to change the segment order
+- [ ] The direction is auto-selected from the sequence, with a manual override toggle
+- [ ] Remove a segment from the route
 
-**Done when:** Can build route by clicking segments, see live totals
+**Done when:** You can build a route with segment clicks and see live totals
 
 #### 1.10.5 Route Validation & Warnings
-- [ ] Detect discontinuities (gaps between segments)
-- [ ] Warn: hidden segments included
-- [ ] Warn: low confidence segments
-- [ ] Warn: wet-sensitive segments (if condition = dry selected)
+- [ ] Find discontinuities (gaps between segments)
+- [ ] Warn: the route includes hidden segments
+- [ ] Warn: the route includes low confidence segments
+- [ ] Warn: the route includes wet-sensitive segments (if condition = dry is selected)
 
-**Done when:** Warnings display when building problematic routes
+**Done when:** The warnings show when you build problematic routes
 
 #### 1.10.6 Export: GPX Format
-- [ ] Implement GPX export in `ingest` crate (reuse for import/export)
-- [ ] Include: track points from segment geometries
-- [ ] Include: waypoints for POIs along route (optional)
-- [ ] Apply naming convention from design doc
+- [ ] Implement the GPX export in the `ingest` crate (use the same code for import/export)
+- [ ] Include: the track points from the segment geometries
+- [ ] Include: the waypoints for POIs along the route (optional)
+- [ ] Apply the naming convention from the design doc
 
-**Done when:** Exported GPX opens in Garmin/Locus with correct name
+**Done when:** The exported GPX opens in Garmin/Locus with the correct name
 
 #### 1.10.7 Export: Additional Formats
-- [ ] Implement FIT course export (Garmin devices)
-- [ ] Implement KML export (Google Earth)
-- [ ] Implement GeoJSON export (programmatic use)
+- [ ] Implement the FIT course export (Garmin devices)
+- [ ] Implement the KML export (Google Earth)
+- [ ] Implement the GeoJSON export (programmatic use)
 
-**Done when:** Can export route in all four formats
+**Done when:** You can export a route in all four formats
 
 #### 1.10.8 API & CLI: Export
-- [ ] GET /api/routes/:id/export?format=gpx → download file
+- [ ] GET /api/routes/:id/export?format=gpx → download the file
 - [ ] Implement `dingo export route <id> --format <fmt>`
-- [ ] Auto-generate filename from naming convention
+- [ ] Generate the filename automatically from the naming convention
 
-**Done when:** Can export routes via UI download button or CLI
+**Done when:** You can export routes with the UI download button or the CLI
 
 ---
 
 ### 1.11 Locus Sync
 
 #### 1.11.1 Locus Folder Structure
-- [ ] Research Locus Maps folder conventions (tracks, points)
-- [ ] Define sync directory structure mirroring area hierarchy
-- [ ] Configure sync root path in config
+- [ ] Do research on the Locus Maps folder conventions (tracks, points)
+- [ ] Define a sync directory structure that mirrors the area hierarchy
+- [ ] Configure the sync root path in the config
 
-**Done when:** Understand Locus import/export paths, config option defined
+**Done when:** You know the Locus import/export paths, and the config option is defined
 
 #### 1.11.2 Push: Export to Locus
-- [ ] Export all saved routes in area to GPX in Locus folder
-- [ ] Export POIs as GPX waypoints or Locus-native format
-- [ ] Organise by area hierarchy: `{sync_root}/{area_path}/{filename}.gpx`
-- [ ] Track exported_at to avoid re-exporting unchanged routes
+- [ ] Export all the saved routes in an area to GPX in the Locus folder
+- [ ] Export the POIs as GPX waypoints or the Locus-native format
+- [ ] Organise by the area hierarchy: `{sync_root}/{area_path}/{filename}.gpx`
+- [ ] Track exported_at so the system does not export unchanged routes again
 
-**Done when:** Routes appear in Locus after sync push
+**Done when:** The routes appear in Locus after a sync push
 
 #### 1.11.3 Pull: Import from Locus
-- [ ] Watch Locus tracks folder for new recordings
-- [ ] Import new GPX files via standard ingest pipeline
-- [ ] Optionally auto-clean and match after import
+- [ ] Watch the Locus tracks folder for new recordings
+- [ ] Import the new GPX files with the standard ingest pipeline
+- [ ] Optional: clean and match automatically after the import
 
-**Done when:** Ride recorded in Locus auto-imports to Dingo
+**Done when:** A ride recorded in Locus imports to Dingo automatically
 
 #### 1.11.4 CLI: `dingo sync locus`
 - [ ] Implement `dingo sync locus --push` (export to Locus)
 - [ ] Implement `dingo sync locus --pull` (import from Locus)
-- [ ] Implement `dingo sync locus --both` (bidirectional)
-- [ ] Print summary: files pushed, files pulled
+- [ ] Implement `dingo sync locus --both` (both directions)
+- [ ] Print a summary: the files pushed, the files pulled
 
-**Done when:** `dingo sync locus --both` syncs routes and imports new rides
+**Done when:** `dingo sync locus --both` syncs the routes and imports the new rides
 
 ---
 
 ## Phase 2: Photos Foundation
 
 ### 2.1 Google Photos Integration
-- [ ] Create `google` crate with OAuth2 flow (browser-based)
-- [ ] Store refresh token in config directory
-- [ ] Implement token refresh in daemon
-- [ ] CLI: `dingo auth google` for initial auth
+- [ ] Create the `google` crate with an OAuth2 flow (browser-based)
+- [ ] Store the refresh token in the config directory
+- [ ] Implement the token refresh in the daemon
+- [ ] CLI: `dingo auth google` for the initial auth
 
-**Done when:** OAuth flow completes, token stored and refreshes silently
+**Done when:** The OAuth flow completes, and the token is stored and refreshes silently
 
 ### 2.2 Photo Fetch Pipeline
-- [ ] Query Google Photos API by time window (ride start - 30min to end + 30min)
-- [ ] Download medium resolution (800px), generate thumbnail (200px)
-- [ ] Store in content-addressed store: `photos/{sha256}_{size}.jpg`
-- [ ] Extract EXIF: timestamp, GPS, camera info
-- [ ] Add photos table with metadata
+- [ ] Query the Google Photos API by time window (the ride start - 30min to the end + 30min)
+- [ ] Download the medium resolution (800px). Generate the thumbnail (200px)
+- [ ] Store the files in the content-addressed store: `photos/{sha256}_{size}.jpg`
+- [ ] Extract the EXIF data: the timestamp, the GPS, the camera info
+- [ ] Add the photos table with the metadata
 
-**Done when:** `dingo photos fetch --ride <id>` downloads and stores photos
+**Done when:** `dingo photos fetch --ride <id>` downloads and stores the photos
 
 ### 2.3 Photo-to-Segment Matching
-- [ ] GPS match: snap photo location to nearest segment within 50m
-- [ ] Timestamp match (fallback): interpolate position on ride timeline
-- [ ] Handle edge cases: junctions, off-trail, unmatched
-- [ ] Store match_method on photo record
+- [ ] GPS match: snap the photo location to the nearest segment in 50m
+- [ ] Timestamp match (fallback): interpolate the position on the ride timeline
+- [ ] Handle the edge cases: junctions, off-trail, unmatched
+- [ ] Store the match_method on the photo record
 
-**Done when:** Photos linked to segment_dirs, viewable in segment inspector
+**Done when:** The photos link to segment_dirs, and you can view them in the segment inspector
 
 ---
 
 ## Phase 3: ML Bootstrap
 
 ### 3.1 Vision Module Scaffold
-- [ ] Create `vision` crate with VisionBackend trait
-- [ ] Implement CloudVisionBackend (Claude Vision API)
-- [ ] Define PhotoAnalysis struct: description, labels, confidence
-- [ ] Define label vocabulary per design doc
+- [ ] Create the `vision` crate with the VisionBackend trait
+- [ ] Implement CloudVisionBackend (the Claude Vision API)
+- [ ] Define the PhotoAnalysis struct: description, labels, confidence
+- [ ] Define the label vocabulary from the design doc
 
-**Done when:** Can send image to Claude Vision, receive structured labels
+**Done when:** You can send an image to Claude Vision and receive structured labels
 
 ### 3.2 Cloud Inference Pipeline
-- [ ] Process photos via cloud API with domain-specific prompts
-- [ ] Parse response into photo_labels table
-- [ ] Generate ml_description for vector embedding
-- [ ] Rate limit and quota tracking
+- [ ] Process the photos with the cloud API and domain-specific prompts
+- [ ] Parse the response into the photo_labels table
+- [ ] Generate the ml_description for the vector embedding
+- [ ] Add rate limits and quota tracking
 
-**Done when:** Photos analysed, labels stored, description generated
+**Done when:** The photos are analysed, the labels are stored, and the description is generated
 
 ### 3.3 POI Suggestion Flow
-- [ ] Create poi_suggestions table
-- [ ] Generate suggestions from infrastructure/obstacle labels
-- [ ] Deduplicate against existing POIs within 20m
+- [ ] Create the poi_suggestions table
+- [ ] Generate suggestions from the infrastructure/obstacle labels
+- [ ] Remove duplicates against the existing POIs in 20m
 - [ ] CLI: `dingo photos analyse --ride <id>`
 
 **Done when:** Photos with gates/hazards create POI suggestions
 
 ### 3.4 POI Review UI
 - [ ] API: GET /api/poi-suggestions, POST accept/reject/merge
-- [ ] Frontend: suggestions queue panel
-- [ ] Actions: accept (creates POI), reject, merge with existing
-- [ ] Feed ml_training_queue on user decision
+- [ ] Frontend: the suggestions queue panel
+- [ ] Actions: accept (this creates a POI), reject, merge with an existing POI
+- [ ] Send the user decision to the ml_training_queue
 
-**Done when:** Can review and accept/reject POI suggestions in UI
+**Done when:** You can review and accept/reject POI suggestions in the UI
 
 ---
 
 ## Phase 4: Search & Discovery
 
 ### 4.1 LanceDB Integration
-- [ ] Add LanceDB dependency to daemon
-- [ ] Create segment_embeddings table (segment_dir_id, vector)
-- [ ] Create photo_embeddings table (photo_id, vector)
-- [ ] Implement embedding generation (sentence-transformers or similar)
+- [ ] Add the LanceDB dependency to the daemon
+- [ ] Create the segment_embeddings table (segment_dir_id, vector)
+- [ ] Create the photo_embeddings table (photo_id, vector)
+- [ ] Implement the embedding generation (sentence-transformers or similar)
 
-**Done when:** Can insert and query vectors in LanceDB
+**Done when:** You can insert and query vectors in LanceDB
 
 ### 4.2 Photo Embeddings
-- [ ] Embed photo ml_description + labels as concatenated text
-- [ ] Index all analysed photos
-- [ ] Implement recency boost (12-month half-life decay)
+- [ ] Embed the photo ml_description + the labels as concatenated text
+- [ ] Index all the analysed photos
+- [ ] Implement the recency boost (12-month half-life decay)
 
-**Done when:** Photos searchable by semantic similarity with time decay
+**Done when:** You can search photos by semantic similarity with time decay
 
 ### 4.3 Photo Search UI
 - [ ] API: GET /api/photos/search?q=<query>
-- [ ] Frontend: search bar with natural language input
-- [ ] Results: photo grid with segment context
-- [ ] Click to navigate to segment on map
+- [ ] Frontend: a search bar with natural language input
+- [ ] Results: a photo grid with the segment context
+- [ ] Click to go to the segment on the map
 
-**Done when:** Search "muddy single track" returns relevant photos
+**Done when:** A search for "muddy single track" returns the relevant photos
 
 ---
 
 ## Phase 5: Local ML
 
 ### 5.1 Training Data Export
-- [ ] Export ml_training_queue to dataset format
-- [ ] Include: images, labels, user corrections
+- [ ] Export the ml_training_queue to the dataset format
+- [ ] Include: the images, the labels, the user corrections
 - [ ] CLI: `dingo ml export`
 
-**Done when:** Training dataset exported with user-corrected labels
+**Done when:** The training dataset exports with the user-corrected labels
 
 ### 5.2 Local Model Integration
-- [ ] Add ONNX runtime to vision crate
+- [ ] Add the ONNX runtime to the vision crate
 - [ ] Implement LocalVisionBackend
-- [ ] Load model weights from models/ directory
-- [ ] Routing logic: local first, cloud fallback if confidence < 0.7
+- [ ] Load the model weights from the models/ directory
+- [ ] The routing logic: local first, cloud fallback if confidence < 0.7
 
-**Done when:** Photos processed locally, cloud only for low confidence
+**Done when:** The photos are processed locally, and the cloud runs only for low confidence
 
 ### 5.3 Model Hot-Reload
-- [ ] Watch models/ directory for new weights
-- [ ] Hot-reload model without daemon restart
-- [ ] CLI: `dingo ml status` shows model version, queue size
+- [ ] Watch the models/ directory for new weights
+- [ ] Hot-reload the model with no daemon restart
+- [ ] CLI: `dingo ml status` shows the model version and the queue size
 
-**Done when:** Drop new model file, daemon picks it up automatically
+**Done when:** You drop a new model file, and the daemon picks it up automatically
 
 ---
 
@@ -742,8 +742,8 @@
 ## Notes
 
 ### 2025-12-30: Web UI Progress
-- Implemented HR and speed gradient coloring for all tracks on map
-- Added `useAllRidePoints` hook to fetch points for all rides with caching
-- Global min/max normalization for consistent coloring across rides
-- Color mode toggle (HR/Speed/Off) in map controls
-- Fixed `speed_ms` field name in API (was looking for `speed`)
+- Added the HR and speed gradient colours for all tracks on the map
+- Added the `useAllRidePoints` hook to fetch the points for all rides, with a cache
+- Global min/max normalization gives consistent colours across the rides
+- A colour mode toggle (HR/Speed/Off) in the map controls
+- Corrected the `speed_ms` field name in the API (the code looked for `speed`)

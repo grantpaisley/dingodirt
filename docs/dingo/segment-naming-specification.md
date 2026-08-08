@@ -1,30 +1,32 @@
 # Segment Naming Specification
 
-*Guidelines for generating memorable, locally-grounded trail segment names*
+*Guidelines to generate memorable trail segment names with local context*
 
 ---
 
 ## Overview
 
-Generate quirky, memorable segment names that blend local context with trail character. Names should feel like they came from a local rider, not a GPS unit.
+Generate quirky, memorable segment names. Blend the local context with the
+trail character. A name must feel like it came from a local rider, not from a
+GPS unit.
 
 ---
 
 ## Input Data (Priority Order)
 
-Use the richest available context, falling back through the list:
+Use the richest available context. Fall back through the list:
 
 1. **Nearby POI** (< 200m) — gates, lookouts, dams, towers, bridges, quarries, cemeteries, servos, etc.
 2. **Intersecting/parallel road or track name** — fire trails, old coach roads, boundary tracks, powerline easements
 3. **Nearby landmark** — mountains, peaks, creeks, ridgelines, state forest names
 4. **Area name** — Beerburrum, Glasshouse, D'Aguilar, etc.
-5. **What3words** — fallback only when nothing else available
+5. **What3words** — a fallback only, when nothing else is available
 
 ---
 
 ## Trail Character Descriptors
 
-Derive from segment geometry, stats, and photo labels:
+Derive the character from the segment geometry, the stats, and the photo labels:
 
 | Character | Source | Examples |
 |-----------|--------|----------|
@@ -41,7 +43,7 @@ Derive from segment geometry, stats, and photo labels:
 
 ## Name Structure Templates
 
-Select template based on available data:
+Select the template from the available data:
 
 ### Template 1: POI + Action (when POI nearby)
 `{POI} {Action/Character}`
@@ -88,31 +90,35 @@ Examples:
 - "The Bog of Eternal Stench" (notoriously wet)
 - "Pinch Me" (short sharp climb)
 
-Use sparingly — only when segment has a truly distinctive character.
+Use this template rarely. Use it only when the segment has a truly distinctive
+character.
 
 ### Template 6: What3words (fallback only)
 `{what3words address}`
 
-Only use when no other context available. Flag for user review.
+Use this template only when no other context is available. Flag the name for
+user review.
 
 ---
 
 ## Name Generation Rules
 
-1. **Keep it short** — 2-4 words max
-2. **Aussie English preferred** — "Servo" not "Gas Station", "Ute Track" not "Truck Trail"
-3. **No generic GPS names** — Never "Segment 47" or "Trail Section 3"
-4. **Direction-aware** — If character differs by direction, name can reflect dominant direction (e.g., "Quarry Drop" even though it's "Quarry Climb" the other way)
-5. **Avoid duplication** — Check existing segment names in area before assigning
-6. **Flag low-confidence names** — If falling back to Template 4-6, mark as `name_confidence: low` for user review
+1. **Keep it short** — 2-4 words maximum
+2. **Aussie English preferred** — write "Servo", not "Gas Station"; write "Ute Track", not "Truck Trail"
+3. **No generic GPS names** — never write "Segment 47" or "Trail Section 3"
+4. **Direction-aware** — if the character differs by direction, the name can show the dominant direction (e.g. "Quarry Drop", although it is "Quarry Climb" the other way)
+5. **Avoid duplication** — check the existing segment names in the area before you assign a name
+6. **Flag low-confidence names** — if you fall back to Template 4-6, mark the name as `name_confidence: low` for user review
 
 ---
 
 ## Condition-Based Modifiers (Optional)
 
-For segments with dramatically different wet/dry character, consider condition-aware naming:
+Some segments have a very different wet character and dry character. For these,
+consider condition-aware naming:
 
-- "Dustbowl" (dry) vs same segment might be "Boghole" (wet) — but store as single name, note condition behaviour in description instead
+- "Dustbowl" (dry) — the same segment can be "Boghole" (wet). But store one
+  name only. Note the condition behaviour in the description instead.
 
 ---
 
@@ -132,18 +138,18 @@ For segments with dramatically different wet/dry character, consider condition-a
 
 ## Implementation Notes
 
-- Run name generation after segment creation and initial stats/photo analysis
-- Re-evaluate name if POI added nearby or road data imported
-- Store `name_source` enum: `poi`, `road`, `landmark`, `area`, `character`, `what3words`, `user`
+- Run the name generation after segment creation and the initial stats/photo analysis
+- Evaluate the name again when you add a POI nearby or import road data
+- Store the `name_source` enum: `poi`, `road`, `landmark`, `area`, `character`, `what3words`, `user`
 - Store `name_confidence`: `high`, `medium`, `low`
-- User override always wins — set `name_source: user` and never auto-regenerate
+- A user override always wins — set `name_source: user` and never auto-generate the name again
 
 ---
 
 ## User Review Queue
 
-Segments needing name review:
+These segments need a name review:
 - `name_confidence: low`
 - `name_source: what3words`
-- Name collision with existing segment
-- User flagged for rename
+- The name collides with an existing segment name
+- The user flagged the segment for a rename

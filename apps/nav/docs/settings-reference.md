@@ -1,15 +1,18 @@
 # DingoNav settings reference
 
-Every changeable setting, grouped by where it lives. **Context** says how a
-setting interacts with the two big modes: **ride mode** (Vehicle: Walk / MTB /
-Enduro / ADV) and **map type** (Day = Day·Trail styles, Night = Dark·Sat).
+This page lists each setting that you can change, grouped by where it lives.
+The **Context** column tells how a setting interacts with the two big modes:
+**ride mode** (Vehicle: Walk / MTB / Enduro / ADV) and **map type** (Day =
+Day·Trail styles, Night = Dark·Sat).
 
-Three tiers:
+There are three tiers:
 
-1. **Settings tabs** — everyday choices.
-2. **Advanced tab** (Settings → General → Show advanced) — tuning knobs, per-row
-   reset, all captured by **Export config** for bench-tuning on a desktop.
-3. **Automatic day/night behaviours** — not knobs; they follow the map style.
+1. **Settings tabs** — the everyday choices.
+2. **Advanced tab** (Settings → General → Show advanced) — the tuning knobs,
+   with a per-row reset. **Export config** captures all of them for
+   bench-tuning on a desktop.
+3. **Automatic day/night behaviours** — these are not knobs; they follow the
+   map style.
 
 ---
 
@@ -161,11 +164,12 @@ Three tiers:
 | Zoom presets (min/med/max) | per vehicle, hold-to-set | ” | ” | ” |
 | Advanced far/near overrides | stored per vehicle | ” | ” | ” |
 
-Approach chime in **Seconds** mode = speed × seconds, clamped into the
-vehicle's far min–max window; **Metres** mode ignores the vehicle.
+The approach chime in **Seconds** mode = speed × seconds, clamped into the
+far min–max window of the vehicle. **Metres** mode ignores the vehicle.
 
 ---
 
-*Everything in §2 lives in `S.set.adv` and round-trips through Settings →
-Export config; per-vehicle overrides live under `adv.veh.<vehicle>`. A new app
-version replaces saved screen-layout config (v4 rule) but never touches these.*
+*Each setting in §2 lives in `S.set.adv`, and it round-trips through
+Settings → Export config. The per-vehicle overrides live under
+`adv.veh.<vehicle>`. A new app version replaces the saved screen-layout
+config (the v4 rule), but it never touches these settings.*

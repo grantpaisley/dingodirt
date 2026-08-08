@@ -4,45 +4,28 @@
 
 ## Problem
 
-A share today is a fire-and-forget artifact: a `.dingonav` file pushed to the
-`DINGO_SHARE_REPO` GitHub repo. The recipe that produced it (which rides, which
-layers, what privacy setting) is thrown away at publish time, so a share can't
-be refreshed, edited, or even inspected — only listed by filename and deleted.
-Iterating on a bundle before a trip litters the repo with near-duplicates
-(nine Menai files on 2026-07-15 taught us this).
+Today, a share is a one-time artifact. It is a `.dingonav` file that the system pushes to the `DINGO_SHARE_REPO` GitHub repo. The recipe that made the share holds the rides, the layers, and the privacy setting. The system discards this recipe at publish time. Thus you cannot refresh, edit, or inspect a share. You can only list it by filename and delete it.
+
+When you change a bundle many times before a trip, the repo fills with near-duplicate files. Nine Menai files on 2026-07-15 showed this problem.
 
 ## Concepts
 
 | Concept | What it is | Persistence |
 |---|---|---|
-| **Track (ride)** | Source data | `rides` table (unchanged) |
-| **Basket** | Transient scratch selection — the shopping cart | UI state only (unchanged) |
-| **Pack** | Named, saved recipe: an *ordered* list of ride ids + layer options + description | New `packs` / `pack_rides` tables |
+| **Track (ride)** | The source data | `rides` table (unchanged) |
+| **Basket** | A temporary scratch selection — the shopping cart | UI state only (unchanged) |
+| **Pack** | A named, saved recipe: an *ordered* list of ride ids + layer options + a description | New `packs` / `pack_rides` tables |
 
-A **share is not a separate object** — it is a pack's published state (slug +
-published-at). "Dingo Pack" is the user-facing name (you *pack* for a trip;
-dingoes travel in packs). "Bundle" survives only in the wire format
-(`.dingonav` internals, legacy `?bundle=` param).
+A **share is not a separate object**. A share is the published state of a pack (a slug + a published-at time). "Dingo Pack" is the user-facing name (you *pack* for a trip; dingoes travel in packs). "Bundle" stays only in the wire format (the `.dingonav` internals and the legacy `?bundle=` param).
 
-Decisions made:
+We made these decisions:
 
-- **Static membership.** A pack pins explicit ride ids. Refresh re-renders
-  those exact rides with current data and re-fetches current tiles; new rides
-  in the area are added manually (tracks can be added/removed as part of a
-  refresh session). Room left for a future "auto-include area" rule, not built.
-- **Ordered tracks.** The list is drag-sortable; `tracks[0]` is the default
-  track DingoNav auto-selects on load.
-- **Live short links.** `{nav_base}?b={slug}` — DingoNav resolves the slug to
-  the raw file at HEAD of the shares repo. Refresh propagates to links already
-  sent (≈5 min CDN lag). This doubles as the URL shortener; no service needed.
-- **Slug frozen at first publish.** Display name freely editable afterwards;
-  the link never breaks. New slug = delete + re-share. Collision → 409 and a
-  rename prompt (no auto-UUID suffixes).
-- **Shares require a pack; plain exports stay one-off.** Publishing a link
-  always goes through a named pack. Zip / destination export from the basket
-  stays fire-and-forget; a pack's detail pane also offers export.
-- **Orphans are read-only.** Repo files with no matching pack (pre-packs
-  shares) list with link/delete only.
+- **Static membership.** A pack pins explicit ride ids. A refresh renders those exact rides again with the current data. A refresh also gets the current tiles again. You add new rides in the area manually. You can add or remove tracks as part of a refresh session. We keep room for a future "auto-include area" rule, but we do not build it.
+- **Ordered tracks.** You can drag the list to sort it. `tracks[0]` is the default track that DingoNav auto-selects on load.
+- **Live short links.** The link is `{nav_base}?b={slug}`. DingoNav resolves the slug to the raw file at HEAD of the shares repo. A refresh applies to links that you already sent (near 5 min CDN lag). This link also works as the URL shortener. No service is necessary.
+- **Slug frozen at first publish.** You can change the display name freely after the first publish. The link never breaks. To get a new slug, delete the pack and share it again. A collision causes a 409 and a rename prompt (no auto-UUID suffixes).
+- **Shares require a pack; plain exports stay one-off.** When you publish a link, you always go through a named pack. A zip export or a destination export from the basket stays one-time. The detail pane of a pack also has an export function.
+- **Orphans are read-only.** Some repo files match no pack (shares from before packs). These files list with link and delete functions only.
 
 ## Data model
 
@@ -74,77 +57,54 @@ CREATE TABLE pack_rides (
 );
 ```
 
-Staleness = published pack where `updated_at > published_at` or any member
-ride's row changed since `published_at`.
+A published pack is stale in two cases. Case one: `updated_at > published_at`. Case two: the row of a member ride changed after `published_at`.
 
 ## Backend API (`/api/packs`)
 
-Publishing reuses the existing `share_via_repo` machinery (build `.dingonav`,
-`gh api` PUT, replace-on-same-name).
+The publish function uses the existing `share_via_repo` machinery again. This machinery builds the `.dingonav` file, does a `gh api` PUT, and replaces a file with the same name.
 
-- `GET /api/packs` — id, name, description, slug, published_at,
-  published_bytes, ride count, computed `stale`; repo files matching no slug
-  appended as `orphan: true` (link/delete only).
-- `POST /api/packs` — create draft from basket: name, ordered ride_ids, layers.
-- `PATCH /api/packs/{id}` — rename, description, layer toggles, and the full
-  ordered ride array (replace semantics; no add/remove deltas).
-- `POST /api/packs/{id}/publish` — build + upload `shares/{slug}.dingonav`.
-  First publish freezes slug from current name (409 if taken); subsequent
-  calls are refresh. Returns the live link. `description` is embedded in the
-  bundle JSON.
-- `DELETE /api/packs/{id}?unpublish=true` — delete row; flag also deletes the
-  repo file.
+- `GET /api/packs` — returns the id, name, description, slug, published_at, published_bytes, ride count, and a computed `stale` flag. The route appends repo files that match no slug as `orphan: true` (link and delete functions only).
+- `POST /api/packs` — creates a draft from the basket. You give the name, the ordered ride_ids, and the layers.
+- `PATCH /api/packs/{id}` — changes the name, the description, the layer toggles, and the full ordered ride array. The route uses replace semantics. There are no add or remove deltas.
+- `POST /api/packs/{id}/publish` — builds and uploads `shares/{slug}.dingonav`. The first publish freezes the slug from the current name (409 if the slug is taken). Each call after that is a refresh. The route returns the live link. The route embeds the `description` in the bundle JSON.
+- `DELETE /api/packs/{id}?unpublish=true` — deletes the row. The flag also deletes the repo file.
 
-**Refresh-all is client-orchestrated**: the UI walks stale packs sequentially
-(per-row spinner/error; GitHub contents API commits sha-conflict in parallel
-anyway). Old gist-based tracks-only sharing is removed — one publish path.
+**Refresh-all is client-orchestrated.** The UI walks the stale packs one at a time, with a spinner or an error on each row. (The GitHub contents API causes sha-conflict commits when calls run in parallel.) We remove the old gist-based sharing of tracks only. There is one publish path.
 
 ## Web UI
 
-List pane gains a fourth view: `Tracks | Basket | Places | Packs`.
+The list pane gets a fourth view: `Tracks | Basket | Places | Packs`.
 
-Pack row: **↻ refresh icon column** (dot when stale, spinner while publishing,
-red on error, disabled for drafts/orphans) · name · 🔗 if published · size ·
-track count. Pane header: **Refresh All** (enabled when any published pack is
-stale).
+A pack row shows a **↻ refresh icon column**, the name, a 🔗 icon if published, the size, and the track count. The refresh icon shows a dot when the pack is stale. The icon shows a spinner while the publish runs. The icon is red on an error. The icon is disabled for drafts and orphans. The pane header has a **Refresh All** button. This button is enabled when one or more published packs are stale.
 
-Selecting a pack sets `selectedIds` to its ride ids (map, graph, stats light up
-via existing plumbing) and flies to the combined bbox. The right pane swaps to
-**PackDetail**:
+When you select a pack, the UI sets `selectedIds` to the ride ids of the pack. The map, the graph, and the stats then light up through the existing plumbing. The map flies to the combined bbox. The right pane changes to **PackDetail**:
 
-- Editable name + description (slug + live link + Copy shown once published)
-- Ordered track list — drag to reorder, first row badged "default", ✕ remove,
-  hover highlights on map; skipped rides (superseded/no geometry) greyed with
-  a warning icon
-- "Add selected tracks" appends the current basket
-- Layer checkboxes with live size estimate (reuses `/api/export/estimate`)
-- Actions: Publish/Refresh · Export… (zip/destination one-off) · Delete
+- An editable name and a description. Once the pack is published, the pane shows the slug, the live link, and a Copy button.
+- An ordered track list. Drag a row to change the order. The first row has a "default" badge. The ✕ button removes a track. A hover highlights the track on the map. Skipped rides (superseded rides or rides with no geometry) show greyed with a warning icon.
+- An "Add selected tracks" button appends the current basket.
+- Layer checkboxes with a live size estimate (uses `/api/export/estimate` again).
+- Actions: Publish/Refresh · Export… (a one-time zip or destination export) · Delete.
 
-Basket view gains "Save as pack…" (name pre-filled with the `<suburb> <date>`
-default). ExportDialog drops its share tab.
+The basket view gets a "Save as pack…" function. The name field starts with the `<suburb> <date>` default. The ExportDialog loses its share tab.
 
 ## DingoNav (separate repo)
 
 - Resolve `?b=<slug>` →
   `https://raw.githubusercontent.com/<shares repo>/HEAD/shares/<slug>.dingonav`
-  (shares repo is a build-time constant). Legacy `?bundle=<url>` stays.
-- Auto-select `tracks[0]` on load; show pack description.
-- 404 → "this pack was removed" + fall back to locally cached copy; keep/add a
-  re-download affordance to force-pull fresh at the trailhead.
+  (the shares repo is a build-time constant). The legacy `?bundle=<url>` stays.
+- Auto-select `tracks[0]` on load. Show the pack description.
+- On a 404, show "this pack was removed". Then fall back to the local cached copy. Keep or add a re-download control to force-pull a fresh copy at the trailhead.
 
 ## Edge cases
 
-- Superseded / geometry-less rides: publish skips + reports (existing
-  behavior); UI shows them greyed, never silently shrinks the pack.
-- Slug collision: 409, prompt rename.
-- Refresh-all partial failure: failed row red, walk continues, summary toast.
-- `gh` missing / `DINGO_SHARE_REPO` unset: 501-with-hint in pane header.
+- Superseded rides and rides with no geometry: the publish skips them and reports them (the existing behavior). The UI shows them greyed. The UI never makes the pack smaller without a report.
+- Slug collision: the route returns a 409, and the UI prompts for a rename.
+- Refresh-all partial failure: the failed row turns red, the walk continues, and a summary toast shows.
+- `gh` missing or `DINGO_SHARE_REPO` unset: the pane header shows a 501-with-hint message.
 
 ## Testing
 
-Route tests: pack CRUD, ordering round-trip, slug freeze after rename, stale
-computation. Manual end-to-end on `samples/`: create → publish → open live
-link in DingoNav → reorder → refresh → link serves new order + default track.
+Route tests: pack CRUD, an ordering round-trip, the slug freeze after a rename, and the stale computation. Do a manual end-to-end test on `samples/`: create → publish → open the live link in DingoNav → reorder → refresh → make sure the link serves the new order and the default track.
 
 ## Build order
 

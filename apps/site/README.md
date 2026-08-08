@@ -1,7 +1,7 @@
 # dingodirt.com
 
-Community website and pack service for the Dingo ecosystem — the open-source
-home of Dingo Plan, Nav and Studio (AGPL-3.0).
+This is the community website and pack service for the Dingo ecosystem. It
+is the open-source home of Dingo Plan, Nav, and Studio (AGPL-3.0).
 
 Design docs (in the Dingo repo):
 `Docs/plans/2026-08-02-dingodirt-website-design.md` +
@@ -9,13 +9,15 @@ Design docs (in the Dingo repo):
 
 ## What it does
 
-- **Riders** browse public packs and tap *Ride it* — no account needed.
+- **Riders** browse the public packs and tap *Ride it*. They do not need an
+  account.
 - **Authors** sign in (Google/Microsoft, open sign-up) and publish
-  `.dingonav` / `.dingoscheme` packs: private by default → shareable
-  capability link → public gallery (after a quick admin review; **trusted**
-  authors skip the queue). Downloads are counted per pack.
-- **Route safety**: terms of use, land-access rider notice, Report button,
-  pre-publication review for public listings.
+  `.dingonav` / `.dingoscheme` packs. A pack is private by default → then a
+  shareable capability link → then the public gallery (after a quick admin
+  review; **trusted** authors skip the queue). The site counts downloads per
+  pack.
+- **Route safety**: terms of use, a land-access rider notice, a Report
+  button, and a pre-publication review for public listings.
 - **Developers** self-host Plan from the GitHub org and publish here.
 
 ## Stack
@@ -33,9 +35,10 @@ npm run dev
 npm test                     # vitest
 ```
 
-Degrades gracefully: no `DATABASE_URL` → friendly 503s on writes; no OAuth
-creds → sign-in errors; no Turnstile → captcha skipped (dev only); no
-`BLOB_READ_WRITE_TOKEN` → uploads say storage isn't configured.
+The app degrades gracefully. With no `DATABASE_URL`, writes get friendly
+503s. With no OAuth creds, sign-in shows errors. With no Turnstile, the
+captcha is skipped (dev only). With no `BLOB_READ_WRITE_TOKEN`, uploads say
+that storage is not configured.
 
 ## Database
 
@@ -43,9 +46,10 @@ creds → sign-in errors; no Turnstile → captcha skipped (dev only); no
 npx drizzle-kit push
 ```
 
-Tables: Auth.js four + `packs` / `pack_versions` / `folders` / `reports` /
-`allowlist` (elevated roles only — `trusted` skips public review, `admin`
-moderates; everyone signed-in can publish).
+Tables: the four Auth.js tables plus `packs` / `pack_versions` / `folders` /
+`reports` / `allowlist`. The `allowlist` table holds elevated roles only —
+`trusted` skips the public review, and `admin` moderates. Each signed-in
+user can publish.
 
 Make yourself admin:
 
