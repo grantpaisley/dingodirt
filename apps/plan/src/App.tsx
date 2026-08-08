@@ -147,7 +147,9 @@ function App() {
             {rightPaneOpen ? '▶' : '◀'}
           </button>
           {rightPaneOpen && (
-            listView === 'packs' && selectedPackId ? (
+            // Packs open their detail from the Packs view AND from the
+            // unified pill-filtered list (packs are list items there too).
+            (listView === 'packs' || listView === 'tracks') && selectedPackId ? (
               <PackDetail
                 packId={selectedPackId}
                 onSelect={setSelectedIds}

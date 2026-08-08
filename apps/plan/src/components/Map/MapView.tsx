@@ -10,7 +10,7 @@ import { useRides, useAllRidePoints, usePhotos, useHeatmap, usePois, useAreas, u
 import { MapToolbar } from './MapToolbar'
 import { buildHeatmapLayers, HEAT_COLORS, type HeatPath } from './heatmapLayers'
 import { getPoiIconAtlas, POI_CATEGORY_META, type PoiIconAtlas } from './poiIcons'
-import { useSettings, useBasket, useUiState, rideMatchesFilters, rideMatchesSearch, scaleColor, stopsToPercents, gradientCss, hexToRgb, MODE_COLORS, MODE_COLORS_BRIGHT, COVERAGE_SHAPE_COLORS, HEAT_COLOR_DEFAULTS, effectiveLayerState, type RideMode, type BaseStyle, type MarkPreviewPoint, type PackPreview, type PoiCategory } from '../../store'
+import { useSettings, useBasket, useUiState, rideMatchesFilters, rideMatchesSearch, scaleColor, stopsToPercents, gradientCss, hexToRgb, MODE_COLORS, MODE_COLORS_BRIGHT, COVERAGE_SHAPE_COLORS, HEAT_COLOR_DEFAULTS, effectiveLayerState, type RideMode, type BaseStyle, type MarkPreviewPoint, type PackPreview, type PoiCategory, type TrackClass } from '../../store'
 import { inverseMask } from './maskGeometry'
 import { MAPTILER_KEY, BUILTIN_STYLE_URLS, resolveBaseStyle, styleOverlaysFor } from '../../mapStyles'
 import { setMapInstance } from './mapRegistry'
@@ -265,12 +265,12 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         gradeFilter,
         arrowMode,
         hrScale, speedScale, gradeScale,
-        plannedCollectionsOff, ownersOff, showPois, poiCategories, showPlannedHeat,
+        plannedCollectionsOff, showPois, poiCategories, showPlannedHeat,
         heatColorOwn: settingsHeatOwn, heatColorStrava: settingsHeatStrava,
         heatColorPlanned: settingsHeatPlanned, baseStyleMode,
     } = useSettings()
     const { ids: basketIds } = useBasket()
-    const { searchQuery, coveragePreview, markPreview, packPreview, styleOverlays } = useUiState()
+    const { searchQuery, coveragePreview, markPreview, packPreview, styleOverlays, pillMatchedIds } = useUiState()
     // Overlay colours: the active style's theming wins over the settings
     // pickers (built-in styles define none, so settings still apply there).
     const heatColorOwn = styleOverlays?.heatOwn ?? settingsHeatOwn
@@ -421,25 +421,31 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     const { hiddenIds, greyIds } = useMemo(() => {
         const hidden = new Set<string>()
         const grey = new Set<string>()
-        const visibility = { enabledModes, trackClasses, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, ownersOff, filters: { ...filters, hrAvgEnabled: false, hrMaxEnabled: false, speedAvgEnabled: false, speedMaxEnabled: false, distanceEnabled: false } }
-        const ranges = { enabledModes, trackClasses: { own: true, other: true, plan: true }, shapeClasses: { loop: true, oneway: true }, gradeFilter, requireHr: false, requireSpeed: false, dateFrom: '', dateTo: '', plannedCollectionsOff: [], ownersOff: [], filters }
+        const visibility = { enabledModes, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, filters: { ...filters, hrAvgEnabled: false, hrMaxEnabled: false, speedAvgEnabled: false, speedMaxEnabled: false, distanceEnabled: false } }
+        const ranges = { enabledModes, shapeClasses: { loop: true, oneway: true }, gradeFilter, requireHr: false, requireSpeed: false, dateFrom: '', dateTo: '', plannedCollectionsOff: [], filters }
         for (const ride of rides || []) {
             if (!rideMatchesFilters(ride, visibility)) {
                 hidden.add(ride.id)
             } else if (hasActiveFilters && !rideMatchesFilters(ride, ranges)) {
                 grey.add(ride.id)
             }
+            // Class filtering moved to the Type/Owner pills (dim, not hide) —
+            // EXCEPT while a pack preview is on: the map must then show only
+            // the classes the pack's bundle actually carries.
+            if (packPreview && !trackClasses[(ride.class || 'own') as TrackClass]) {
+                hidden.add(ride.id)
+            }
             if (focusMode && selectedIds.length > 0 && !selectedIds.includes(ride.id)) {
                 hidden.add(ride.id)
             }
         }
         return { hiddenIds: hidden, greyIds: grey }
-    }, [rides, enabledModes, trackClasses, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, ownersOff, filters, hasActiveFilters, focusMode, selectedIds])
+    }, [rides, enabledModes, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, filters, hasActiveFilters, focusMode, selectedIds, packPreview, trackClasses])
 
     // Dim-highlight context: while one is active, every non-highlighted track
     // drops to the user's dimmed opacity so the highlighted set pops. Priority:
-    // transient selection → active search matches → export basket. No context →
-    // null (everything renders at full strength).
+    // transient selection → active search matches → filter-pill matches →
+    // export basket. No context → null (everything renders at full strength).
     const highlightIds = useMemo<Set<string> | null>(() => {
         if (selectedIds.length > 0) return new Set(selectedIds)
         const q = searchQuery.trim()
@@ -450,9 +456,10 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             }
             return matches
         }
+        if (pillMatchedIds) return pillMatchedIds
         if (basketIds.length > 0) return new Set(basketIds)
         return null
-    }, [selectedIds, searchQuery, rides, basketIds])
+    }, [selectedIds, searchQuery, rides, basketIds, pillMatchedIds])
     const dimAlpha = Math.round(255 * dimmedOpacity)
 
     // Direction chevrons along ride tracks (both mode-coloured and gradient
@@ -1851,7 +1858,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             // the active view filters (same rule as the list), so the lasso
             // never selects tracks the user can't see.
             const byId = new Map((rides || []).map(r => [r.id, r]))
-            const filterSettings = { enabledModes, trackClasses, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, ownersOff, filters }
+            const filterSettings = { enabledModes, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, filters }
             const visibleIds = ids.filter(id => {
                 const r = byId.get(id)
                 return r != null && rideMatchesFilters(r, filterSettings)

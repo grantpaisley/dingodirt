@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bike, Boxes, Crosshair, FolderTree, Link2, List, ListChecks, Map, Package, PackageMinus, PackagePlus, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react'
+import { Bike, Boxes, Crosshair, FolderTree, Link2, List, ListChecks, Map, Package, PackageMinus, PackagePlus, RefreshCw, Route, Search, Trash2, Upload, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImportDialog } from '../Import/ImportDialog'
 import {
-    useRides, useRidesByIds, useAllRideMeta, usePacks, createPack, publishPack,
-    useCoverageEstimate, type Bounds, type LayerCoverage,
+    useRidesByIds, useAllRideMeta, useItemsQuery, usePacks, createPack, publishPack,
+    useCoverageEstimate, type Bounds, type ItemSummary, type LayerCoverage, type RideSummary,
 } from '../../api/hooks'
 import { useSettings, useBasket, useUiState, rideMatchesFilters, COVERAGE_SHAPE_COLORS } from '../../store'
+import { PillRow } from '../Filters/PillRow'
 
 /** Server-default coverage — the basket preview asks for the shapes, not for a
  *  particular layer config. Module-level so its identity stays stable. */
@@ -100,45 +101,61 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
         }
     }
     const searching = search.trim().length > 0
-    // A search runs server-side (whole library, ignoring the viewport); an empty
-    // query falls back to the viewport list. The server already narrows to the
-    // matching rows, so a name/place lookup no longer misses rides past the cap.
-    const { data: allRides, isLoading } = useRides(
-        inViewOnly && !searching ? bounds : undefined,
-        undefined,
-        searching ? search : undefined,
+    // Pills + search drive the unified item query (tracks, routes and packs
+    // in one list). Search runs server-side over the whole library — any
+    // active search bypasses the viewport restriction so a name/place lookup
+    // finds items anywhere.
+    const settings = useSettings()
+    const { pills, searchPills, addSearchPill } = settings
+    const searchAll = useMemo(
+        () => (searching ? [...searchPills, search.trim()] : searchPills),
+        [searchPills, search, searching],
     )
+    const anySearch = searchAll.length > 0
+    const pillsActive = anySearch || pills.some(p => p.values.length > 0)
+    const { data: viewItems, isLoading } = useItemsQuery(
+        pills, searchAll, inViewOnly && !anySearch ? bounds : undefined,
+    )
+    // Unbounded twin of the same query: the map dims non-matching tracks
+    // library-wide, so the matched-id set must not shrink to the viewport.
+    // With "in view" off (or a search active) this is the same query and
+    // react-query serves it from cache.
+    const { data: allItems } = useItemsQuery(pills, searchAll, undefined)
     // Basket view shows the basket's contents regardless of viewport/search —
     // fetched by id so rides older than the list cap still appear.
     const { data: basketRides } = useRidesByIds(listView === 'basket' ? basket.ids : [])
     // Places view filters the whole library's metadata client-side, so folder
     // counts share the exact filter semantics of the list and map.
     const { data: allMeta, isLoading: metaLoading } = useAllRideMeta(listView === 'places')
-    // Same filter semantics as the map (shared store): mode toggles,
-    // has-HR/has-speed, date range, and the range sliders all remove rows.
-    const settings = useSettings()
     const { dateFrom, dateTo, setDateFrom, setDateTo } = settings
-    // Focus mode fetches the selection BY ID rather than filtering the viewport
-    // list: auto-zoom can land with a selected track outside the viewport
-    // query's result, and filtering would then show an empty list for a
-    // selection the map is clearly drawing.
-    const focusIds = settings.focusMode && listView === 'tracks' ? selectedIds : []
-    const { data: focusRides } = useRidesByIds(focusIds)
-    // Focus mode ("Only selected") narrows the tracks list to the selection, the
-    // same rule the map applies. No selection ⇒ everything shows, so turning the
-    // toggle on never leaves a blank list. The by-id fetch returns selection
-    // (click) order, so re-sort to the list's natural newest-first order — a
-    // filter narrows the list, it never reorders it.
+    // The pill-filtered set, with the toolbar's client-side filters (modes,
+    // shape, grade, dates, range sliders) applied on top for ride rows —
+    // exactly the set the map draws at full strength. Packs pass through
+    // (they have no mode/shape/grade).
+    const items = useMemo(
+        () => (viewItems ?? []).filter(it =>
+            it.item_type === 'pack'
+            || rideMatchesFilters(it as unknown as RideSummary, settings)),
+        [viewItems, settings],
+    )
+    // Share the matched ids with the map: while any pill is active, tracks
+    // outside the set dim (the same treatment as search matches today).
+    // Selection never changes this — it only highlights.
+    const { setPillMatchedIds } = useUiState()
+    useEffect(() => {
+        if (!pillsActive) { setPillMatchedIds(null); return }
+        setPillMatchedIds(new Set(
+            (allItems ?? [])
+                .filter(it => it.item_type !== 'pack'
+                    && rideMatchesFilters(it as unknown as RideSummary, settings))
+                .map(it => it.id),
+        ))
+    }, [pillsActive, allItems, settings, setPillMatchedIds])
+    useEffect(() => () => setPillMatchedIds(null), [setPillMatchedIds])
+    // Basket view keeps the plain ride list shape.
     const rides = useMemo(
-        () => {
-            if (listView === 'basket') return basketRides
-            if (focusIds.length > 0) {
-                return focusRides && [...focusRides].sort(
-                    (a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? ''))
-            }
-            return allRides?.filter(r => rideMatchesFilters(r, settings))
-        },
-        [listView, basketRides, focusIds, focusRides, allRides, settings]
+        () => (listView === 'basket' ? basketRides : undefined),
+        [listView, basketRides],
     )
     const placesRides = useMemo(
         () => (listView === 'places'
@@ -175,10 +192,13 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
     useEffect(() => () => { if (ownsPreview.current) setCoveragePreview(null) }, [setCoveragePreview])
 
     const inBasket = useMemo(() => new Set(basket.ids), [basket.ids])
+    // The unified list's ride rows (tracks + routes, never packs) — the set
+    // "Select all" and "Add all" operate on.
+    const rideItems = useMemo(() => items.filter(it => it.item_type !== 'pack'), [items])
     // Listed rides not yet in the basket — what "add all" would add
     const addableIds = useMemo(
-        () => (rides ?? []).map(r => r.id).filter(id => !inBasket.has(id)),
-        [rides, inBasket]
+        () => rideItems.map(r => r.id).filter(id => !inBasket.has(id)),
+        [rideItems, inBasket]
     )
 
     // Selecting a track (usually a map click) scrolls the list just enough to
@@ -201,40 +221,19 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
             el.scrollIntoView({ block: 'nearest' })
             pendingScrollId.current = null
         }
-    }, [selectedIds, rides])
+    }, [selectedIds, items, rides])
 
-    // File-manager selection semantics: plain click = single select,
-    // ctrl/cmd-click = toggle one, shift-click = add the range from the last
-    // plain-clicked row (the anchor) to this one.
-    const anchorId = useRef<string | null>(null)
-    const handleItemClick = (id: string, event: React.MouseEvent) => {
-        const list = rides ?? []
-        if (event.shiftKey && anchorId.current) {
-            const a = list.findIndex(r => r.id === anchorId.current)
-            const b = list.findIndex(r => r.id === id)
-            if (a !== -1 && b !== -1) {
-                const range = list.slice(Math.min(a, b), Math.max(a, b) + 1).map(r => r.id)
-                onSelect(Array.from(new Set([...selectedIds, ...range])))
-                return
-            }
-        }
-        if (event.metaKey || event.ctrlKey) {
-            // Toggle one in/out of the selection
-            anchorId.current = id
-            if (selectedIds.includes(id)) {
-                onSelect(selectedIds.filter(sid => sid !== id))
-            } else {
-                onSelect([...selectedIds, id])
-            }
-        } else if (selectedIds.length === 1 && selectedIds[0] === id) {
-            // Re-clicking the sole selected ride deselects it
-            anchorId.current = null
-            onSelect([])
-        } else {
-            // Single select
-            anchorId.current = id
-            onSelect([id])
-        }
+    // Click-to-toggle selection: first click selects, second deselects —
+    // easy multi-select with no modifier keys. Selection drives highlight,
+    // the detail pane and map emphasis only; the list never refilters or
+    // reorders on selection (only pills change the list).
+    const handleItemClick = (id: string) => {
+        // A ride click leaves any open pack detail — the right pane shows
+        // the selection again.
+        setSelectedPackId(null)
+        onSelect(selectedIds.includes(id)
+            ? selectedIds.filter(sid => sid !== id)
+            : [...selectedIds, id])
     }
 
     const formatDate = (dateStr: string | null) => {
@@ -334,7 +333,15 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                             placeholder="Search name or place…"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            title="Find tracks by name, or by a suburb / LGA / region / state they pass through"
+                            onKeyDown={e => {
+                                // Enter commits the query as a search pill so
+                                // several searches can AND together.
+                                if (e.key === 'Enter' && search.trim()) {
+                                    addSearchPill(search)
+                                    setSearch('')
+                                }
+                            }}
+                            title="Find items by name, or by a suburb / LGA / region / state they pass through. Enter keeps the query as a pill."
                         />
                         {search && (
                             <button
@@ -346,6 +353,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                             </button>
                         )}
                     </div>
+                    <PillRow />
                 </>
             )}
             {listView !== 'basket' && listView !== 'packs' && (
@@ -397,25 +405,26 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
             {listView !== 'places' && listView !== 'packs' && (
                 <div className="list-count">
                     <span>
-                        {rides ? `${rides.length} track${rides.length === 1 ? '' : 's'}${listView === 'basket' ? ' in basket'
-                            : settings.focusMode && selectedIds.length > 0 ? ' selected'
-                                : searching ? ' matching' : inViewOnly ? ' in view' : ''}` : ''}
+                        {listView === 'basket'
+                            ? (rides ? `${rides.length} track${rides.length === 1 ? '' : 's'} in basket` : '')
+                            : `${items.length} item${items.length === 1 ? '' : 's'}${anySearch ? ' matching'
+                                : pillsActive ? ' filtered' : inViewOnly ? ' in view' : ''}`}
                     </span>
                     {listView === 'tracks' && (
                         <span style={{ display: 'flex', gap: 4 }}>
                             <button
                                 className={`list-toggle ${settings.focusMode ? 'active' : ''}`}
                                 onClick={() => settings.setFocusMode(!settings.focusMode)}
-                                title="Only show selected tracks — in the list and on the map. With nothing selected, everything shows."
+                                title="Only show selected tracks on the map. With nothing selected, everything shows."
                             >
                                 <Crosshair size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
                                 Only selected
                             </button>
-                            {(rides?.length ?? 0) > 0 && (
+                            {rideItems.length > 0 && (
                                 <button
                                     className="list-toggle"
-                                    onClick={() => onSelect((rides ?? []).map(r => r.id))}
-                                    title={`Select all ${rides?.length} listed tracks`}
+                                    onClick={() => onSelect(rideItems.map(r => r.id))}
+                                    title={`Select all ${rideItems.length} listed tracks`}
                                 >
                                     <ListChecks size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
                                     Select all
@@ -558,31 +567,58 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                             </p>
                         </div>
                     )}
-                    {rides?.map(ride => (
+                    {(listView === 'basket'
+                        // Basket rows keep the plain ride shape; the tracks
+                        // view interleaves tracks, routes and packs.
+                        ? (rides ?? []).map(r => ({ ...r, item_type: 'track' }) as unknown as ItemSummary)
+                        : items
+                    ).map(item => (
                         <div
-                            key={ride.id}
-                            data-ride-id={ride.id}
-                            className={`list-item ${selectedIds.includes(ride.id) ? 'selected' : ''}`}
-                            onClick={(e) => handleItemClick(ride.id, e)}
-                            onMouseEnter={() => onHover(ride.id)}
-                            onMouseLeave={() => onHover(null)}
+                            key={item.id}
+                            data-ride-id={item.id}
+                            className={`list-item ${item.item_type === 'pack'
+                                ? (selectedPackId === item.id ? 'selected' : '')
+                                : (selectedIds.includes(item.id) ? 'selected' : '')}`}
+                            onClick={() => {
+                                // Packs open their detail pane; ride rows
+                                // toggle in and out of the selection.
+                                if (item.item_type === 'pack') {
+                                    setSelectedPackId(selectedPackId === item.id ? null : item.id)
+                                } else {
+                                    handleItemClick(item.id)
+                                }
+                            }}
+                            onMouseEnter={() => item.item_type !== 'pack' && onHover(item.id)}
+                            onMouseLeave={() => item.item_type !== 'pack' && onHover(null)}
                         >
-                            <div className="list-item-icon"><Bike size={16} /></div>
+                            <div className={`list-item-icon ${item.item_type}`}>
+                                {item.item_type === 'pack' ? <Boxes size={16} />
+                                    : item.item_type === 'route' ? <Route size={16} />
+                                        : <Bike size={16} />}
+                            </div>
                             <div className="list-item-content">
                                 <div className="list-item-name">
-                                    {ride.name || formatDate(ride.started_at)}
+                                    {item.name || formatDate(item.started_at)}
                                 </div>
                                 <div className="list-item-meta">
-                                    {formatMeta(ride)}
+                                    {item.item_type === 'pack'
+                                        ? `pack · ${item.ride_count ?? 0} track${item.ride_count === 1 ? '' : 's'}${item.published_at ? '' : ' · draft'}`
+                                        : formatMeta({
+                                            distance_m: item.distance_m ?? null,
+                                            duration_s: item.duration_s ?? null,
+                                            moving_s: item.moving_s ?? null,
+                                        })}
                                 </div>
                             </div>
-                            <button
-                                className={`list-item-basket ${inBasket.has(ride.id) ? 'in-basket' : ''}`}
-                                onClick={(e) => { e.stopPropagation(); basket.toggle(ride.id) }}
-                                title={inBasket.has(ride.id) ? 'Remove from export basket' : 'Add to export basket'}
-                            >
-                                {inBasket.has(ride.id) ? <PackageMinus size={14} /> : <PackagePlus size={14} />}
-                            </button>
+                            {item.item_type !== 'pack' && (
+                                <button
+                                    className={`list-item-basket ${inBasket.has(item.id) ? 'in-basket' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); basket.toggle(item.id) }}
+                                    title={inBasket.has(item.id) ? 'Remove from export basket' : 'Add to export basket'}
+                                >
+                                    {inBasket.has(item.id) ? <PackageMinus size={14} /> : <PackagePlus size={14} />}
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>

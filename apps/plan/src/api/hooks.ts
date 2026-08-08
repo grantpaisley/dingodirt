@@ -102,6 +102,8 @@ export interface RideDetail {
     /** Planned-route notes (closures, permits) — plain text with \n line
      *  breaks that must be rendered preserved (white-space: pre-wrap). */
     description?: string | null
+    /** Folder home (filter pills); null = Unfiled */
+    folder_id?: string | null
     geometry: {
         type: 'LineString'
         coordinates: [number, number][]
@@ -390,6 +392,178 @@ export function usePois(enabled: boolean, bounds?: Bounds) {
         staleTime: 5 * 60 * 1000,
         placeholderData: keepPreviousData,
     })
+}
+
+// ---- Filter pills: dimensions, unified items, folders ----
+
+/** One filter dimension from the server registry. `kind` drives the pill
+ *  UI: flat = checkbox list, hierarchical = expandable tree, boolean = the
+ *  pill itself toggles. */
+export interface Dimension {
+    id: string
+    name: string
+    kind: 'flat' | 'hierarchical' | 'boolean'
+}
+
+export function useDimensions() {
+    return useQuery({
+        queryKey: ['dimensions'],
+        queryFn: async (): Promise<Dimension[]> => {
+            const res = await fetch(`${API_BASE}/dimensions`)
+            if (!res.ok) throw new Error('Failed to fetch dimensions')
+            return res.json()
+        },
+        staleTime: 30 * 60 * 1000,
+    })
+}
+
+/** One pill's state: checked values within a dimension OR together; pills
+ *  AND together. Hierarchical values are path prefixes (string arrays). */
+export interface PillState {
+    dimension: string
+    values: (string | string[] | boolean)[]
+}
+
+/** One row of the unified item list — tracks, routes and packs in one
+ *  shape. Ride rows carry the RideSummary fields (minus geometry); pack
+ *  rows carry ride_count instead. */
+export interface ItemSummary {
+    item_type: 'track' | 'route' | 'pack'
+    id: string
+    name: string | null
+    /** Rides: started_at; packs: created_at (so one sort key works). */
+    started_at: string | null
+    distance_m?: number | null
+    duration_s?: number | null
+    moving_s?: number | null
+    mode?: string
+    class?: 'own' | 'other' | 'plan'
+    grade?: number | null
+    owner_id?: string | null
+    owner?: string | null
+    state?: string | null
+    region?: string | null
+    lgas?: string[] | null
+    suburbs?: string[] | null
+    is_loop?: boolean | null
+    kind?: string
+    collection?: string | null
+    color?: string | null
+    folder_id?: string | null
+    avg_hr?: number | null
+    max_hr?: number | null
+    avg_speed?: number | null
+    max_speed?: number | null
+    description?: string
+    published_at?: string | null
+    ride_count?: number
+}
+
+/** One faceted dropdown value. Flat/boolean dimensions fill `value`;
+ *  hierarchical ones fill `path` (the client folds paths into a tree). */
+export interface FacetValue {
+    value?: string | boolean
+    label?: string
+    path?: string[]
+    count: number
+}
+
+export interface ItemsQueryBody {
+    filters: PillState[]
+    search: string[]
+    bounds?: string
+    facet?: string
+    limit?: number
+}
+
+async function postItemsQuery<T>(body: ItemsQueryBody): Promise<T> {
+    const res = await fetch(`${API_BASE}/items/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+/** The pill-filtered unified item list. Sorted newest-first across all
+ *  three types client-side (rides by started_at, packs by created_at). */
+export function useItemsQuery(pills: PillState[], search: string[], bounds?: Bounds) {
+    const boundsKey = bounds
+        ? `${bounds.minLon},${bounds.minLat},${bounds.maxLon},${bounds.maxLat}`
+        : undefined
+    return useQuery({
+        queryKey: ['items', JSON.stringify(pills), JSON.stringify(search), boundsKey ?? 'all'],
+        queryFn: async (): Promise<ItemSummary[]> => {
+            const { items } = await postItemsQuery<{ items: ItemSummary[] }>({
+                filters: pills, search, bounds: boundsKey,
+            })
+            return items.sort((a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? ''))
+        },
+        placeholderData: keepPreviousData,
+    })
+}
+
+/** One dimension's dropdown values, faceted by the OTHER active pills. */
+export async function fetchFacet(
+    dimension: string,
+    pills: PillState[],
+    search: string[],
+): Promise<FacetValue[]> {
+    const { values } = await postItemsQuery<{ values: FacetValue[] }>({
+        filters: pills, search, facet: dimension,
+    })
+    return values
+}
+
+export interface Folder {
+    id: string
+    name: string
+    parent_id: string | null
+    position: number
+    ride_count: number
+    pack_count: number
+}
+
+export function useFolders() {
+    return useQuery({
+        queryKey: ['folders'],
+        queryFn: async (): Promise<Folder[]> => {
+            const res = await fetch(`${API_BASE}/folders`)
+            if (!res.ok) throw new Error(await res.text())
+            return (await res.json()).folders
+        },
+        staleTime: 5 * 60 * 1000,
+    })
+}
+
+export async function createFolder(name: string, parentId?: string | null): Promise<{ id: string }> {
+    const res = await fetch(`${API_BASE}/folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ name, parent_id: parentId ?? null }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/folders/${id}`, { method: 'DELETE', headers: WEB_HEADER })
+    if (!res.ok) throw new Error(await res.text())
+}
+
+/** File items into a folder; null folder returns them to Unfiled. */
+export async function assignToFolder(
+    itemType: 'ride' | 'pack',
+    ids: string[],
+    folderId: string | null,
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/folders/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ item_type: itemType, ids, folder_id: folderId }),
+    })
+    if (!res.ok) throw new Error(await res.text())
 }
 
 // ---- Photos ----

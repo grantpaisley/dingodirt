@@ -148,6 +148,8 @@ pub struct RideDetail {
     pub collection: Option<String>,
     pub color: Option<String>,
     pub description: Option<String>,
+    /// Folder home (filter pills); NULL = Unfiled
+    pub folder_id: Option<Uuid>,
     pub geometry: Option<serde_json::Value>,
     pub time_series: Option<serde_json::Value>,
 }
@@ -658,7 +660,7 @@ async fn get_ride(
             r.source, r.grade,
             r.state, r.region, r.lgas, r.suburbs,
             r.kind::text as kind,
-            r.collection, r.color, r.description,
+            r.collection, r.color, r.description, r.folder_id,
             r.owner_id, o.name as owner_name, o.kind as owner_kind,
             r.original_name,
             f.original_name as file_name,
@@ -721,6 +723,7 @@ async fn get_ride(
                 collection: row.get("collection"),
                 color: row.get("color"),
                 description: row.get("description"),
+                folder_id: row.get("folder_id"),
                 geometry: row.get("geometry"),
                 time_series,
             }))

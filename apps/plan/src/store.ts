@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { FilterValues } from './components/Filters/FilterPanel'
-import type { RideSummary } from './api/hooks'
+import type { PillState, RideSummary } from './api/hooks'
 
 /** 'mode' colours rides by ride mode; 'hr' / 'speed' / 'grade' use the
  *  gradient scales (grade = absolute steepness %, ascent and descent alike) */
@@ -153,6 +153,9 @@ interface SettingsState {
      *  map click rewrite the track list. Selection now only highlights, so
      *  pre-existing profiles get pulled onto the new off default exactly once. */
     focusOffDefault2026?: boolean
+    /** One-time migration marker: the Layers class/owner rows dissolved into
+     *  the filter pills, so hidden classes/owners reset to visible once. */
+    pillsMigration2026?: boolean
     /** Opacity of non-highlighted tracks while a highlight context (selection,
      *  search matches, or the export basket) is active. 0.05–0.6. */
     dimmedOpacity: number
@@ -203,8 +206,15 @@ interface SettingsState {
      *  library tracks). Advisory only — plain settings toggle, deliberately
      *  outside EffectiveLayers: live data is never pack content. */
     showClosures: boolean
+    /** Filter pills (list + map dim context). Pills AND together; checked
+     *  values within one pill OR. Search pills live in `searchPills`; the
+     *  live search box is a separate transient pill. */
+    pills: PillState[]
+    /** Committed search pills (Enter in the search box adds one). */
+    searchPills: string[]
     /** Which track classes show — own (orange) / other (red) / plan (blue).
-     *  Filters rides, the list, AND the heatmap. */
+     *  Kept for pack heatmap_filters recipes and pack preview mapping; the
+     *  Layers rows that toggled it dissolved into the Owner/Type pills. */
     trackClasses: Record<TrackClass, boolean>
     /** Owner ids toggled OFF in the per-owner facet under "Other rides" —
      *  default all on, so newly-seen owners show without bookkeeping. Only
@@ -274,6 +284,11 @@ interface SettingsState {
     setTerrain3d: (v: boolean) => void
     setShowAreas: (v: boolean) => void
     setShowClosures: (v: boolean) => void
+    addPill: (dimension: string) => void
+    setPillValues: (index: number, values: PillState['values']) => void
+    removePill: (index: number) => void
+    addSearchPill: (q: string) => void
+    removeSearchPill: (index: number) => void
     toggleTrackClass: (c: TrackClass) => void
     toggleOwnerOff: (id: string) => void
     toggleShapeClass: (c: TrackShape) => void
@@ -303,6 +318,7 @@ export const useSettings = create<SettingsState>()(
             // In the defaults so fresh stores persist it immediately — only
             // blobs that predate the off default lack it and get migrated.
             focusOffDefault2026: true,
+            pillsMigration2026: true,
             dimmedOpacity: 0.2,
             autoZoom: false,
             showPhotos: true,
@@ -324,6 +340,8 @@ export const useSettings = create<SettingsState>()(
             terrain3d: false,
             showAreas: false,
             showClosures: false,
+            pills: [],
+            searchPills: [],
             trackClasses: { own: true, other: true, plan: true },
             ownersOff: [],
             shapeClasses: { loop: true, oneway: true },
@@ -397,6 +415,18 @@ export const useSettings = create<SettingsState>()(
             setTerrain3d: (terrain3d) => set({ terrain3d }),
             setShowAreas: (showAreas) => set({ showAreas }),
             setShowClosures: (showClosures) => set({ showClosures }),
+            addPill: (dimension) =>
+                set((s) => ({ pills: [...s.pills, { dimension, values: [] }] })),
+            setPillValues: (index, values) =>
+                set((s) => ({
+                    pills: s.pills.map((p, i) => (i === index ? { ...p, values } : p)),
+                })),
+            removePill: (index) =>
+                set((s) => ({ pills: s.pills.filter((_, i) => i !== index) })),
+            addSearchPill: (q) =>
+                set((s) => (q.trim() ? { searchPills: [...s.searchPills, q.trim()] } : s)),
+            removeSearchPill: (index) =>
+                set((s) => ({ searchPills: s.searchPills.filter((_, i) => i !== index) })),
             toggleTrackClass: (c) =>
                 set((s) => ({ trackClasses: { ...s.trackClasses, [c]: !s.trackClasses[c] } })),
             toggleOwnerOff: (id) =>
@@ -517,6 +547,27 @@ export const useSettings = create<SettingsState>()(
                     || !merged.plannedCollectionsOff.every(n => typeof n === 'string')) {
                     merged.plannedCollectionsOff = []
                 }
+                // 2026-08-08 filter pills: the Layers "My rides / Other
+                // rides / per-owner" rows are gone — a class or owner left
+                // toggled off would be stuck off with no UI. Pull those
+                // profiles onto all-on exactly once.
+                if (!p.pillsMigration2026) {
+                    merged.trackClasses = { own: true, other: true, plan: true }
+                    merged.ownersOff = []
+                    merged.pillsMigration2026 = true
+                }
+                // 2026-08-08 filter pills: validate the persisted pill state
+                // (a malformed blob must never wedge the list at "no items").
+                if (!Array.isArray(merged.pills)
+                    || !merged.pills.every(p => p && typeof p === 'object'
+                        && typeof (p as PillState).dimension === 'string'
+                        && Array.isArray((p as PillState).values))) {
+                    merged.pills = []
+                }
+                if (!Array.isArray(merged.searchPills)
+                    || !merged.searchPills.every(s => typeof s === 'string')) {
+                    merged.searchPills = []
+                }
                 const poiCats = ((merged.poiCategories && typeof merged.poiCategories === 'object')
                     ? merged.poiCategories : {}) as Partial<Record<PoiCategory, unknown>>
                 merged.poiCategories = Object.fromEntries(
@@ -634,6 +685,11 @@ interface UiState {
      *  Strava colours. Null = style defines none → settings colours apply. */
     styleOverlays: Record<string, string> | null
     setStyleOverlays: (o: Record<string, string> | null) => void
+    /** Ids matching the active pills (the /api/items/query result) — the map
+     *  dims tracks outside the set, exactly as search matches dim. Null =
+     *  no active pills, nothing dims. Written by the list, read by the map. */
+    pillMatchedIds: Set<string> | null
+    setPillMatchedIds: (ids: Set<string> | null) => void
 }
 
 export interface MarkPreviewPoint {
@@ -784,6 +840,8 @@ export const useUiState = create<UiState>()((set) => ({
     bumpStyleReload: () => set((s) => ({ styleReloadNonce: s.styleReloadNonce + 1 })),
     styleOverlays: null,
     setStyleOverlays: (styleOverlays) => set({ styleOverlays }),
+    pillMatchedIds: null,
+    setPillMatchedIds: (pillMatchedIds) => set({ pillMatchedIds }),
 }))
 
 /** True when any range filter is enabled — drives toolbar badge + grey tier */
@@ -825,20 +883,14 @@ export function rideMatchesSearch(
  *  list (rows removed) so they always agree. */
 export function rideMatchesFilters(
     ride: Pick<RideSummary, 'mode' | 'class' | 'is_loop' | 'avg_hr' | 'max_hr' | 'avg_speed' | 'max_speed' | 'distance_m' | 'started_at' | 'grade' | 'owner_id'> & { collection?: string | null },
-    s: Pick<SettingsState, 'enabledModes' | 'trackClasses' | 'shapeClasses' | 'gradeFilter' | 'filters' | 'requireHr' | 'requireSpeed' | 'dateFrom' | 'dateTo' | 'plannedCollectionsOff' | 'ownersOff'>
+    s: Pick<SettingsState, 'enabledModes' | 'shapeClasses' | 'gradeFilter' | 'filters' | 'requireHr' | 'requireSpeed' | 'dateFrom' | 'dateTo' | 'plannedCollectionsOff'>
 ): boolean {
     if (!s.enabledModes.includes((ride.mode || 'other') as RideMode)) return false
     // Curated planned routes (imported collections) are governed by the
-    // Planned-routes section's per-collection toggles, NOT the class rows —
-    // "My rides" shouldn't drag a whole GOAT network on and off with it.
-    if (ride.collection) {
-        if (s.plannedCollectionsOff.includes(ride.collection)) return false
-    } else if (!s.trackClasses[(ride.class || 'own') as TrackClass]) return false
-    // Per-owner facet (nested under "Other rides" in the layers pane) — only
-    // other-class tracks, so hiding an owner there never touches own/plan rows.
-    // `?.`: a mid-flight HMR swap can run this against a store instance created
-    // before ownersOff existed — a throw here blanks the whole tracks list.
-    if (ride.class === 'other' && ride.owner_id && s.ownersOff?.includes(ride.owner_id)) return false
+    // Planned-routes section's per-collection toggles. Class and owner
+    // filtering moved to the Type/Owner pills (the list is server-filtered;
+    // the map dims non-matching ids via pillMatchedIds).
+    if (ride.collection && s.plannedCollectionsOff.includes(ride.collection)) return false
     // Loops close on themselves; anything else (incl. null/degenerate) reads as
     // point-to-point so it still shows under the default 'oneway' filter.
     if (!s.shapeClasses[ride.is_loop ? 'loop' : 'oneway']) return false

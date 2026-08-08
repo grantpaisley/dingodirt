@@ -1,9 +1,53 @@
-import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, RIDE_MODES, SERVER_BASE, type PhotoSummary } from '../../api/hooks'
+import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, RIDE_MODES, SERVER_BASE, type PhotoSummary } from '../../api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { PackageMinus, PackagePlus } from 'lucide-react'
 import { useBasket, useSettings, type RideMode } from '../../store'
 import { OwnerPicker } from '../OwnerPicker'
+
+/** Folder home (filter pills): a flat select over the folder tree with
+ *  depth-indented names, an Unfiled root, and a "New folder…" creator. */
+function FolderPicker({ value, disabled, onChange }: {
+    value: string | null
+    disabled?: boolean
+    onChange: (folderId: string | null) => void
+}) {
+    const { data: folders } = useFolders()
+    // Depth-first flatten so children indent under their parents.
+    const rows: { id: string, label: string }[] = []
+    const walk = (parentId: string | null, depth: number) => {
+        for (const f of (folders ?? []).filter(f => f.parent_id === parentId)) {
+            rows.push({ id: f.id, label: `${'  '.repeat(depth)}${f.name}` })
+            walk(f.id, depth + 1)
+        }
+    }
+    walk(null, 0)
+    return (
+        <select
+            className="mode-select"
+            value={value ?? ''}
+            disabled={disabled}
+            onChange={async e => {
+                if (e.target.value === '__new__') {
+                    const name = window.prompt('New folder name')
+                    if (!name?.trim()) return
+                    try {
+                        const { id } = await createFolder(name.trim())
+                        onChange(id)
+                    } catch (err) {
+                        window.alert(err instanceof Error ? err.message : String(err))
+                    }
+                    return
+                }
+                onChange(e.target.value || null)
+            }}
+        >
+            <option value="">Unfiled</option>
+            {rows.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            <option value="__new__">New folder…</option>
+        </select>
+    )
+}
 
 /** Difficulty grade 1-5 (Grant's scale) — click sets, click again clears */
 function GradePicker({ value, disabled, onChange }: {
@@ -255,6 +299,30 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                     </div>
                 </div>
 
+                {/* Bulk filing — move the whole selection into one folder */}
+                <div className="detail-section" style={{ marginTop: 16 }}>
+                    <div className="detail-label">Set folder for all {selectedIds.length}</div>
+                    <div style={{ marginTop: 4 }}>
+                        <FolderPicker
+                            value={null}
+                            disabled={isUpdating}
+                            onChange={async folderId => {
+                                setIsUpdating(true)
+                                try {
+                                    await assignToFolder('ride', selectedIds, folderId)
+                                    queryClient.invalidateQueries({ queryKey: ['items'] })
+                                    queryClient.invalidateQueries({ queryKey: ['folders'] })
+                                    selectedIds.forEach(id => queryClient.invalidateQueries({ queryKey: ['ride', id] }))
+                                } catch (err) {
+                                    window.alert(err instanceof Error ? err.message : String(err))
+                                } finally {
+                                    setIsUpdating(false)
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+
                 <div className="detail-section" style={{ marginTop: 16 }}>
                     <div className="detail-label">Selected Rides</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -477,6 +545,31 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                     </div>
                 )}
             </div>
+
+            {!previewId && (
+                <div className="detail-section" style={{ marginTop: 8 }}>
+                    <div className="detail-label">Folder</div>
+                    <div style={{ marginTop: 4 }}>
+                        <FolderPicker
+                            value={ride.folder_id ?? null}
+                            disabled={isUpdating}
+                            onChange={async folderId => {
+                                setIsUpdating(true)
+                                try {
+                                    await assignToFolder('ride', [ride.id], folderId)
+                                    queryClient.invalidateQueries({ queryKey: ['ride', ride.id] })
+                                    queryClient.invalidateQueries({ queryKey: ['items'] })
+                                    queryClient.invalidateQueries({ queryKey: ['folders'] })
+                                } catch (err) {
+                                    window.alert(err instanceof Error ? err.message : String(err))
+                                } finally {
+                                    setIsUpdating(false)
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {ride.original_name && ride.original_name !== ride.name && (
                 <div className="detail-section" style={{ marginTop: 8 }}>
