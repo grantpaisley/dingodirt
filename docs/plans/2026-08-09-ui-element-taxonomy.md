@@ -1,7 +1,7 @@
 # UI element taxonomy
 
 Date: 2026-08-09
-Status: agreed (map stage). Inventories done: Plan, Nav, Studio, Planner (site `/p/` pages). Next stages: design language, then shared library.
+Status: map stage done (all four inventories); stage-2 design language rules agreed (see "Stage 2" section). Next: stage 3, the shared library.
 Scope: all four apps. The parts of the Site beyond the planner page (gallery, dashboard, publish) are conventional web pages and stay outside the taxonomy.
 
 ## Purpose
@@ -157,14 +157,81 @@ Findings:
 2. **Votes set the Sync scope.** A vote is a Control that writes domain data; both surfaces react through plain shared state. This produced the scope note in the Sync section: patterns cover UI state only.
 3. **First responsive layout.** On a phone the two surfaces stack (map top half, list bottom half). Plan, Nav, and Studio never stack.
 
-## Stage-2 agenda
+## Stage 2 — design language rules
 
-Items the inventories raised for the design language:
+Agreed 2026-08-09, one decision at a time. Each rule applies to every app.
 
-1. **Overlay budget** per app, and one standard dialog/picker frame (Nav has ~13 overlay groups vs Plan's 3 — flagged for simplification).
-2. **Surface stacking rule** for small screens (from the planner's mobile layout).
-3. **Shared ride-follow path** for Nav and Studio (same sensor-fed Probe/Camera syncs).
-4. **Filter-beats-Select answer** — one rule, same in every app.
+### Rule 1 — Filter beats Select, with a memory
+
+A filter (pill, search, owner) that hides the selected item **clears the selection**: the detail pane empties, the map highlight goes away. The store keeps the cleared selection. When a filter change makes the item visible again, the selection **returns by itself**. No toast, no undo button — the undo *is* the filter.
+
+### Rule 2 — Two frames for every overlay
+
+Every overlay is one of two frames. No cap on count; the budget is structural.
+
+- **Dialog** — short task. Title, body, buttons at the bottom right. Modal.
+- **Sheet** — list or picker. Header with title and close, scrolling body. Dismissable.
+
+Nav's ~13 overlay groups keep their jobs but adopt these skeletons (Nav's generic `dlg` is the seed of the Dialog frame).
+
+### Rule 3 — One chrome palette, two modes
+
+The Site's ink-and-clay palette becomes the shared chrome standard for frames and, over time, all app chrome:
+
+- **Dark**: ink surfaces (`#141109` / `#1d1910` / `#272216`), `#35301f` lines, bone text (`#ece4d2` / dim `#a89d83`), clay accent (`#d96f32`).
+- **Light ("warm bone paper")**: bone surfaces (`#ece4d2`, raised `#f6f1e4`), `#cfc4a9` lines, ink text (`#141109` / dim `#6d6450`), same clay accent. Ink-on-bone contrast ≈ 13:1 — daylight-safe for Nav.
+
+Schemes keep governing the *map content*; this palette governs the *chrome*. Plan's navy and Nav's slate retire as chrome palettes when their surfaces migrate.
+
+### Rule 4 — Orientation decides docking
+
+**Wider than tall → side. Taller than wide → bottom.** No device detection, no breakpoint list.
+
+- Sheets: dock left on wide screens; rise from the bottom (drag handle, half-open state) on tall screens. In phone landscape the side sheet caps at min(320 px, 40% of screen width).
+- Surfaces: portrait stacks them (map on top, list below — the planner's layout today); landscape and desktop sit them side by side (list left, map filling the rest). Profile and detail collapse into the list column on narrow screens.
+
+The one spatial law: **the map takes the long axis; company docks on the short axis.**
+
+### Rule 5 — Clay has two jobs
+
+The clay accent marks **the selected item** and **the primary action** — nothing else. Active filters, toggles, and segs use neutral bone/ink treatments. Restraint is what keeps clay meaningful on a busy map.
+
+### Rule 6 — Map controls are grouped stacks
+
+Controls that float on the map share one skin: ink surface (`#1d1910`), hairline border (`#35301f`), 8 px radius. Related buttons join a vertical **stack** with hairline dividers; loose singles (mute, menu) float alone in the same skin. Every control reads one size token, `--control-size`: **40 px normal** (44 px tap area on touch), **56 px in glove mode**. Glove mode is one variable flip, and stacks, sheet rows, and dialog buttons all grow together.
+
+### Rule 7 — One skin for all toggles
+
+Pills (multi-select filters) and segmented switches (exclusive choices) are the same control in two arrangements:
+
+- **Inactive**: hairline outline, dim bone text.
+- **Active**: bone fill, ink text — unmissable, and it leaves clay alone (Rule 5).
+- Pills are free-floating and fully rounded; segs are connected containers with hairline dividers — the horizontal cousin of the Rule 6 stack.
+
+### Rule 8 — Selected rows wear a clay edge bar
+
+The selected list row (tree row, vote row, sheet row) gets a **3 px clay bar on its left edge** plus a one-step raised background (`#272216`). Text stays bone. In nested trees the bar indents with the row. This is the list-side face of Rule 5's "selected item" job.
+
+### Rule 9 — Barlow is the chrome typeface
+
+All app chrome is set in **Barlow**, weights **400 and 500 only**, vendored as woff2 (~40 KB) so Nav stays offline. System stack is the fallback. **Big Shoulders** stays reserved for site headlines. Plan's Inter reference retires.
+
+### Rule 10 — Readouts are bare text with a mode-aware halo
+
+Readouts (Nav's HUD, Plan's stats bar, Studio's scrub label) are **big number + small dim unit + label**, tabular numerals, floating as bare text so the map shows through. Legibility comes from a halo that follows the mode: **bone text, ink halo** on dark schemes; **ink text, bone halo** on light schemes. The halo flips with the same switch as the chrome palette.
+
+### Rule 11 — Two-tier status colours
+
+One hue triad (green / amber / red), two intensities, six tokens:
+
+- **Status** (muted — the planner's triad today): `#57a557` / `#c9a227` / `#8a4a42`. For passive information: verdict chips, badges, connection state.
+- **Alert** (vivid — Nav's triad today): `#38d178` / `#ffb020` / `#ff4545`. For signals that must interrupt: off-track, GPS lost, battery critical.
+
+Alerts additionally never rely on colour alone — they pair with sound or vibration (the multi-channel Display amendment). Nav's `--own`/`--other` rider-dot colours stay app-specific and outside this rule.
+
+### Stage-3 note — shared ride-follow path
+
+Nav's GPS follow and Studio's test-drive bar feed the same Probe/Camera syncs (a playback is a sensor source). When stage 3 extracts the shared core, the ride-follow state machine is one module with two sources — not two look-alike implementations.
 
 ## The same roles across the four apps
 
