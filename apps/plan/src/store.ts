@@ -189,7 +189,8 @@ interface SettingsState {
      *  'default' = factory theme, nothing mounted. Selection overwrites the
      *  scheme-driven settings (heat colours); CSS vars re-mount on boot. */
     rideScheme: string
-    /** Base map style — satellite (hybrid imagery), outdoor (terrain topo),
+    /** Base map style — dingo (the shared basemap; default now the tile
+     *  archive is live), satellite (hybrid imagery), outdoor (terrain topo),
      *  or topo (classic topographic) */
     baseStyle: BaseStyle
     baseStyleMode: BaseStyleMode
@@ -333,7 +334,7 @@ export const useSettings = create<SettingsState>()(
             heatColorStrava: HEAT_COLOR_DEFAULTS.strava,
             heatColorPlanned: HEAT_COLOR_DEFAULTS.planned,
             rideScheme: 'default',
-            baseStyle: 'satellite',
+            baseStyle: 'dingo',
             baseStyleMode: 'day',
             detailLevel: 'auto',
             hillshade: false,
