@@ -61,7 +61,7 @@ overlays draw on top. North is always up.
 ```
 index.html        the app (single file of app code)
 vendor/           maplibre-gl.js/.css, pmtiles.js (vendored, no CDN — offline)
-basemap/          layers.json (style), fonts/, sprites/, central-coast.pmtiles, hillshade.pmtiles
+basemap/          layers.json (style), fonts/, sprites/ — tiles stream from tiles.dingodirt.com (no archives in the deploy)
 sw.js             service worker: index.html network-first, assets cache-first
 manifest.json     PWA manifest (Add to Home Screen)
 bundle.json       optional pre-baked tracks+heatmap, auto-loaded on first open (gitignored)
@@ -94,9 +94,12 @@ pmtiles extract https://build.protomaps.com/$(date -v-1d +%Y%m%d).pmtiles my-are
   --bbox=<minLon>,<minLat>,<maxLon>,<maxLat>
 ```
 The Central Coast + Watagans extract (150.85,-33.75 → 151.85,-32.85, zoom
-0-15) is 33 MB. Put the file at `basemap/central-coast.pmtiles` for
-automatic download, or load any `.pmtiles` file in the app via ☰. Protomaps
-daily builds come from OSM data, and they are free (attribution included).
+0-15) is 33 MB. The deploy ships no archives — tiles stream (and
+corridor-cache) from the shared AU archive at tiles.dingodirt.com. For a
+self-host or an outside-coverage area, put a file at
+`basemap/central-coast.pmtiles` for automatic download at boot, or load
+any `.pmtiles` file in the app via ☰. Protomaps daily builds come from
+OSM data, and they are free (attribution included).
 
 ## Cutting terrain shading for another area
 
