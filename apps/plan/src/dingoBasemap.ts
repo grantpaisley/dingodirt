@@ -31,12 +31,10 @@ export const DINGO_STYLE_ID = 'dingo'
 
 /** Shared tile archive location. The localStorage override key matches Nav's
  *  so one setting redirects every app on the device during dev/self-host.
- *  r2.dev is the R2 bucket's public development URL — TEMPORARY until the
- *  dingodirt.com DNS zone moves to Cloudflare, which unlocks the
- *  tiles.dingodirt.com custom domain (rate-unlimited + CDN cached). Flip
- *  this constant and Nav's DTILES.base together when that happens. */
+ *  tiles.dingodirt.com is the R2 bucket's custom domain (Cloudflare DNS,
+ *  CDN-cached, no rate limits — the bucket's r2.dev URL remains as a spare). */
 const TILES_BASE_KEY = 'dtiles-base'
-const DEFAULT_TILES_BASE = 'https://pub-728954c538a6497aab7edd02d980828f.r2.dev/'
+const DEFAULT_TILES_BASE = 'https://tiles.dingodirt.com/'
 
 function tilesBase(): string {
     try {
