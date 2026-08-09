@@ -2182,7 +2182,11 @@ function applyDetailBias(layersArr, level) {
     const out = { ...l };
     if (typeof out.minzoom === 'number') out.minzoom = Math.max(0, out.minzoom + bias);
     if (typeof out.maxzoom === 'number') out.maxzoom = Math.max(0, out.maxzoom + bias);
-    out.paint = shiftProps(out.paint); out.layout = shiftProps(out.layout);
+    // Guarded like the canonical copy: assigning `layout: undefined` fails
+    // MapLibre's style validation ("object expected, undefined found") and
+    // the whole setStyle silently keeps the old style.
+    if (out.paint) out.paint = shiftProps(out.paint);
+    if (out.layout) out.layout = shiftProps(out.layout);
     return out;
   });
 }
