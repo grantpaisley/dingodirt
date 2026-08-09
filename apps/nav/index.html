@@ -1341,10 +1341,7 @@ const STRAVA_BLANK = (() => {
    Design: Dingo/Docs/plans/2026-08-04-shared-tiles-pack-v2-design.md */
 const DTILES = {
   // localStorage override for dev/self-hosters, e.g. 'http://localhost:8123/'
-  // r2.dev = the bucket's public dev URL — TEMPORARY until dingodirt.com DNS
-  // moves to Cloudflare and tiles.dingodirt.com attaches to the bucket (flip
-  // together with Plan's DEFAULT_TILES_BASE in dingoBasemap.ts).
-  base: localStorage.getItem('dtiles-base') || 'https://pub-728954c538a6497aab7edd02d980828f.r2.dev/',
+  base: localStorage.getItem('dtiles-base') || 'https://tiles.dingodirt.com/',
   files: { basemap: 'basemap-au.pmtiles', hillshade: 'hillshade-au.pmtiles' },
   maxzoom: { basemap: 14, hillshade: 12 },
   remotes: {},
