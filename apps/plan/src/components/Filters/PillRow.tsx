@@ -340,7 +340,7 @@ export function PillRow() {
                     title="Add a filter"
                     onClick={() => setMenuOpen(!menuOpen)}
                 >
-                    <Plus size={12} />
+                    <Plus size={14} />
                 </button>
                 {menuOpen && (
                     <div className="pill-menu">

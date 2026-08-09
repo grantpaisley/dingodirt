@@ -1276,16 +1276,34 @@ select.export-input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 1px dashed var(--border-color);
+  width: 24px;
+  height: 24px;
+  /* The global button padding (0.6em 1.2em) is wider than the button itself,
+     which collapsed the content box and squashed the "+" to zero width — the
+     chip rendered as an empty capsule. */
+  padding: 0;
+  /* A dim --border-color dash on the dark pane was near-invisible. Keep the
+     dash (it still reads "add one", distinct from the solid value pills) but
+     draw it in accent over a faint accent wash so the chip is findable. */
+  border: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
   border-radius: 999px;
-  background: transparent;
-  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
-.pill-add-button:hover { color: white; border-color: var(--accent); }
+/* flex-shrink would squash the glyph again; the default stroke reads as a
+   hairline at this size. */
+.pill-add-button svg {
+  flex: none;
+  stroke-width: 2.75;
+}
+
+.pill-add-button:hover {
+  color: white;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
 
 .pill-menu,
 .pill-dropdown {

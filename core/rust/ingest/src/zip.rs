@@ -8,7 +8,7 @@
 
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
@@ -379,6 +379,200 @@ pub async fn process_generic_zip(
     }
 
     Ok(summary)
+}
+
+/// Track formats `ingest_file` can parse out of an archive.
+const TRACK_EXTS: [&str; 5] = ["gpx", "fit", "kml", "geojson", "tcx"];
+
+/// How deep to follow nested archives. A Garmin GDPR export nests two deep
+/// (export.zip → UploadedFiles_*.zip → *.fit, or → *_ACTIVITY.zip → *.fit);
+/// the rest of the budget is slack, and the cap stops a zip bomb.
+const MAX_NESTING: usize = 4;
+
+/// Unpack every track file in `zip_path` into `out_dir` and return the
+/// extracted paths. Nested archives are followed, and Strava's gzipped
+/// entries (`activities/123.gpx.gz`) are decompressed on the way out.
+///
+/// Each file lands in its own numbered subdirectory under its real basename,
+/// so `ingest_file` records the name the archive gave it and same-named
+/// entries from different folders don't collide.
+///
+/// Synchronous on purpose. The zip reader is `!Send`, so `ingest_zip` — which
+/// holds it across `.await` — can't run in an axum handler. Extracting first
+/// keeps the reader off the async path: callers on a runtime should
+/// `spawn_blocking` this, then feed the returned paths to `ingest_file`.
+pub fn extract_tracks(zip_path: &Path, out_dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut seq = 0usize;
+    extract_tracks_into(zip_path, out_dir, 0, &mut seq, &mut out)?;
+    Ok(out)
+}
+
+fn extract_tracks_into(
+    zip_path: &Path,
+    out_dir: &Path,
+    depth: usize,
+    seq: &mut usize,
+    out: &mut Vec<PathBuf>,
+) -> Result<()> {
+    let file = File::open(zip_path).map_err(Error::Io)?;
+    let mut archive = ZipArchive::new(file).map_err(|e| Error::InvalidInput(e.to_string()))?;
+
+    for i in 0..archive.len() {
+        let mut entry = match archive.by_index(i) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!(archive = %zip_path.display(), error = %e, "Skipping unreadable zip entry");
+                continue;
+            }
+        };
+        if entry.is_dir() {
+            continue;
+        }
+
+        let name = entry.name().to_string();
+        let lower = name.to_ascii_lowercase();
+        let gzipped = lower.ends_with(".gz");
+        let effective = lower.strip_suffix(".gz").unwrap_or(&lower);
+        let ext = effective.rsplit('.').next().unwrap_or("");
+
+        if ext == "zip" {
+            if depth >= MAX_NESTING {
+                warn!(entry = %name, depth, "Nested zip too deep — skipped");
+                continue;
+            }
+            let mut nested = NamedTempFile::with_suffix(".zip").map_err(Error::Io)?;
+            copy_entry(&mut entry, &mut nested, gzipped, &name)?;
+            extract_tracks_into(nested.path(), out_dir, depth + 1, seq, out)?;
+            continue;
+        }
+        if !TRACK_EXTS.contains(&ext) {
+            continue;
+        }
+
+        // Never join the entry name onto out_dir — archive paths can carry
+        // "../". Take the basename only, and give each one its own subdir.
+        let base = Path::new(effective)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("track");
+        let dir = out_dir.join(seq.to_string());
+        std::fs::create_dir_all(&dir).map_err(Error::Io)?;
+        let path = dir.join(base);
+        *seq += 1;
+
+        let mut file = File::create(&path).map_err(Error::Io)?;
+        copy_entry(&mut entry, &mut file, gzipped, &name)?;
+        file.flush().map_err(Error::Io)?;
+        out.push(path);
+    }
+
+    Ok(())
+}
+
+/// Copy one archive entry out, gunzipping it when the name says so.
+fn copy_entry<W: Write>(
+    entry: &mut zip::read::ZipFile<'_>,
+    sink: &mut W,
+    gzipped: bool,
+    name: &str,
+) -> Result<()> {
+    let copied = if gzipped {
+        std::io::copy(&mut flate2::read::GzDecoder::new(entry), sink)
+    } else {
+        std::io::copy(entry, sink)
+    };
+    copied
+        .map(|_| ())
+        .map_err(|e| Error::InvalidInput(format!("{name}: {e}")))
+}
+
+#[cfg(test)]
+mod extract_tests {
+    use super::*;
+    use std::io::Cursor;
+    use zip::write::{SimpleFileOptions, ZipWriter};
+
+    /// A zip built in memory from (name, bytes) pairs, stored uncompressed.
+    fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        for (name, bytes) in entries {
+            writer.start_file(*name, opts).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(bytes).unwrap();
+        enc.finish().unwrap()
+    }
+
+    fn names(paths: &[PathBuf]) -> Vec<String> {
+        let mut n: Vec<String> = paths
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        n.sort();
+        n
+    }
+
+    #[test]
+    fn extracts_nested_gzipped_and_ignores_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let inner = build_zip(&[("ride2.fit", b"fit-bytes")]);
+        let outer = build_zip(&[
+            ("tracks/ride1.gpx", b"<gpx/>"),
+            ("nested/inner.zip", &inner),
+            ("activities/ride3.gpx.gz", &gzip(b"<gpx>three</gpx>")),
+            ("README.txt", b"not a track"),
+        ]);
+        let zip_path = dir.path().join("outer.zip");
+        std::fs::write(&zip_path, &outer).unwrap();
+
+        let out = dir.path().join("out");
+        let got = extract_tracks(&zip_path, &out).unwrap();
+
+        assert_eq!(names(&got), ["ride1.gpx", "ride2.fit", "ride3.gpx"]);
+        // The .gz is decompressed on the way out, so ingest_file sees GPX.
+        let three = got.iter().find(|p| p.ends_with("ride3.gpx")).unwrap();
+        assert_eq!(std::fs::read(three).unwrap(), b"<gpx>three</gpx>");
+    }
+
+    #[test]
+    fn same_named_entries_do_not_collide() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("dup.zip");
+        std::fs::write(
+            &zip_path,
+            build_zip(&[("jan/ride.gpx", b"<gpx>a</gpx>"), ("feb/ride.gpx", b"<gpx>b</gpx>")]),
+        )
+        .unwrap();
+
+        let out = dir.path().join("out");
+        let got = extract_tracks(&zip_path, &out).unwrap();
+
+        assert_eq!(got.len(), 2);
+        assert_eq!(names(&got), ["ride.gpx", "ride.gpx"]);
+        assert_ne!(std::fs::read(&got[0]).unwrap(), std::fs::read(&got[1]).unwrap());
+    }
+
+    #[test]
+    fn traversal_entries_stay_inside_the_output_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("evil.zip");
+        std::fs::write(&zip_path, build_zip(&[("../../escaped.gpx", b"<gpx/>")])).unwrap();
+
+        let out = dir.path().join("out");
+        let got = extract_tracks(&zip_path, &out).unwrap();
+
+        assert_eq!(got.len(), 1);
+        assert!(got[0].starts_with(&out), "escaped to {}", got[0].display());
+        assert!(!dir.path().parent().unwrap().join("escaped.gpx").exists());
+    }
 }
 
 /// Main entry point for zip file ingestion

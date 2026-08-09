@@ -316,7 +316,7 @@ export function ListPane({ selectedIds, onSelect, onHover, bounds, onExport, onF
                 <button
                     className="list-toggle"
                     onClick={() => setImportOpen(true)}
-                    title="Import external GPX/FIT files with a source tag (wikiloc, DSRA, a mate…)"
+                    title="Import external GPX/FIT files, or a ZIP export (Garmin/Strava), with a source tag (wikiloc, DSRA, a mate…)"
                     style={{ marginLeft: 'auto', padding: '6px 8px' }}
                 >
                     <Upload size={12} style={{ verticalAlign: -2 }} />

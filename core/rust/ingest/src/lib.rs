@@ -27,4 +27,4 @@ pub use gpx::{GpxWaypoint, ParsedGpx, parse_gpx_file};
 pub use routes_import::{RoutesImportResult, import_routes};
 pub use service::{IngestResult, IngestSummary, ingest_directory, ingest_file};
 pub use track::{RideOrigin, Track, TrackPoint, TrackType};
-pub use zip::{ingest_zip, ingest_zip_limited};
+pub use zip::{extract_tracks, ingest_zip, ingest_zip_limited};
