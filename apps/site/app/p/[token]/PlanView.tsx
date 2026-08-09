@@ -661,7 +661,11 @@ export default function PlanView({
         )}
       </div>
       <div className="relative order-1 h-1/2 flex-1 md:order-2 md:h-full">
-        <div ref={mapDiv} className="absolute inset-0" />
+        {/* maplibre-gl.css loads at runtime after the app styles and its
+            .maplibregl-map { position: relative } outranks Tailwind's
+            .absolute by order, collapsing the container to height 0 —
+            the inline style keeps the map filling its parent. */}
+        <div ref={mapDiv} className="absolute inset-0" style={{ position: "absolute" }} />
         <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded border border-line bg-ink/90 text-xs">
           {Object.entries(BASEMAPS).map(([key, b]) => (
             <button
