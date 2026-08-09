@@ -110,68 +110,106 @@ async fn import_files(
     let mut file_rides: Vec<Vec<Uuid>> = Vec::new();
     let mut rides_created = 0usize;
     let mut all_ids: Vec<Uuid> = Vec::new();
-    for (name, path) in &saved {
-        if name.to_ascii_lowercase().ends_with(".zip") {
-            // ingest_zip's future is !Send (zip reader held across awaits) — it can't
-            // run in a web handler. Large archives should use the CLI path: drop them in
-            // the Inbox and run `dingo organize`. This allows the UI to accept ZIP
-            // selection but defer to the CLI for processing.
-            files.push(ImportedFile {
-                name: name.clone(),
-                rides: 0,
-                duplicate: false,
-                error: Some("ZIP archives: drop in the Inbox folder and run `dingo organize` from the CLI".into()),
-                stored: None,
-            });
-            file_rides.push(Vec::new());
-            continue;
-        }
-        let result = {
-            match dingo_ingest::ingest_file(&pool, &store, path, origin.clone()).await {
-                Ok(res) => {
-                    let ids: Vec<Uuid> = res.ride_ids.iter().map(|r| r.0).collect();
-                    all_ids.extend(ids.iter().copied());
-                    if !ids.is_empty() {
-                        if let Some(tag) = &source {
-                            sqlx::query("UPDATE rides SET source = $1 WHERE id = ANY($2)")
-                                .bind(tag)
-                                .bind(&ids)
-                                .execute(&pool)
-                                .await
-                                .map_err(internal)?;
-                        }
-                        if let Some(owner) = owner_id {
-                            sqlx::query("UPDATE rides SET owner_id = $1 WHERE id = ANY($2)")
-                                .bind(owner)
-                                .bind(&ids)
-                                .execute(&pool)
-                                .await
-                                .map_err(internal)?;
-                        }
-                    }
-                    rides_created += res.ride_ids.len();
-                    file_rides.push(ids);
-                    ImportedFile {
+    for (idx, (name, path)) in saved.iter().enumerate() {
+        // A zip is unpacked first, then its members go through the same
+        // per-file path. ingest_zip itself can't be called here — its future
+        // is !Send (the zip reader lives across awaits) — so extraction runs
+        // synchronously on a blocking thread and only plain paths come back.
+        let is_zip = name.to_ascii_lowercase().ends_with(".zip");
+        let members: Vec<std::path::PathBuf> = if is_zip {
+            let zip_path = path.clone();
+            let out_dir = scratch.join(format!("unzipped-{idx}"));
+            let extracted =
+                tokio::task::spawn_blocking(move || dingo_ingest::extract_tracks(&zip_path, &out_dir))
+                    .await
+                    .map_err(internal)?;
+            match extracted {
+                Ok(paths) if paths.is_empty() => {
+                    files.push(ImportedFile {
                         name: name.clone(),
-                        rides: res.ride_ids.len(),
-                        duplicate: res.was_duplicate,
-                        error: None,
+                        rides: 0,
+                        duplicate: false,
+                        error: Some("no GPX/FIT/TCX/KML/GeoJSON tracks in the archive".into()),
                         stored: None,
-                    }
-                }
-                Err(e) => {
+                    });
                     file_rides.push(Vec::new());
-                    ImportedFile {
+                    continue;
+                }
+                Ok(paths) => paths,
+                Err(e) => {
+                    files.push(ImportedFile {
                         name: name.clone(),
                         rides: 0,
                         duplicate: false,
                         error: Some(e.to_string()),
                         stored: None,
-                    }
+                    });
+                    file_rides.push(Vec::new());
+                    continue;
                 }
             }
+        } else {
+            vec![path.clone()]
         };
-        files.push(result);
+
+        // One result row per UPLOADED file: an archive's members are tallied
+        // into the row for the zip the user actually picked.
+        let mut ids: Vec<Uuid> = Vec::new();
+        let mut duplicates = 0usize;
+        let mut member_errors: Vec<String> = Vec::new();
+        for member in &members {
+            match dingo_ingest::ingest_file(&pool, &store, member, origin.clone()).await {
+                Ok(res) => {
+                    if res.was_duplicate {
+                        duplicates += 1;
+                    }
+                    ids.extend(res.ride_ids.iter().map(|r| r.0));
+                }
+                Err(e) => member_errors.push(e.to_string()),
+            }
+        }
+
+        if !ids.is_empty() {
+            if let Some(tag) = &source {
+                sqlx::query("UPDATE rides SET source = $1 WHERE id = ANY($2)")
+                    .bind(tag)
+                    .bind(&ids)
+                    .execute(&pool)
+                    .await
+                    .map_err(internal)?;
+            }
+            if let Some(owner) = owner_id {
+                sqlx::query("UPDATE rides SET owner_id = $1 WHERE id = ANY($2)")
+                    .bind(owner)
+                    .bind(&ids)
+                    .execute(&pool)
+                    .await
+                    .map_err(internal)?;
+            }
+        }
+
+        // A single file reports its own error verbatim; an archive reports a
+        // tally, since one bad entry among hundreds isn't the headline.
+        let error = match (is_zip, member_errors.len()) {
+            (_, 0) => None,
+            (false, _) => Some(member_errors.remove(0)),
+            (true, failed) => Some(format!(
+                "{failed} of {} files in the archive failed — first: {}",
+                members.len(),
+                member_errors[0],
+            )),
+        };
+
+        all_ids.extend(ids.iter().copied());
+        rides_created += ids.len();
+        files.push(ImportedFile {
+            name: name.clone(),
+            rides: ids.len(),
+            duplicate: duplicates == members.len(),
+            error,
+            stored: None,
+        });
+        file_rides.push(ids);
     }
     let _ = std::fs::remove_dir_all(&scratch);
 
