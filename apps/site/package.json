@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/sync-core.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/sync-core.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -18,6 +20,7 @@
     "drizzle-orm": "^0.45.2",
     "maplibre-gl": "^6.2.0",
     "next": "16.2.12",
+    "pmtiles": "^4.3.0",
     "next-auth": "^5.0.0-beta.32",
     "react": "19.2.4",
     "react-dom": "19.2.4"

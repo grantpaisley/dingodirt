@@ -582,13 +582,13 @@ async fn publish_plan(
     let rows = sqlx::query(
         r#"
         SELECT t.id, t.name, t.grade, t.mode, t.kind, t.region, t.state,
-               t.description, t.started_at,
+               t.description, t.started_at, t.color, t.collection,
                ST_Length(t.g::geography) AS distance_m,
                ST_AsGeoJSON(ST_SimplifyPreserveTopology(t.g, 0.002), 4) AS geometry
         FROM (
             SELECT r.id, r.name, r.grade, r.mode::text AS mode,
                    r.kind::text AS kind, r.region, r.state, r.description,
-                   r.started_at,
+                   r.started_at, r.color, r.collection,
                    CASE WHEN $2 THEN
                        ST_Difference(r.cleaned_geometry,
                            COALESCE((SELECT ST_Union(boundary) FROM privacy_zones),
@@ -628,6 +628,10 @@ async fn publish_plan(
             "started_at": r
                 .get::<Option<chrono::DateTime<chrono::Utc>>, _>("started_at")
                 .map(|t| t.to_rfc3339()),
+            // GOAT-import display colour + collection label, so the share
+            // page can render the original line colours (site parity doc).
+            "color": r.get::<Option<String>, _>("color"),
+            "collection": r.get::<Option<String>, _>("collection"),
             "geometry": geometry,
         }));
     }
@@ -659,6 +663,44 @@ async fn publish_plan(
         })
         .collect();
 
+    // POIs (fuel/camps/water… from route imports) within ~20 km of the plan's
+    // tracks — the share page can't reach the daemon, so the doc carries them
+    // (site parity doc). Degree-based ST_DWithin over simplified geometry,
+    // same style as the closures relevance filter; 0.18° ≈ 20 km.
+    let pois: Vec<serde_json::Value> = sqlx::query(
+        r#"
+        WITH t AS (
+            SELECT ST_Collect(ST_Simplify(cleaned_geometry, 0.01)) AS g
+            FROM rides
+            WHERE id = ANY($1) AND cleaned_geometry IS NOT NULL
+        )
+        SELECT p.id::text AS id,
+               ST_X(p.position) AS lon, ST_Y(p.position) AS lat,
+               p.name, p.description,
+               p.category::text AS category, p.collection
+        FROM pois p, t
+        WHERE t.g IS NOT NULL AND ST_DWithin(p.position, t.g, 0.18)
+        ORDER BY p.name
+        "#,
+    )
+    .bind(&ride_ids)
+    .fetch_all(&pool)
+    .await
+    .map_err(internal)?
+    .iter()
+    .map(|p| {
+        serde_json::json!({
+            "id": p.get::<String, _>("id"),
+            "lon": p.get::<f64, _>("lon"),
+            "lat": p.get::<f64, _>("lat"),
+            "name": p.get::<Option<String>, _>("name"),
+            "description": p.get::<Option<String>, _>("description"),
+            "category": p.get::<Option<String>, _>("category"),
+            "collection": p.get::<Option<String>, _>("collection"),
+        })
+    })
+    .collect();
+
     let doc = serde_json::json!({
         "format": "dingoplan",
         "schemaVersion": 1,
@@ -666,6 +708,7 @@ async fn publish_plan(
         "description": row.get::<Option<String>, _>("description"),
         "tracks": tracks,
         "marks": marks,
+        "pois": pois,
     });
     let bytes = serde_json::to_vec(&doc).map_err(internal)?;
 
@@ -705,6 +748,7 @@ async fn publish_plan(
         "bytes": bytes_len,
         "tracks": tracks.len(),
         "marks": marks.len(),
+        "pois": pois.len(),
     })))
 }
 
