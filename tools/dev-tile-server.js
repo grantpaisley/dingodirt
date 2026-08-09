@@ -7,7 +7,7 @@
 //     localStorage.setItem('dtiles-base', 'http://localhost:8787/')
 //
 // (same override key in Nav and Plan; remove the key to go back to the real
-// archive). Defaults to the central-coast dev tiles committed in Nav.
+// archive). Defaults to the central-coast dev tiles committed in Studio.
 //
 // Usage: node tools/dev-tile-server.js [port] [basemap.pmtiles] [hillshade.pmtiles]
 const http = require('http');
@@ -17,8 +17,9 @@ const path = require('path');
 const repo = path.join(__dirname, '..');
 const port = parseInt(process.argv[2] || '8787', 10);
 const FILES = {
-  '/basemap-au.pmtiles': process.argv[3] || path.join(repo, 'apps/nav/basemap/central-coast.pmtiles'),
-  '/hillshade-au.pmtiles': process.argv[4] || path.join(repo, 'apps/nav/basemap/hillshade.pmtiles'),
+  // Studio's committed dev tiles — Nav's copies were removed in the slim deploy.
+  '/basemap-au.pmtiles': process.argv[3] || path.join(repo, 'apps/studio/basemap/central-coast.pmtiles'),
+  '/hillshade-au.pmtiles': process.argv[4] || path.join(repo, 'apps/studio/basemap/hillshade.pmtiles'),
 };
 
 http.createServer((req, res) => {
