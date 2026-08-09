@@ -646,16 +646,10 @@ async fn publish_plan(
         .filter(|m| m.op == "add" && m.kind.as_deref().is_some_and(|k| k != "turn"))
         .map(|m| {
             let kind = m.kind.unwrap_or_default();
-            let icon = match kind.as_str() {
-                "camp" => "⛺",
-                "fuel" => "⛽",
-                "water" => "💧",
-                "pub" | "food" => "🍺",
-                _ => "📍",
-            };
+            let (name, icon) = mark_display(&kind);
             serde_json::json!({
                 "id": m.id,
-                "name": kind,
+                "name": name,
                 "icon": icon,
                 "lon": m.lo,
                 "lat": m.la,
@@ -813,6 +807,24 @@ async fn delete_pack(
     Ok(Json(serde_json::json!({ "deleted": id, "unpublished": unpublished })))
 }
 
+/// Share-page display for a mark kind: (name, icon). Marks carry no stored
+/// name — riders place kind-only waypoints in DingoNav — so the names mirror
+/// the MARKS labels in apps/nav/index.html.
+fn mark_display(kind: &str) -> (&str, &str) {
+    match kind {
+        "camp" => ("Camp", "⛺"),
+        "fuel" => ("Fuel", "⛽"),
+        "water" => ("Water", "💧"),
+        "creek" => ("Creek", "💧"),
+        "pub" | "food" => ("Pub / food", "🍺"),
+        "danger" => ("Danger !!!", "⚠️"),
+        "obstacle" => ("Obstacle", "🚧"),
+        "gate" => ("Gate", "🚧"),
+        "lookout" => ("Lookout", "🔭"),
+        other => (other, "📍"),
+    }
+}
+
 /// The bundled rides' derived turn cues in DingoNav's mark wire shape —
 /// deduped per (junction, dir) so two rides making the same movement ship
 /// one cue. Rejected junctions never ship; with the pack's privacy flag on,
@@ -871,4 +883,21 @@ fn haversine_m(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let (dp, dl) = ((lat2 - lat1).to_radians(), (lon2 - lon1).to_radians());
     let a = (dp / 2.0).sin().powi(2) + p1.cos() * p2.cos() * (dl / 2.0).sin().powi(2);
     2.0 * r * a.sqrt().atan2((1.0 - a).sqrt())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mark_display;
+
+    #[test]
+    fn mark_display_names_mirror_nav_labels() {
+        assert_eq!(mark_display("camp"), ("Camp", "⛺"));
+        assert_eq!(mark_display("fuel"), ("Fuel", "⛽"));
+        assert_eq!(mark_display("creek"), ("Creek", "💧"));
+        assert_eq!(mark_display("food"), ("Pub / food", "🍺"));
+        assert_eq!(mark_display("pub"), ("Pub / food", "🍺"));
+        assert_eq!(mark_display("danger"), ("Danger !!!", "⚠️"));
+        // Unknown kinds keep the raw slug so nothing renders blank.
+        assert_eq!(mark_display("weird"), ("weird", "📍"));
+    }
 }
