@@ -1,0 +1,18 @@
+/* core/ui/fonts.css — Barlow 400/500, vendored for offline use (Rule 9).
+ * Latin subset, woff2, ~31 KB total. Big Shoulders stays site-only. */
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/barlow-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/barlow-500.woff2') format('woff2');
+}

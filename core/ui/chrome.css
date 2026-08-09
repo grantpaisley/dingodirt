@@ -1,0 +1,292 @@
+/* core/ui/chrome.css — the design-language skins.
+ * Every class reads tokens.css only; no literal colours here.
+ * Class ↔ rule map is in README.md. */
+
+/* ---- base ---- */
+
+.dd-chrome {
+  font-family: var(--dd-font);
+  font-size: var(--dd-fs-body);
+  color: var(--dd-text);
+}
+
+/* ---- Rule 6: map-control stacks ---- */
+
+.dd-stack,
+.dd-single {
+  display: inline-flex;
+  flex-direction: column;
+  background: var(--dd-surface-1);
+  border: var(--dd-hairline) solid var(--dd-line);
+  border-radius: var(--dd-radius);
+  overflow: hidden;
+}
+
+.dd-stack > button,
+.dd-single > button,
+button.dd-single {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: var(--dd-control-size);
+  height: var(--dd-control-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--dd-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dd-stack > button + button {
+  border-top: var(--dd-hairline) solid var(--dd-line);
+}
+
+.dd-stack > button:active,
+.dd-single > button:active,
+button.dd-single:active {
+  background: var(--dd-surface-2);
+}
+
+button.dd-single {
+  background: var(--dd-surface-1);
+  border: var(--dd-hairline) solid var(--dd-line);
+  border-radius: var(--dd-radius);
+}
+
+/* ---- Rule 7: one toggle skin (pills and segs) ---- */
+
+.dd-pill,
+.dd-seg > button {
+  appearance: none;
+  margin: 0;
+  font: inherit;
+  font-size: var(--dd-fs-label);
+  color: var(--dd-text-dim);
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 14px;
+  min-height: calc(var(--dd-control-size) * 0.75);
+}
+
+.dd-pill {
+  border: var(--dd-hairline) solid var(--dd-line);
+  border-radius: 999px;
+}
+
+.dd-pill.is-active,
+.dd-seg > button.is-active {
+  background: var(--dd-toggle-fill);
+  color: var(--dd-on-toggle);
+  border-color: var(--dd-toggle-fill);
+}
+
+.dd-seg {
+  display: inline-flex;
+  background: var(--dd-surface-1);
+  border: var(--dd-hairline) solid var(--dd-line);
+  border-radius: var(--dd-radius);
+  overflow: hidden;
+}
+
+.dd-seg > button {
+  border: 0;
+}
+
+.dd-seg > button + button {
+  border-left: var(--dd-hairline) solid var(--dd-line);
+}
+
+/* ---- Rule 8: list rows, clay edge-bar selection ---- */
+
+.dd-row {
+  padding: 8px 10px;
+  border-left: var(--dd-select-bar) solid transparent;
+  color: var(--dd-text-dim);
+  font-size: var(--dd-fs-body);
+  cursor: pointer;
+  min-height: calc(var(--dd-control-size) * 0.75);
+  display: flex;
+  align-items: center;
+  gap: var(--dd-gap);
+}
+
+.dd-row.is-selected {
+  background: var(--dd-surface-2);
+  border-left-color: var(--dd-accent);
+  color: var(--dd-text);
+}
+
+/* ---- Rule 2: the Dialog frame ---- */
+
+.dd-dialog {
+  background: var(--dd-surface-1);
+  border: var(--dd-hairline) solid var(--dd-line);
+  border-radius: var(--dd-radius-frame);
+  padding: 16px;
+  max-width: 360px;
+  font-family: var(--dd-font);
+  color: var(--dd-text);
+}
+
+.dd-dialog > h2 {
+  margin: 0 0 6px;
+  font-size: var(--dd-fs-title);
+  font-weight: 500;
+}
+
+.dd-dialog > p {
+  margin: 0 0 12px;
+  font-size: var(--dd-fs-label);
+  color: var(--dd-text-dim);
+  line-height: 1.5;
+}
+
+.dd-dialog > footer {
+  display: flex;
+  gap: var(--dd-gap);
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.dd-dialog > footer > button {
+  appearance: none;
+  font: inherit;
+  font-size: var(--dd-fs-label);
+  padding: 6px 12px;
+  min-height: calc(var(--dd-control-size) * 0.75);
+  border-radius: calc(var(--dd-radius) - 2px);
+  border: var(--dd-hairline) solid var(--dd-line);
+  background: transparent;
+  color: var(--dd-text);
+  cursor: pointer;
+}
+
+.dd-dialog > footer > button.dd-primary {
+  background: var(--dd-accent); /* Rule 5: the primary action */
+  border-color: var(--dd-accent);
+  color: var(--dd-on-accent);
+}
+
+/* ---- Rules 2 + 4: the Sheet frame, orientation docking ---- */
+
+.dd-sheet {
+  background: var(--dd-surface-1);
+  border: var(--dd-hairline) solid var(--dd-line);
+  font-family: var(--dd-font);
+  color: var(--dd-text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dd-sheet > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: var(--dd-fs-body);
+  font-weight: 500;
+  border-bottom: var(--dd-hairline) solid var(--dd-line);
+}
+
+.dd-sheet > .dd-sheet-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dd-sheet > .dd-sheet-handle {
+  display: none;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--dd-text-dim);
+  margin: 6px auto 2px;
+}
+
+/* wider than tall → dock side, cap width (Rule 4) */
+@media (orientation: landscape) {
+  .dd-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(320px, 40vw);
+    border-right-width: var(--dd-hairline);
+    border-top-right-radius: var(--dd-radius-frame);
+    border-bottom-right-radius: var(--dd-radius-frame);
+  }
+}
+
+/* taller than wide → rise from the bottom with a drag handle */
+@media (orientation: portrait) {
+  .dd-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 55%;
+    border-top-left-radius: var(--dd-radius-frame);
+    border-top-right-radius: var(--dd-radius-frame);
+  }
+
+  .dd-sheet > .dd-sheet-handle {
+    display: block;
+  }
+
+  .dd-sheet.is-half {
+    max-height: 30%;
+  }
+}
+
+/* ---- Rule 10: readouts — bare text, mode-aware halo ---- */
+
+.dd-readout {
+  font-family: var(--dd-font);
+  font-size: var(--dd-fs-readout);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--dd-text);
+  text-shadow:
+    0 0 4px var(--dd-halo),
+    0 1px 2px var(--dd-halo),
+    0 -1px 2px var(--dd-halo),
+    1px 0 2px var(--dd-halo),
+    -1px 0 2px var(--dd-halo);
+}
+
+.dd-readout > small {
+  font-size: var(--dd-fs-label);
+  font-weight: 400;
+  color: var(--dd-text-dim);
+}
+
+/* ---- Rule 11: status and alert chips ---- */
+
+.dd-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--dd-font);
+  font-size: var(--dd-fs-label);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.dd-chip.ok    { background: var(--dd-status-ok);  color: var(--dd-on-status-ok); }
+.dd-chip.mid   { background: var(--dd-status-mid); color: var(--dd-on-status-mid); }
+.dd-chip.bad   { background: var(--dd-status-bad); color: var(--dd-on-status-bad); }
+
+.dd-alert {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--dd-font);
+  font-size: var(--dd-fs-label);
+  padding: 4px 10px;
+  border-radius: calc(var(--dd-radius) - 2px);
+}
+
+.dd-alert.ok   { background: var(--dd-alert-ok);   color: var(--dd-on-alert-ok); }
+.dd-alert.warn { background: var(--dd-alert-warn); color: var(--dd-on-alert-warn); }
+.dd-alert.bad  { background: var(--dd-alert-bad);  color: var(--dd-on-alert-bad); }

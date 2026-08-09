@@ -1,0 +1,72 @@
+/* core/ui/tokens.css — the Dingo design-language tokens.
+ * Rules 3, 5, 6, 9, 11 of docs/plans/2026-08-09-ui-element-taxonomy.md.
+ * Dark ("ink") is the default; light ("warm bone paper") flips via
+ * [data-mode="light"] on <html>. Glove mode is one flip: [data-glove]. */
+
+:root {
+  /* -- chrome palette (Rule 3, dark) -- */
+  --dd-surface-0: #141109; /* page / map chrome base */
+  --dd-surface-1: #1d1910; /* panels, sheets, dialogs */
+  --dd-surface-2: #272216; /* raised: selected rows, inputs */
+  --dd-line: #35301f;      /* hairline borders */
+  --dd-text: #ece4d2;      /* bone */
+  --dd-text-dim: #a89d83;
+  --dd-accent: #d96f32;    /* clay — two jobs only (Rule 5) */
+  --dd-accent-hot: #f28c4b;
+  --dd-on-accent: #2b1305;
+
+  /* toggles (Rule 7): active = bone fill, ink text */
+  --dd-toggle-fill: var(--dd-text);
+  --dd-on-toggle: #141109;
+
+  /* readout halo (Rule 10): bone text, ink halo in dark */
+  --dd-halo: #141109;
+
+  /* -- status triads (Rule 11) -- */
+  --dd-status-ok: #57a557;
+  --dd-status-mid: #c9a227;
+  --dd-status-bad: #8a4a42;
+  --dd-on-status-ok: #10230f;
+  --dd-on-status-mid: #2b2205;
+  --dd-on-status-bad: #f5ddd9;
+  --dd-alert-ok: #38d178;
+  --dd-alert-warn: #ffb020;
+  --dd-alert-bad: #ff4545;
+  --dd-on-alert-ok: #062b16;
+  --dd-on-alert-warn: #331f00;
+  --dd-on-alert-bad: #ffffff;
+
+  /* -- sizing (Rule 6) -- */
+  --dd-control-size: 40px;
+  --dd-radius: 8px;
+  --dd-radius-frame: 10px;
+  --dd-gap: 8px;
+  --dd-hairline: 1px;
+  --dd-select-bar: 3px; /* Rule 8 */
+
+  /* -- type (Rule 9) -- */
+  --dd-font: 'Barlow', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --dd-fs-label: 12px;
+  --dd-fs-body: 14px;
+  --dd-fs-title: 16px;
+  --dd-fs-readout: 26px;
+}
+
+:root[data-mode="light"] {
+  /* warm bone paper (Rule 3, light) */
+  --dd-surface-0: #ece4d2;
+  --dd-surface-1: #f6f1e4;
+  --dd-surface-2: #ffffff;
+  --dd-line: #cfc4a9;
+  --dd-text: #141109;
+  --dd-text-dim: #6d6450;
+  /* clay and status hues stay; toggle fill flips to ink */
+  --dd-toggle-fill: #141109;
+  --dd-on-toggle: #ece4d2;
+  /* readout halo flips: ink text, bone halo (Rule 10) */
+  --dd-halo: #ece4d2;
+}
+
+:root[data-glove] {
+  --dd-control-size: 56px; /* glove mode (Rule 6) */
+}

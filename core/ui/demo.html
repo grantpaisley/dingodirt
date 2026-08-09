@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>core/ui — living style sheet</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="chrome.css">
+<style>
+  body {
+    margin: 0;
+    background: var(--dd-surface-0);
+    font-family: var(--dd-font);
+    color: var(--dd-text);
+    padding: 24px;
+  }
+  h1 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
+  .sub { color: var(--dd-text-dim); font-size: 12px; margin: 0 0 20px; }
+  section { margin: 0 0 28px; }
+  section > h2 {
+    font-size: 13px; font-weight: 500; color: var(--dd-text-dim);
+    margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .rowgap { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .mapdemo {
+    position: relative; height: 280px; border-radius: var(--dd-radius-frame);
+    border: 1px solid var(--dd-line); overflow: hidden;
+    background: repeating-linear-gradient(115deg, #4a4433 0 26px, #565035 26px 28px);
+  }
+  :root[data-mode="light"] .mapdemo {
+    background: repeating-linear-gradient(115deg, #d8cfae 0 26px, #cbc29e 26px 28px);
+  }
+  .listdemo {
+    background: var(--dd-surface-1); border: 1px solid var(--dd-line);
+    border-radius: var(--dd-radius-frame); padding: 6px; width: 260px;
+  }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 20px; }
+</style>
+</head>
+<body class="dd-chrome">
+<h1>core/ui — living style sheet</h1>
+<p class="sub">Every class in chrome.css, on the tokens in tokens.css. Toggle the modes to prove both palettes and the glove flip.</p>
+
+<div class="toolbar">
+  <div class="dd-seg" id="modeSeg">
+    <button class="is-active" data-mode="">Dark</button>
+    <button data-mode="light">Light</button>
+  </div>
+  <div class="dd-seg" id="gloveSeg">
+    <button class="is-active" data-glove="">Normal</button>
+    <button data-glove="1">Glove</button>
+  </div>
+</div>
+
+<section>
+  <h2>Rule 6 — stacks and singles, on the map</h2>
+  <div class="mapdemo">
+    <div class="dd-stack" style="position:absolute; right:12px; top:12px;">
+      <button aria-label="Zoom in">+</button>
+      <button aria-label="Zoom out">−</button>
+      <button aria-label="Re-centre" style="color: var(--dd-accent);">◎</button>
+    </div>
+    <button class="dd-single" style="position:absolute; right:12px; bottom:12px;" aria-label="Layers">▤</button>
+    <div class="dd-readout" style="position:absolute; left:12px; bottom:12px;">27.5 <small>km/h</small><br><small>3.2 km to turn</small></div>
+    <span class="dd-alert bad" style="position:absolute; left:12px; top:12px;">off track 85 m</span>
+  </div>
+</section>
+
+<section>
+  <h2>Rules 7 + 11 — toggles, chips, alerts</h2>
+  <div class="rowgap" style="margin-bottom:12px;">
+    <button class="dd-pill is-active">Gravel</button>
+    <button class="dd-pill">MTB</button>
+    <button class="dd-pill is-active">SA</button>
+    <button class="dd-pill">Vic</button>
+    <div class="dd-seg">
+      <button class="is-active">Topo</button>
+      <button>Satellite</button>
+    </div>
+  </div>
+  <div class="rowgap">
+    <span class="dd-chip ok">yes 4</span>
+    <span class="dd-chip mid">maybe 1</span>
+    <span class="dd-chip bad">no 1</span>
+    <span class="dd-alert warn">GPS weak</span>
+    <span class="dd-alert bad">battery 5%</span>
+  </div>
+</section>
+
+<section>
+  <h2>Rule 8 — rows</h2>
+  <div class="listdemo">
+    <div class="dd-row">Wilpena traverse · 34 km</div>
+    <div class="dd-row is-selected">Palm Dale loop · 21 km</div>
+    <div class="dd-row">Wombat singletrack · 12 km</div>
+  </div>
+</section>
+
+<section>
+  <h2>Rules 2 + 5 — the Dialog frame</h2>
+  <div class="dd-dialog">
+    <h2>Export pack</h2>
+    <p>3 tracks, 2 marks. Pack v2, about 300 KB.</p>
+    <footer>
+      <button>Cancel</button>
+      <button class="dd-primary">Export</button>
+    </footer>
+  </div>
+</section>
+
+<section>
+  <h2>Rules 2 + 4 — the Sheet frame (docks by this viewport's orientation)</h2>
+  <div class="mapdemo">
+    <div class="dd-sheet">
+      <div class="dd-sheet-handle"></div>
+      <header>Tracks <span style="color:var(--dd-text-dim); font-weight:400;">✕</span></header>
+      <div class="dd-sheet-body">
+        <div class="dd-row is-selected">Palm Dale loop</div>
+        <div class="dd-row">Flinders day 2</div>
+        <div class="dd-row">Wombat singletrack</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const root = document.documentElement;
+  function seg(el, attr) {
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      el.querySelectorAll('button').forEach(x => x.classList.toggle('is-active', x === b));
+      const v = b.dataset[attr];
+      if (v) root.setAttribute('data-' + attr, v === '1' ? '' : v);
+      else root.removeAttribute('data-' + attr);
+    });
+  }
+  seg(document.getElementById('modeSeg'), 'mode');
+  seg(document.getElementById('gloveSeg'), 'glove');
+</script>
+</body>
+</html>
