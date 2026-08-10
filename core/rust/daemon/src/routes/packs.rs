@@ -650,7 +650,10 @@ async fn publish_plan(
             serde_json::json!({
                 "id": m.id,
                 "name": name,
+                // `icon` is the emoji fallback; `kind` lets the share page
+                // draw the same badge pins the Plan app uses.
                 "icon": icon,
+                "kind": kind,
                 "lon": m.lo,
                 "lat": m.la,
             })
