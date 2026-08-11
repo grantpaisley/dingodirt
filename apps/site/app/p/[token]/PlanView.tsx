@@ -17,6 +17,13 @@ import {
   ensurePmtilesProtocol,
   type DetailLevel,
 } from "./dingoStyle";
+import {
+  PIN_CATEGORIES,
+  addPinImages,
+  markCategory,
+  pinDataUrl,
+  pinMeta,
+} from "./pinIcons";
 
 // The npm maplibre build spawns its worker via module URLs the bundler
 // rewrites into 404s (map silently never renders), so like Nav and Studio
@@ -71,7 +78,10 @@ export interface PlanTrack {
 export interface PlanMark {
   id: string;
   name: string;
+  /** Emoji fallback the doc has carried since the first plan publish. */
   icon?: string | null;
+  /** Raw DingoNav mark kind — picks the badge. Absent on older docs. */
+  kind?: string | null;
   lon: number;
   lat: number;
 }
@@ -162,21 +172,17 @@ const VERDICT_COLORS: Record<string, string> = {
   none: "#8a8177",
 };
 
-// POI categories — colours/labels/emoji mirror Plan's poiIcons.ts.
-const POI_META: Record<string, { label: string; color: string; emoji: string }> = {
-  fuel: { label: "Fuel", color: "#e67e22", emoji: "⛽" },
-  camp: { label: "Camping", color: "#2e9e4f", emoji: "⛺" },
-  water: { label: "Water", color: "#2f8fd6", emoji: "💧" },
-  food: { label: "Food & drink", color: "#d65a8c", emoji: "🍺" },
-  lodging: { label: "Lodging", color: "#8e6ae0", emoji: "🛏️" },
-  medical: { label: "Medical", color: "#d64545", emoji: "🚑" },
-  hazard: { label: "Hazard", color: "#e0b428", emoji: "⚠️" },
-  info: { label: "Info", color: "#6b7f95", emoji: "ℹ️" },
-  summit: { label: "Summit", color: "#7a5c3e", emoji: "⛰️" },
-  scenic: { label: "Scenic", color: "#3aa6a0", emoji: "📷" },
-  poi: { label: "Other POI", color: "#8a8a8a", emoji: "📍" },
-};
-const poiMeta = (cat?: string | null) => POI_META[cat ?? "poi"] ?? POI_META.poi;
+/** Badge pin, at the size the list rows and cards want. */
+const PinBadge = ({ category, size = 18 }: { category: string; size?: number }) => (
+  // eslint-disable-next-line @next/next/no-img-element -- canvas data URL
+  <img
+    src={pinDataUrl(category)}
+    alt=""
+    width={size}
+    height={size}
+    className="shrink-0"
+  />
+);
 
 // Closure status colours — mirror Plan's CLOSURE_COLORS.
 const CLOSURE_COLORS: Record<string, string> = {
@@ -420,11 +426,21 @@ export default function PlanView({
   const poiFC = useMemo(
     () => ({
       type: "FeatureCollection" as const,
-      features: (doc.pois ?? []).map((p, i) => ({
-        type: "Feature" as const,
-        properties: { idx: i, category: p.category ?? "poi" },
-        geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
-      })),
+      features: (doc.pois ?? []).map((p, i) => {
+        // Resolve here, not in the layer expression: an unknown category
+        // would ask maplibre for a `pin-*` image that was never added, and
+        // the pin would silently vanish.
+        const category = PIN_CATEGORIES[p.category ?? "poi"] ? p.category! : "poi";
+        return {
+          type: "Feature" as const,
+          properties: {
+            idx: i,
+            category,
+            priority: pinMeta(category).priority,
+          },
+          geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
+        };
+      }),
     }),
     [doc.pois],
   );
@@ -554,8 +570,8 @@ export default function PlanView({
   // ---- overlay visibility toggles ----
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.getLayer("pois-circles")) return;
-    map.setLayoutProperty("pois-circles", "visibility", showPois ? "visible" : "none");
+    if (!map || !map.getLayer("pois-icons")) return;
+    map.setLayoutProperty("pois-icons", "visibility", showPois ? "visible" : "none");
   }, [showPois]);
   useEffect(() => {
     const map = mapRef.current;
@@ -715,28 +731,26 @@ export default function PlanView({
         },
       });
 
-      // POI pins (top): category-coloured dots, min zoom keeps a zoomed-out
-      // map from drowning in them.
+      // POI pins (top): the Plan app's badge icons, min zoom keeps a
+      // zoomed-out map from drowning in them. Icons collide rather than
+      // stack, and the lowest sort key wins — fuel and camps outrank a
+      // generic pin in a crowded corridor, as they do in Plan.
+      addPinImages(map);
       map.addSource("pois", {
         type: "geojson",
         data: poiFC as GeoJSON.FeatureCollection,
       });
       map.addLayer({
-        id: "pois-circles",
-        type: "circle",
+        id: "pois-icons",
+        type: "symbol",
         source: "pois",
         minzoom: 6,
-        layout: { visibility: showPois ? "visible" : "none" },
-        paint: {
-          "circle-color": ([
-            "match",
-            ["get", "category"],
-            ...Object.entries(POI_META).flatMap(([k, m]) => [k, m.color]),
-            POI_META.poi.color,
-          ]) as unknown as maplibreNs.ExpressionSpecification,
-          "circle-radius": 5,
-          "circle-stroke-color": "#fffbf2",
-          "circle-stroke-width": 1.5,
+        layout: {
+          visibility: showPois ? "visible" : "none",
+          "icon-image": ["concat", "pin-", ["get", "category"]],
+          "icon-size": 0.75,
+          "icon-padding": 2,
+          "symbol-sort-key": ["get", "priority"],
         },
       });
 
@@ -744,14 +758,14 @@ export default function PlanView({
       map.on("click", (e) => {
         const hits = map.queryRenderedFeatures(e.point, {
           layers: [
-            "pois-circles",
+            "pois-icons",
             "closures-line",
             "closures-point",
             "track-active",
             "tracks",
           ].filter((l) => !!map.getLayer(l)),
         });
-        const poiHit = hits.find((h) => h.layer.id === "pois-circles");
+        const poiHit = hits.find((h) => h.layer.id === "pois-icons");
         if (poiHit) {
           const poi = doc.pois?.[poiHit.properties.idx as number];
           if (poi) {
@@ -776,7 +790,7 @@ export default function PlanView({
           if (t) toggleTrack(t, false);
         }
       });
-      const pointerLayers = ["tracks", "track-active", "pois-circles", "closures-line", "closures-point"];
+      const pointerLayers = ["tracks", "track-active", "pois-icons", "closures-line", "closures-point"];
       for (const l of pointerLayers) {
         map.on("mouseenter", l, () => {
           map.getCanvas().style.cursor = "pointer";
@@ -795,11 +809,14 @@ export default function PlanView({
         map.fitBounds(bounds, { padding: 40 });
       }
 
+      // Marks stay DOM markers — they always sit above the POI symbols and
+      // a click scrolls the list to the matching row — but they wear the
+      // same badge the POI pins do.
       for (const m of doc.marks ?? []) {
-        const el = document.createElement("div");
-        el.textContent = m.icon || "⛺";
+        const el = document.createElement("img");
+        el.src = pinDataUrl(markCategory(m.kind, m.name));
         el.style.cssText =
-          "font-size:20px;cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.6)";
+          "width:26px;height:26px;cursor:pointer;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))";
         el.title = m.name;
         el.onclick = () =>
           document
@@ -1054,8 +1071,8 @@ export default function PlanView({
                   }
                   className="cursor-pointer border-b border-line px-4 py-2.5 transition-colors hover:bg-ink-2/60"
                 >
-                  <div className="text-sm text-bone">
-                    <span className="mr-2">{m.icon || "⛺"}</span>
+                  <div className="flex items-center gap-2 text-sm text-bone">
+                    <PinBadge category={markCategory(m.kind, m.name)} />
                     {m.name}
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
@@ -1183,7 +1200,7 @@ export default function PlanView({
           const left = Math.min(Math.max(poiCard.x - cardW / 2, 8), mapW() - cardW - 8);
           const showAbove = poiCard.y > 220;
           const p = poiCard.poi;
-          const meta = poiMeta(p.category);
+          const meta = pinMeta(p.category);
           return (
             <div
               className="absolute z-20 rounded-lg border border-line bg-ink/95 p-3 text-xs text-bone shadow-xl"
@@ -1203,7 +1220,7 @@ export default function PlanView({
                 ×
               </button>
               <div className="flex items-center gap-2 pr-4">
-                <span>{meta.emoji}</span>
+                <PinBadge category={p.category ?? "poi"} size={20} />
                 <span className="font-semibold">{p.name || meta.label}</span>
               </div>
               <div className="mt-1 text-bone-dim">
