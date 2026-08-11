@@ -67,6 +67,9 @@ test('every app reaches presets through a symlink into core/', () => {
 
 test('no app has vendored its own preset or applier copy', () => {
   const allowed = new Set(LINKS.map(([l]) => join(REPO, l)));
+  // apps/site can't use symlinks (Next bundling), so scripts/sync-core.mjs
+  // copies core/appliers into this gitignored dir on predev/prebuild.
+  const syncOutput = new Set([join(APPS, 'site', 'lib', 'core')]);
   const strays = [];
 
   const walk = (dir) => {
@@ -75,6 +78,7 @@ test('no app has vendored its own preset or applier copy', () => {
       // don't descend into build output or dependencies
       if (['node_modules', 'dist', '.next', 'target', '.git', 'vendor', 'basemap'].includes(entry.name)) continue;
       if (allowed.has(abs)) continue;
+      if (syncOutput.has(abs)) continue;
 
       if (entry.isSymbolicLink()) {
         // a symlink we didn't declare is still drift — flag it
