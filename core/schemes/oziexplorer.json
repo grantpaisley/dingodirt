@@ -47,7 +47,7 @@
     "hud.dim": "#5a5a52",
     "hud.accent": "#000080",
     "hud.ok": "#008000",
-    "hud.warn": "#cc9900",
+    "hud.warn": "#806600",
     "hud.bad": "#cc0000",
     "hud.arrow": "#cc2929",
     "hud.arrowOp": 0.8
@@ -75,7 +75,7 @@
     "hud.bg": "#0d0a06",
     "hud.panel": "#1a140c",
     "hud.text": "#e0b060",
-    "hud.dim": "#8a733f",
+    "hud.dim": "#9d854e",
     "hud.accent": "#cc9933",
     "hud.warn": "#ffaa00",
     "hud.bad": "#ff3300",

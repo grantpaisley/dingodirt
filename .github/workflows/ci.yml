@@ -78,9 +78,11 @@ jobs:
         with:
           node-version: 24
       # No dependencies at the repo root, so no npm ci — node --test is built in.
-      # Includes the UI contrast guard (tests/contrast.test.mjs) — report-only
-      # for now; set CONTRAST_ENFORCE=1 here to make low-contrast pairs block.
+      # CONTRAST_ENFORCE=1 makes the UI contrast guard (tests/contrast.test.mjs)
+      # block the merge on any low-contrast fg/bg pair.
       - run: node --test tests/*.test.mjs
+        env:
+          CONTRAST_ENFORCE: '1'
 
   rust:
     name: Rust — check & test
