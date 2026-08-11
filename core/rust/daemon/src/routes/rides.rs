@@ -126,6 +126,17 @@ pub struct RideDetail {
     pub original_name: Option<String>,
     /// Original filename as uploaded/ingested (files.original_name)
     pub file_name: Option<String>,
+    /// Built by the namer from geography, distance, time and date
+    pub generated_name: Option<String>,
+    /// Typed by the user; the namer never touches it
+    pub custom_name: Option<String>,
+    /// Which of the four variants `name` currently shows:
+    /// original | filename | generated | custom
+    pub name_source: String,
+    /// Variants that are worthless boilerplate ("cycling", "Active Log: ...").
+    /// The picker greys these out rather than hiding them — a junk value is
+    /// still the honest content of that variant.
+    pub junk_variants: Vec<String>,
     pub imported_at: chrono::DateTime<chrono::Utc>,
     /// Source folder when genuinely known (CLI ingest/organize). NULL for web
     /// uploads — the browser only reveals the filename, and the recorded
@@ -186,6 +197,8 @@ pub fn routes() -> Router {
         .route("/stats", get(ride_stats))
         .route("/locations", get(ride_locations))
         .route("/plan", axum::routing::post(create_plan))
+        .route("/name-source", axum::routing::patch(set_name_source))
+        .route("/{id}/name", axum::routing::patch(rename_ride))
         .route("/{id}", get(get_ride).patch(update_ride_mode))
         .route("/{id}/points", get(get_ride_points))
 }
@@ -275,18 +288,147 @@ async fn create_plan(
 
     // Locality attributes (state/region/LGAs/suburbs) so the plan shows up in
     // Places and search. Best-effort: an empty gazetteer just leaves them
-    // NULL. The naming pass may generate a name, so the user's is re-asserted.
+    // NULL. The naming pass fills `generated_name` only, so the name typed
+    // here survives it — but it is still recorded as 'custom' so the pass can
+    // never claim it, and so the auto name stays available to switch to.
     if let Err(e) = dingo_enrich::name_unlocated_rides(&pool).await {
         tracing::warn!(error = %e, "plan locality naming failed (gazetteer empty?)");
     }
-    sqlx::query("UPDATE rides SET name = $1, name_source = 'original' WHERE id = $2")
-        .bind(name)
-        .bind(ride_id.0)
-        .execute(&pool)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    sqlx::query(
+        "UPDATE rides SET custom_name = $1, name_source = 'custom',
+                name = resolve_ride_name('custom', original_name, filename,
+                                         generated_name, $1)
+          WHERE id = $2",
+    )
+    .bind(name)
+    .bind(ride_id.0)
+    .execute(&pool)
+    .await
+    .map_err(|e| internal(e.to_string()))?;
 
     Ok(Json(serde_json::json!({ "id": ride_id.0, "name": name })))
+}
+
+/// The four name variants, in the order the picker lists them.
+const NAME_VARIANTS: [&str; 4] = ["original", "filename", "generated", "custom"];
+
+/// Which variants hold boilerplate not worth displaying. Grant's library has
+/// ~29k rides whose `original_name` is a FIT sport string, an "Active Log:"
+/// default, a bare date, or a generated name that leaked back in — so the
+/// picker needs to say which options are duds before he picks one.
+fn junk_variants(row: &sqlx::postgres::PgRow) -> Vec<String> {
+    let column_for = |variant: &str| match variant {
+        "original" => "original_name",
+        "filename" => "file_name",
+        "generated" => "generated_name",
+        _ => "custom_name",
+    };
+    NAME_VARIANTS
+        .iter()
+        .filter(|variant| {
+            // The generated name is descriptive by construction. It is also
+            // the one thing is_junk_name's "a generated name leaked into
+            // original_name" rule (" kms " + " on 2") matches every time, so
+            // asking the question here would always answer yes.
+            if **variant == "generated" {
+                return false;
+            }
+            let value: Option<String> = row.get(column_for(variant));
+            // An absent variant is already shown as "—" and disabled; calling
+            // it junk as well is just noise.
+            value.as_deref().is_some_and(|v| !v.trim().is_empty())
+                && dingo_core::is_junk_name(value.as_deref())
+        })
+        .map(|v| v.to_string())
+        .collect()
+}
+
+/// Re-point one or more rides at a different name variant. The variant values
+/// themselves are never touched — only which one displays — so this is
+/// reversible and loses nothing.
+#[derive(Debug, Deserialize)]
+pub struct SetNameSourceBody {
+    pub ride_ids: Vec<Uuid>,
+    pub name_source: String,
+}
+
+async fn set_name_source(
+    Extension(pool): Extension<PgPool>,
+    Json(body): Json<SetNameSourceBody>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    if !NAME_VARIANTS.contains(&body.name_source.as_str()) {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            format!(
+                "name_source must be one of {}",
+                NAME_VARIANTS.join(", ")
+            ),
+        ));
+    }
+    if body.ride_ids.is_empty() {
+        return Ok(Json(serde_json::json!({ "updated": 0 })));
+    }
+
+    let updated = sqlx::query(
+        r#"
+        UPDATE rides SET
+            name_source = $2::ride_name_source,
+            name = resolve_ride_name($2, original_name, filename,
+                                     generated_name, custom_name)
+        WHERE id = ANY($1)
+        "#,
+    )
+    .bind(&body.ride_ids)
+    .bind(&body.name_source)
+    .execute(&pool)
+    .await
+    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .rows_affected();
+
+    Ok(Json(serde_json::json!({ "updated": updated })))
+}
+
+/// Rename a single ride. The typed name becomes the `custom` variant, so the
+/// generated and ingested names stay available to switch back to.
+#[derive(Debug, Deserialize)]
+pub struct RenameRideBody {
+    pub name: String,
+}
+
+async fn rename_ride(
+    Extension(pool): Extension<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RenameRideBody>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    let name = body.name.trim();
+    if name.is_empty() {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "name must not be empty".into(),
+        ));
+    }
+
+    let resolved: Option<String> = sqlx::query_scalar(
+        r#"
+        UPDATE rides SET
+            custom_name = $2,
+            name_source = 'custom',
+            name = resolve_ride_name('custom', original_name, filename,
+                                     generated_name, $2)
+        WHERE id = $1
+        RETURNING name
+        "#,
+    )
+    .bind(id)
+    .bind(name)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match resolved {
+        Some(name) => Ok(Json(serde_json::json!({ "id": id, "name": name }))),
+        None => Err((axum::http::StatusCode::NOT_FOUND, "ride not found".into())),
+    }
 }
 
 /// One leaf of the location hierarchy: the distinct
@@ -668,7 +810,10 @@ async fn get_ride(
                      '{}'::uuid[]) as label_ids,
             r.owner_id, o.name as owner_name, o.kind as owner_kind,
             r.original_name,
-            f.original_name as file_name,
+            COALESCE(r.filename, f.original_name) as file_name,
+            r.generated_name,
+            r.custom_name,
+            r.name_source::text as name_source,
             f.source_path,
             r.imported_at,
             r.exported_path as library_path,
@@ -715,6 +860,10 @@ async fn get_ride(
                 },
                 original_name: row.get("original_name"),
                 file_name: row.get("file_name"),
+                generated_name: row.get("generated_name"),
+                custom_name: row.get("custom_name"),
+                name_source: row.get("name_source"),
+                junk_variants: junk_variants(&row),
                 imported_at: row.get("imported_at"),
                 imported_from: imported_from_folder(
                     row.get::<Option<String>, _>("source_path").as_deref(),
