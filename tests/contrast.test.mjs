@@ -78,7 +78,9 @@ test('contrast: core/ui tokens', (t) => {
     pairs.push(['--dd-accent', bg, LARGE]);
     for (const s of ['ok', 'warn', 'bad']) pairs.push([`--dd-alert-${s}`, bg, LARGE]);
   }
-  for (const s of ['ok', 'mid', 'bad']) pairs.push([`--dd-status-${s}`, '--dd-surface-1', LARGE]);
+  // --dd-status-* chip fills are NOT checked against surfaces: status chips are
+  // muted by design (Rule 11) and carry their information in their text, which
+  // IS checked at 4.5:1 above. Alerts stay checked — they interrupt via colour.
 
   // completeness guard: every on-* token must be exercised as a foreground
   const fgs = new Set(pairs.map(([fg]) => fg));

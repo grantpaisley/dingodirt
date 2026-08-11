@@ -34,7 +34,7 @@
   --dd-alert-bad: #ff4545;
   --dd-on-alert-ok: #062b16;
   --dd-on-alert-warn: #331f00;
-  --dd-on-alert-bad: #ffffff;
+  --dd-on-alert-bad: #2b0505; /* dark-on-vivid like its siblings — white failed 3.4:1 */
 
   /* -- sizing (Rule 6) -- */
   --dd-control-size: 40px;
@@ -60,11 +60,25 @@
   --dd-line: #cfc4a9;
   --dd-text: #141109;
   --dd-text-dim: #6d6450;
-  /* clay and status hues stay; toggle fill flips to ink */
+  /* status hues stay (muted chips carry their info in their text); toggle
+     fill flips to ink */
   --dd-toggle-fill: #141109;
   --dd-on-toggle: #ece4d2;
   /* readout halo flips: ink text, bone halo (Rule 10) */
   --dd-halo: #ece4d2;
+
+  /* clay and the alert triad darken for paper — the dark-mode hues sit at
+     1.5–2.7:1 on bone (WCAG needs 3:1). Text on the darker fills flips to
+     white; dark text fails on them. Measured by tests/contrast.test.mjs. */
+  --dd-accent: #b34e1b;
+  --dd-accent-hot: #9a3f12; /* hover darkens on light, as clay-hot lightens on ink */
+  --dd-on-accent: #ffffff;
+  --dd-alert-ok: #1e7a44;
+  --dd-alert-warn: #9a6b00;
+  --dd-alert-bad: #c22a2a;
+  --dd-on-alert-ok: #ffffff;
+  --dd-on-alert-warn: #ffffff;
+  --dd-on-alert-bad: #ffffff;
 }
 
 :root[data-glove] {

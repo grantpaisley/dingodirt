@@ -473,7 +473,11 @@
      light panel with white controls and green switches, dark speed text with a
      light halo (white failed 1.8:1 on day maps), frosted turn strip, and no
      riding fade — light plates are already quiet. Night chrome is untouched. */
-  body.daymode{--accent:#007AFF; --navOp:1}
+  body.daymode{--accent:#007AFF; --navOp:1;
+    /* status hues darken for light plates (night values sit at 1.6-3.0:1).
+       Chosen to also keep the fixed button-text inks readable: #04240f on
+       --ok and #231a00 on --warn stay over 4.5:1, white on --bad hits 5.7. */
+    --ok:#1b9750; --warn:#b57a00; --bad:#c22a2a}
   body.daymode #bottom{--fg:#15202b; --dim:#5a6a78; color:var(--fg);
     background:rgba(245,247,249,.96); border-top-color:#ccd5dd}
   body.daymode .ctl{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
