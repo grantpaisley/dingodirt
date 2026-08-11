@@ -78,6 +78,8 @@ jobs:
         with:
           node-version: 24
       # No dependencies at the repo root, so no npm ci — node --test is built in.
+      # Includes the UI contrast guard (tests/contrast.test.mjs) — report-only
+      # for now; set CONTRAST_ENFORCE=1 here to make low-contrast pairs block.
       - run: node --test tests/*.test.mjs
 
   rust:
