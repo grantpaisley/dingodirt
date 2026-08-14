@@ -71,10 +71,8 @@
   #hudSpeed.on{display:block} #hudSpeed small{font-size:50px; color:var(--fg); font-weight:600}
   #hudSpeed.cd{color:var(--warn)} #hudSpeed.cd small{color:var(--warn)}
   #hudSpeed.low{color:var(--bad)}
-  /* riding: N owns the top-left corner — the speed readout sits below it, slightly inboard,
-     with the hold pill stacked underneath */
+  /* riding: N owns the top-left corner — the speed readout sits below it, slightly inboard */
   body.navving #hudSpeed{top:calc(env(safe-area-inset-top) + 106px); left:16px}
-  body.navving #holdPill{top:calc(env(safe-area-inset-top) + 256px)}
   /* Stark Varg pill — the SECOND number slot: it carries whatever the big left readout
      didn't take (battery if the big one is speed, speed if the big one is battery). Sits
      immediately left of the box button and matches its height, so the two read as one row.
@@ -288,7 +286,7 @@
     display:flex; align-items:flex-end; justify-content:space-between; padding:0 10px; pointer-events:none}
   #baseRow .ctl, #baseRow #startBtn{pointer-events:auto}
   /* the dot is the one round face — centre-on-me. It only shows once the map is away
-     from you (drag, the box button); its slot is HELD while hidden so ☰ − + never move */
+     from you (drag, pinch zoom, the box button); its slot is HELD while hidden so ☰ − + never move */
   body.following #baseRow #dotBtn{opacity:0; pointer-events:none} /* two ids: outranks the navving idle-fade opacity */
   #dotBtn{transition:opacity .2s}
   body:not(.portrait) #baseRow #dotBtn{width:96px; height:96px; border-radius:50%; font-size:44px}
@@ -334,20 +332,14 @@
   body.navving #gloveBtn:active{opacity:1}
   body.navving #cueEditBtn{display:none !important} /* planning-only */
   #cueEditBtn.active{border-color:var(--warn); color:var(--warn)}
-  /* stacked under the speed readout, clear of the glance card (top centre) */
-  #holdPill{position:fixed; top:64px; left:12px; z-index:14;
-    display:none; padding:6px 14px; border-radius:999px; font-size:14px; color:var(--fg);
-    background:rgba(22,28,34,.75); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent)}
-  #holdPill.on{display:block}
   #north{position:fixed; left:12px; bottom:120px; z-index:10; width:88px; height:88px; border-radius:50%;
     background:rgba(22,28,34,.9); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); display:flex; align-items:center; justify-content:center;
     font-weight:800; color:var(--bad); font-size:30px; cursor:pointer}
-  #north.course{border-color:var(--accent)}
   #north.oriented{border-color:var(--warn); color:var(--warn)}
   #northInner{display:flex; flex-direction:column; align-items:center; line-height:1; will-change:transform}
   #northInner::before{content:''; width:0; height:0; border:8px solid transparent; border-bottom:14px solid var(--bad); margin-bottom:2px}
-  /* only the north-up marker carries the little needle; course/compass show their own glyph */
-  #north.course #northInner::before, #north.oriented #northInner::before{display:none}
+  /* only the north-up marker carries the little needle; compass shows its own glyph */
+  #north.oriented #northInner::before{display:none}
 
   /* ---------- ☰ menu: the whole screen becomes a grid of fat tiles — no panel-over-map
      compromise. One tap in, one tap out (or on empty space), auto-closes after ~8 s. ---------- */
@@ -663,7 +655,6 @@
     #hudSpeed{font-size:76px; padding:0 6px} #hudSpeed small{font-size:30px}
     /* shrunk corner buttons → the readouts tuck under them sooner */
     body.navving #hudSpeed{top:calc(env(safe-area-inset-top) + 64px); left:12px}
-    body.navving #holdPill{top:calc(env(safe-area-inset-top) + 148px)}
     #vargModeBig{font-size:76px; top:calc(env(safe-area-inset-top) + 64px); right:12px}
     #vargModeDetail{font-size:16px; column-gap:8px}
     body.navving #vargInd{top:calc(env(safe-area-inset-top) + 70px)}
@@ -817,7 +808,7 @@
   <div id="hudTxt"><div id="hudType">next turn</div><div id="hudRoad"></div></div>
   <div id="hudDist">— <small>m</small></div>
 </div></div>
-<div id="hudSpeed">0 <small>km/h</small></div>
+<div id="hudSpeed">0</div>
 <div id="muteBtn" title="mute / unmute"><svg class="ic"><use href="#i-volume-2"/></svg></div>
 <div id="vargPill" title="Stark Varg — tap for full telemetry"><span id="vargSoc"><svg class="ic"><use href="#i-battery-medium"/></svg> —%</span><span class="vm" id="vargMode"></span></div>
 <div id="vargInd">
@@ -874,8 +865,8 @@
   <div id="trainBtns"><button id="trainOk">Got it</button><span id="trainSkip">can't do this here — skip</span></div>
 </div>
 
-<div id="north" title="cycle north-up / course-up / compass"><span id="northInner">N</span></div>
-<div class="ctl" id="orientCtl" title="north-up / course-up / compass"><span id="orientNeedle"></span><span id="orientGlyph">N</span></div>
+<div id="north" title="north-up / compass"><span id="northInner">N</span></div>
+<div class="ctl" id="orientCtl" title="north-up / compass"><span id="orientNeedle"></span><span id="orientGlyph">N</span></div>
 <div class="ctl" id="boxBtn" title="see the whole track"><svg class="ic"><use href="#i-square"/></svg></div>
 <div id="baseRow">
   <div class="ctl" id="menuBtn" title="menu"><svg class="ic"><use href="#i-menu"/></svg></div>
@@ -900,7 +891,6 @@
   <div class="schSec">Look — .dingoscheme</div><div id="schSchemes" class="schGrid"></div>
   <div class="schSec">Behaviour — .dingobehavior</div><div id="schBehaviors" class="schGrid"></div>
 </div>
-<div id="holdPill" title="auto-zoom held — tap to release">⤢ held</div>
 
 <!-- Startup / readiness screen. `loading` is in the MARKUP so the card paints before
      the app script runs. The card is up while boot is working OR while first-run
@@ -961,7 +951,6 @@
   <div class="gtile" id="gLayers"><div class="gi"><svg class="ic"><use href="#i-layers"/></svg></div><div class="gl">Day</div></div>
   <div class="gtile" id="gMute"><div class="gi"><svg class="ic"><use href="#i-volume-2"/></svg></div><div class="gl">Mute</div></div>
   <div class="gtile" id="gNavMode"><div class="gi"><svg class="ic"><use href="#i-route"/></svg></div><div class="gl">Follow</div><div class="gs"></div></div>
-  <div class="gtile" id="gRideProf"><div class="gi"><svg class="ic"><use href="#i-bike"/></svg></div><div class="gl">Profile</div></div>
   <div class="gtile" id="gZoom"><div class="gi"><svg class="ic"><use href="#i-maximize-2"/></svg></div><div class="gl">Auto zoom</div></div>
   <div class="gtile" id="gSchema"><div class="gi"><svg class="ic"><use href="#i-palette"/></svg></div><div class="gl">Schema</div></div>
   <div class="gtile" id="gColour"><div class="gi"><svg class="ic"><use href="#i-route"/></svg></div><div class="gl">Track colour</div></div>
@@ -1098,7 +1087,7 @@
     <div class="row"><label>Zoom out</label><button class="btn keyBtn" data-k="zout">default</button></div>
     <div class="row"><label>Mute</label><button class="btn keyBtn" data-k="mute">default</button></div>
     <div class="row"><label>Re-centre</label><button class="btn keyBtn" data-k="center">default</button></div>
-    <div class="row"><label>North / course / compass</label><button class="btn keyBtn" data-k="orient">default</button></div>
+    <div class="row"><label>North / compass</label><button class="btn keyBtn" data-k="orient">default</button></div>
     <div class="row"><label>Map style flip</label><button class="btn keyBtn" data-k="style">default</button></div>
   </div>
 
@@ -1140,7 +1129,7 @@ window.__ddCoreLoaded?.();
 /* ================================================================
    DingoNav — offline GPX follower with turn beeps.
    MapLibre GL + PMTiles basemap; Dingo heatmap + tracks on top.
-   North-up or course-up (GPS bearing; approach bearing held when stopped).
+   North-up or compass (device heading; course bearing still feeds the arrow/snap zoom).
    ================================================================ */
 
 /* core-applier handshake — resolved by the module loader above; boot()
@@ -1296,6 +1285,7 @@ function migrateBigLeft() {
   delete S.set.swapMain;
 }
 migrateBigLeft();
+if (S.set.orient === 'course') S.set.orient = 'north'; // course-up retired 2026-08-14
 function saveSet() { localStorage.setItem('dingonav-set', JSON.stringify(S.set)); }
 // v2 migration: ♥ favourite spans become the max zoom preset
 if (!S.set._v2) {
@@ -2150,7 +2140,7 @@ function setIc(el, name) {
   if (u) u.setAttribute('href', '#i-' + name); else el.innerHTML = icSvg(name);
 }
 // orientation faces: north stays a letter (clearest), course/compass get their icons
-const ORIENT_ICON = { course: 'navigation', oriented: 'compass' };
+const ORIENT_ICON = { oriented: 'compass' };
 function orientFace(el, o) { if (ORIENT_ICON[o]) setIc(el, ORIENT_ICON[o]); else el.textContent = 'N'; }
 
 /* ---------------- MapLibre setup ---------------- */
@@ -2412,19 +2402,41 @@ async function initMap() {
     if (S.nav) autoCompass(); // threshold-mode compass tracks zoom level
     if (e.originalEvent) trainEvent('zoom-gesture');
   });
+  // the dot only has a job while the map is off your position: finger pans and pinch
+  // zooms (which zoom about the pinch point) can carry the centre away without a drag,
+  // and panning back over yourself parks the dot again. Camera moves the app makes
+  // itself carry no originalEvent and are ignored; riding keeps its own follow logic.
+  const centredOnMe = () => {
+    if (!S.pos || !mapReady) return false;
+    const [la, lo] = toLL(S.pos.x, S.pos.y);
+    const p = map.project([lo, la]), c = map.getContainer();
+    return Math.hypot(p.x - c.clientWidth / 2, p.y - c.clientHeight / 2) < 48;
+  };
+  map.on('moveend', e => {
+    if (!e.originalEvent || S.nav) return;
+    const on = centredOnMe();
+    if (on !== S.follow) setFollow(on);
+  });
   // riding: double-tap toggles the snap zoom; single taps (point menu, tap-to-add)
-  // wait out the double-tap window so the two can't collide
-  let rideTapT = null;
+  // wait out the double-tap window so the two can't collide.
+  // The double is counted from paired 'click' events, NOT the map 'dblclick': on touch,
+  // MapLibre only synthesizes a dblclick while its tap-zoom handler is enabled — and
+  // riding disables that handler, which is how the junction gesture quietly died.
+  // Click pairs fire for mouse and touch alike, moving or stopped.
+  let rideTapT = null, lastTap = null;
   map.on('click', e => {
-    clearTimeout(rideTapT); // every tap waits out the double-tap window — planning too
+    clearTimeout(rideTapT); rideTapT = null; // every tap waits out the double-tap window — planning too
+    const now = performance.now();
+    const dbl = lastTap && now - lastTap.t < 300 &&
+      Math.hypot(e.point.x - lastTap.x, e.point.y - lastTap.y) < 40;
+    lastTap = { t: now, x: e.point.x, y: e.point.y };
+    if (dbl && S.nav) { lastTap = null; S.snapZoom ? exitSnapZoom() : enterSnapZoom(); return; }
     rideTapT = setTimeout(() => { rideTapT = null;
-      S.nav ? rideTap(e.lngLat) : S.cueEdit ? cueEditTap(e.lngLat) : trackTap(e.lngLat); }, 280);
+      S.nav ? rideTap(e.lngLat) : S.cueEdit ? cueEditTap(e.lngLat) : trackTap(e.lngLat); }, 300);
   });
   map.on('dblclick', e => {
     clearTimeout(rideTapT); rideTapT = null; // the pending single tap dies with the double
-    if (!S.nav) return; // planning keeps the normal double-click zoom
-    e.preventDefault(); // eat MapLibre's own double-tap zoom while riding
-    S.snapZoom ? exitSnapZoom() : enterSnapZoom();
+    if (S.nav) e.preventDefault(); // mouse path: eat MapLibre's own double-click zoom while riding
   });
   initLongPress();
   // the N button's red needle counter-rotates with the map — always pointing true north
@@ -2505,6 +2517,13 @@ function caseColor() {
 }
 function totalW() { return ['interpolate', ['linear'], ['zoom'], 10, ADV('routeWOut'), 17, ADV('routeWIn')]; }
 function coreW() { const f = ADV('coreFrac'); return ['interpolate', ['linear'], ['zoom'], 10, ADV('routeWOut') * f, 17, ADV('routeWIn') * f]; }
+/* slope chevron glyph size: follows the route width so the arrows never poke past the
+   casing (boundary) lines. slopeSize stays the ceiling and the 0 = off switch; the
+   1.4 factor is the ^ glyph's ink-to-em ratio — at that scale its strokes sit inside
+   a line of the same pixel width. */
+function slopeChevSize() { const s = Math.max(1, ADV('slopeSize'));
+  return ['interpolate', ['linear'], ['zoom'],
+    10, Math.min(s, ADV('routeWOut') * 1.4), 17, Math.min(s, ADV('routeWIn') * 1.4)]; }
 /* breadcrumb rides at a share of the core width so the travelled route still reads
    either side of it — the ridden line sits ON the segments it covers, not over them */
 function crumbW() { const f = ADV('coreFrac') * ADV('crumbFrac'); return ['interpolate', ['linear'], ['zoom'], 10, ADV('routeWOut') * f, 17, ADV('routeWIn') * f]; }
@@ -2612,16 +2631,16 @@ function addOverlays() {
     layout: dirLayout(), paint: { 'text-color': ADV('colDoneCase'), 'text-opacity': ADV('progDoneOp') } });
   map.addLayer({ id: 'dir-vs-rem', type: 'symbol', source: 'selSurf', filter: ['==', ['get', 'state'], 'rem'],
     layout: dirLayout(), paint: { 'text-color': caseColor() } });
-  /* slope chevrons: point uphill, casing colour, only on the route ahead —
+  /* slope chevrons: point uphill, white on the route core, only on the route ahead —
      completed climbs stop shouting (features are built per progress state) */
   map.addSource('slopeChev', { type: 'geojson', data: EMPTY });
   map.addLayer({ id: 'slope-chevs', type: 'symbol', source: 'slopeChev',
     layout: { 'text-field': ['case', ['==', ['get', 'sev'], 2], '^\n^', '^'],
-      'text-size': Math.max(1, ADV('slopeSize')), 'text-font': ['Noto Sans Medium'],
+      'text-size': slopeChevSize(), 'text-font': ['Noto Sans Medium'],
       'text-rotate': ['get', 'rot'], 'text-rotation-alignment': 'map', 'text-line-height': 0.7,
       'text-allow-overlap': true, 'text-ignore-placement': true,
       visibility: ADV('slopeSize') > 0 ? 'visible' : 'none' },
-    paint: { 'text-color': caseColor() } });
+    paint: { 'text-color': '#ffffff' } });
   // turn cues: unchanged fixed-size dots, hidden below z12.5
   map.addLayer({ id: 'alert-dots', type: 'circle', source: 'alerts', minzoom: 12.5,
     filter: ['all', ['!', ['get', 'removed']], ['==', ['get', 'k'], 'turn']], // greyed-out deletions only show in edit mode
@@ -2944,7 +2963,7 @@ function presetSpan(k) {
   const mn = spans[0][1], mx = spans[spans.length - 1][1];
   return k === 'min' ? mn : k === 'max' ? mx : Math.round(Math.sqrt(mn * mx));
 }
-/* cruise zoom priority: manual hold (until the next cue approach) > max preset.
+/* cruise zoom priority: manual hold (20 s, or until the next cue approach) > max preset.
    A cue approach releases any old hold ONCE and dives to the min preset to frame the
    turn — but a manual zoom DURING the approach is a new hold and wins immediately:
    the rider broke out on purpose, never re-zoom them into that turn. */
@@ -2990,22 +3009,26 @@ function followCamera() {
   } else {
     // off track: freeze the zoom (keep centring) until back on track — no lurching auto-zoom while lost
     if (S.set.autoZoom && !(S.navState && S.navState.off)) { const z = cruiseZoom(la); if (z != null) opts.zoom = z; }
-    const o = effOrient();
-    if (o === 'course' && S.courseBearing != null) opts.bearing = S.courseBearing;
-    else if (o === 'oriented' && S.deviceHeading != null) opts.bearing = S.deviceHeading;
+    if (effOrient() === 'oriented' && S.deviceHeading != null) opts.bearing = S.deviceHeading;
   }
   map.easeTo(opts);
 }
-/* manual zoom while navigating = hold: stay at that zoom until the next turn approach */
-const holdPill = document.getElementById('holdPill');
+/* manual zoom while navigating = hold: auto-zoom stands back, then quietly takes
+   over again 20 s later (or at the next turn approach, whichever comes first) */
+let holdT = null;
 function setHold(z) {
   S.zoomHold = z;
-  holdPill.classList.toggle('on', z != null && S.nav && S.set.autoZoom);
+  clearTimeout(holdT); holdT = null;
+  if (z != null) holdT = setTimeout(() => { S.zoomHold = null; }, 20000);
 }
-holdPill.onclick = () => setHold(null);
 function manualZoom(dir) {
   if (!map) return;
-  dir > 0 ? map.zoomIn() : map.zoomOut();
+  // centred on the rider: ± zooms ABOUT them, so stepping in and out never drifts
+  // off your position; panned away: plain in-place zoom — don't yank the map back
+  if (S.follow && S.pos) {
+    const [la, lo] = toLL(S.pos.x, S.pos.y);
+    map.easeTo({ zoom: map.getZoom() + (dir > 0 ? 1 : -1), center: [lo, la], duration: 300 });
+  } else dir > 0 ? map.zoomIn() : map.zoomOut();
   if (S.nav && S.set.autoZoom) setTimeout(() => setHold(map.getZoom()), 350); // after the ease settles
 }
 /* the − / + base-row buttons: tap = step zoom · hold ≈600 ms = save the current zoom
@@ -3261,15 +3284,16 @@ function refreshKeyBtns() {
     b.textContent = (S.set.keys || {})[b.dataset.k] || 'default';
 }
 
-/* ---------------- orientation: north-up / course-up / compass ----------------
+/* ---------------- orientation: north-up / compass ----------------
    north    — map fixed, north always up (N marker)
-   course   — map turns to GPS travel direction, held frozen when stopped (↑ arrow)
    compass  — map turns to the phone's physical heading from the magnetometer, so it
               tracks which way you're facing even while stopped (🧭). iOS needs a
-              one-time permission grant, requested from the button tap / nav start. */
-const ORIENT_CYCLE = ['north', 'course', 'oriented'];
-const ORIENT_GLYPH = { north: 'N', course: '↑', oriented: '🧭' };
-const ORIENT_LABEL = { north: 'north up', course: 'course up', oriented: 'compass' };
+              one-time permission grant, requested from the button tap / nav start.
+   course-up retired 2026-08-14 — two turning modes confused more than they helped;
+   riders keep either a fixed map or the compass. */
+const ORIENT_CYCLE = ['north', 'oriented'];
+const ORIENT_GLYPH = { north: 'N', oriented: '🧭' };
+const ORIENT_LABEL = { north: 'north up', oriented: 'compass' };
 const northBtn = document.getElementById('north'), northInner = document.getElementById('northInner');
 
 /* --- device magnetometer (compass mode) --- */
@@ -3363,7 +3387,6 @@ function disableCompass() {
 
 function applyOrient() {
   const o = effOrient();
-  northBtn.classList.toggle('course', o === 'course');
   northBtn.classList.toggle('oriented', o === 'oriented');
   northInner.textContent = ORIENT_GLYPH[o] || 'N';
   const oc = document.getElementById('orientCtl'); // the N button mirrors the mode (glyph child — the needle survives)
@@ -3372,7 +3395,6 @@ function applyOrient() {
   if (o === 'oriented') enableCompass(false); else disableCompass();
   if (!mapReady) return;
   if (o === 'north') map.easeTo({ bearing: 0, duration: 500 });
-  else if (o === 'course' && S.courseBearing != null) map.easeTo({ bearing: S.courseBearing, duration: 500 });
   else if (o === 'oriented' && S.deviceHeading != null) map.easeTo({ bearing: S.deviceHeading, duration: 500 });
 }
 northBtn.onclick = () => {
@@ -3381,9 +3403,7 @@ northBtn.onclick = () => {
   saveSet();
   if (S.set.orient === 'oriented') enableCompass(true); // this tap is a user gesture → can prompt on iOS
   applyOrient();
-  toast(S.set.orient === 'course' ? 'Course up — travel direction points up'
-    : S.set.orient === 'oriented' ? 'Compass — map turns with your heading'
-    : 'North up');
+  toast(S.set.orient === 'oriented' ? 'Compass — map turns with your heading' : 'North up');
 };
 document.getElementById('orientCtl').onclick = () => northBtn.onclick(); // cluster orientation = cycle mode
 applyOrient();
@@ -3579,6 +3599,7 @@ function startNav() {
   placeProgress(); drawProgress(true);
   const nb = document.getElementById('navBtn'); nb.textContent = 'Stop'; nb.classList.add('stop'); nb.disabled = false;
   if (S.set.wake) requestWake();
+  if (mapReady) map.doubleClickZoom.disable(); // riding: the double-tap is the snap-zoom gesture
   if (fsOK && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
   if (!S.demo) startGPS();
   startFriends();
@@ -3587,6 +3608,7 @@ function startNav() {
 }
 function stopNav() {
   S.nav = false;
+  if (mapReady) map.doubleClickZoom.enable(); // planning gets its normal double-click zoom back
   exitSnapZoom(false);
   S._turnCue = null; applyCdArrows(); applyMoveGestures();
   S.autoOrient = false; S.autoBlock = false; applyOrient(); // hand orientation back to the rider's mode
@@ -4032,7 +4054,7 @@ function renderMain() {
     el.innerHTML = icSvg('battery-medium') + ' ' + (varg.soc == null ? '—' : varg.soc) + '<small>%</small>';
   } else {
     el.classList.remove('low');
-    el.innerHTML = vargKmh() + ' <small>km/h</small>';
+    el.innerHTML = '' + vargKmh(); // bare number — the unit letters earn nothing at speed
   }
 }
 // the bike's own speedo when it's streaming, GPS otherwise
@@ -4046,7 +4068,7 @@ function vargKmh() {
 function renderPill() {
   const el = document.getElementById('vargSoc'); if (!el) return;
   const batHtml = icSvg('battery-medium') + ' ' + (varg.soc == null ? '—' : varg.soc) + '<span class="u">%</span>';
-  const spdHtml = vargKmh() + ' <span class="u">km/h</span>';
+  const spdHtml = '' + vargKmh(); // bare number, same rule as the big readout
   const bat = !primaryIsBattery(); // big slot took speed, so the pill takes battery
   vargPill.classList.toggle('low', (bat || !S.nav) && varg.soc != null && varg.soc <= 15);
   el.innerHTML = varg.state === 'released' ? 'bike free'
@@ -4098,8 +4120,11 @@ function applyMoveGestures() {
   const off = S.nav && (gestLocked ? spd > 1.0 : spd > 2.0);
   if (off === gestLocked) return;
   gestLocked = off;
-  if (off) { map.touchZoomRotate.disable(); map.doubleClickZoom.disable(); }
-  else { map.touchZoomRotate.enable(); map.doubleClickZoom.enable(); }
+  // NB: doubleClickZoom is toggled by startNav/stopNav (off for the whole ride,
+  // where the double-tap means snap zoom), not by speed — touching it here is what
+  // used to kill the junction gesture above walking pace.
+  if (off) map.touchZoomRotate.disable();
+  else map.touchZoomRotate.enable();
 }
 
 /* ---------------- SNAP ZOOM ----------------
@@ -4540,8 +4565,6 @@ function refreshGlove() {
   gm.querySelector('.gs').textContent = m === 'follow' ? (trk ? trk.name.slice(0, 18) : 'no track yet')
     : m === 'explore' ? 'breadcrumb only' : (trk ? 'on ' + trk.name.slice(0, 15) : 'any track');
   gm.classList.toggle('active', m !== 'follow');
-  setIc(g('gRideProf').querySelector('.gi'), S.set.rideProfile === 'stark' ? 'zap' : 'bike');
-  g('gRideProf').querySelector('.gl').textContent = S.set.rideProfile === 'stark' ? 'Stark' : 'Adventure';
   // the Demo tile is also the STOP: mid-ride (real or demo) it flips red and ends the ride
   const gd = g('gDemo');
   gd.classList.toggle('stop', S.nav);
@@ -4568,10 +4591,6 @@ document.getElementById('gNavMode').onclick = gloveTap(() => // tap cycles follo
   setNavMode(NAV_MODES[(NAV_MODES.indexOf(navMode()) + 1) % NAV_MODES.length]));
 document.getElementById('gSettings').onclick = () => { closeGlove(); openPanel();
   document.querySelector('#setTabs button[data-t="General"]').click(); };
-document.getElementById('gRideProf').onclick = gloveTap(() => {
-  S.set.rideProfile = S.set.rideProfile === 'stark' ? 'adventure' : 'stark';
-  saveSet(); renderMain();
-});
 /* Demo tile doubles as STOP: any active ride (real or demo) ends here — the two-tap
    ☰ → tile path is the mis-tap protection that used to guard gStartStop */
 document.getElementById('gDemo').onclick = () => { closeGlove(); S.nav ? stopNav() : demoChoice(); };
@@ -4803,8 +4822,8 @@ const TRAIN_STEPS = [
     html: 'The <b>− / +</b> buttons zoom the map any time. Now <b>hold +</b> for a second — that saves ' +
       'this zoom as your <b>turn zoom</b>, where auto-zoom dives at junctions. (Hold <b>−</b> to save ' +
       'your cruising <b>riding zoom</b>.)' },
-  { title: 'North, course, compass', target: '#orientCtl', advance: { ack: true },
-    html: 'The <b>N button</b> (top left) cycles <b>north-up → course-up → compass</b>. Compass turns ' +
+  { title: 'North or compass', target: '#orientCtl', advance: { ack: true },
+    html: 'The <b>N button</b> (top left) flips <b>north-up ↔ compass</b>. Compass turns ' +
       'the map as your bars turn — the fastest way to read a confusing junction.' },
   { title: 'The glove menu', target: '#menuBtn', advance: { ev: 'glove' },
     html: 'Tap the <b>☰ button</b> (bottom left) — the whole screen becomes giant glove-sized tiles: ' +
@@ -7305,8 +7324,8 @@ function applyAdvPaint() {
   map.setPaintProperty('dir-vs-done', 'text-color', ADV('colDoneCase'));
   map.setPaintProperty('dir-vs-done', 'text-opacity', ADV('progDoneOp'));
   map.setLayoutProperty('slope-chevs', 'visibility', ADV('slopeSize') > 0 ? 'visible' : 'none');
-  map.setLayoutProperty('slope-chevs', 'text-size', Math.max(1, ADV('slopeSize')));
-  map.setPaintProperty('slope-chevs', 'text-color', caseColor());
+  map.setLayoutProperty('slope-chevs', 'text-size', slopeChevSize());
+  map.setPaintProperty('slope-chevs', 'text-color', '#ffffff');
   for (const l of ['heat-halo', 'heat-core']) map.setPaintProperty(l, 'line-color', clsMatch());
   map.setLayoutProperty('breadcrumb', 'visibility', S.set.trail !== false ? 'visible' : 'none');
 }
@@ -7542,8 +7561,8 @@ function applyBehaviorSettings(bh) {
   const num = k => (typeof p[k] === 'number' && isFinite(p[k])) ? p[k] : null;
   const a = S.set.adv;
   const put = (k, v) => { if (v != null) a[k] = v; };
-  if (p['camera.followMode'] === 'northUp') S.set.orient = 'north';
-  else if (p['camera.followMode'] === 'courseUp') S.set.orient = 'course';
+  // courseUp retired 2026-08-14: behaviours asking for it get the fixed map
+  if (p['camera.followMode'] === 'northUp' || p['camera.followMode'] === 'courseUp') S.set.orient = 'north';
   if (typeof p['camera.autoZoom'] === 'boolean') S.set.autoZoom = p['camera.autoZoom'];
   put('easeMs', num('camera.easeMs'));
   if (num('camera.approachSecs') != null) { a.apprS = num('camera.approachSecs'); a.apprUnit = 's'; }
