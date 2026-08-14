@@ -1334,6 +1334,7 @@ if (!S.set._v5) {
    ADV(k) reads the override or the shipping default; the Adv tab writes S.set.adv. */
 const ADV_D = {
   headDamp: 0.12, headDead: 2, rotHz: 4, easeMs: 900, zoomThresh: 15,
+  pitch: 55, // compass-mode tilt (deg): the map leans away like a windscreen view; 0 = flat
   apprMul: 1.5, apprFloor: 250, offM: 60, onM: 40, beepVol: 0.5, cdDist: 300,
   deepHz: 460, highHz: 990, // pitch = phase: deep approaching, high at the turn
   apprUnit: 's', apprS: 15, apprM: 250, departUnit: 'm', departM: 30, departS: 4,
@@ -2428,7 +2429,8 @@ async function initMap() {
   map = new maplibregl.Map({
     container: 'map', style,
     center: [151.3, -33.3], zoom: 9,
-    maxPitch: 0, pitchWithRotate: false, dragRotate: false, attributionControl: { compact: true },
+    // pitch is mode-driven (compass leans, north-up stays flat) — never a gesture
+    maxPitch: 60, pitchWithRotate: false, dragRotate: false, attributionControl: { compact: true },
   });
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
@@ -3226,7 +3228,10 @@ for (const [id, k, dir] of [['zoomIn', 'min', 1], ['zoomOut', 'max', -1]]) {
    box (bottom-left) always fits the whole track, dot (bottom-right) always comes home */
 function recentreTap() { // dot: come home, centre on me
   S.dotFit = false; setFollow(true);
-  if (S.pos && mapReady) { const [la, lo] = toLL(S.pos.x, S.pos.y); map.easeTo({ center: [lo, la], duration: 450 }); }
+  if (S.pos && mapReady) { const [la, lo] = toLL(S.pos.x, S.pos.y);
+    // coming home also restores the mode's camera: compass gets its tilt back
+    // after a flat box overview, north-up comes back flat
+    map.easeTo({ center: [lo, la], pitch: effOrient() === 'oriented' ? ADV('pitch') : 0, duration: 450 }); }
   trainEvent('recentre');
 }
 function fitTap() { // box: zoom out to the whole track
@@ -3455,8 +3460,10 @@ function applyOrient() {
   document.getElementById('orientLabel').textContent = (ORIENT_LABEL[o] || 'north up') + (S.autoOrient ? ' · auto' : '');
   if (o === 'oriented') enableCompass(false); else disableCompass();
   if (!mapReady) return;
-  if (o === 'north') map.easeTo({ bearing: 0, duration: 500 });
-  else if (o === 'oriented' && S.deviceHeading != null) map.easeTo({ bearing: S.deviceHeading, duration: 500 });
+  // compass leans the map like a windscreen view; north-up is always flat
+  if (o === 'north') map.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+  else if (o === 'oriented') map.easeTo({ pitch: ADV('pitch'),
+    ...(S.deviceHeading != null ? { bearing: S.deviceHeading } : {}), duration: 500 });
 }
 northBtn.onclick = () => {
   if (S.autoOrient) { S.autoOrient = false; S.autoBlock = true; } // manual tap wins until the next approach
@@ -3473,7 +3480,12 @@ function fitSelected() {
   // Cap the framing zoom: a tiny (or degenerate) ride would otherwise fit past
   // the satellite imagery's max zoom and show blank overzoom. z16 is plenty for
   // framing a ride and matches the deepest baked satellite tiles.
-  const opt = { padding: 60, duration: 600, maxZoom: 16 };
+  // The overview is always FLAT and north-up — whatever the compass tilt is
+  // doing, zooming out with the box shows everything plan-view (2026-08-14).
+  // fitBounds ignores a pitch option, so the tilt is dropped up front; the
+  // bounds maths then runs on the flat camera it is about to animate.
+  if (map.getPitch() !== 0) map.jumpTo({ pitch: 0 });
+  const opt = { padding: 60, duration: 600, maxZoom: 16, bearing: 0 };
   if (S.sel >= 0) map.fitBounds(S.tracks[S.sel].llBounds, opt);
   else if (S.tracks.length) {
     // nothing selected: frame ALL loaded tracks (the map is the track picker)
@@ -7289,6 +7301,7 @@ const SETTINGS = [
   { k: 'rotHz', t: 'range', adv: 1, l: 'Map rotation rate (Hz)', min: 1, max: 20, step: 1 },
   { k: 'easeMs', t: 'range', adv: 1, l: 'Follow ease (ms)', min: 200, max: 2000, step: 50 },
   { k: 'zoomThresh', t: 'range', adv: 1, l: 'Compass zoom threshold', min: 10, max: 18, step: 0.5 },
+  { k: 'pitch', t: 'range', adv: 1, l: 'Compass tilt (deg, 0 flat)', min: 0, max: 60, step: 5 },
   { h: 'Alerts & cues (current vehicle)' },
   { k: 'farMin', t: 'range', veh: 1, l: 'Far warn min (m)', min: 10, max: 300, step: 5 },
   { k: 'farMax', t: 'range', veh: 1, l: 'Far warn max (m)', min: 40, max: 800, step: 10 },
@@ -7621,7 +7634,7 @@ function applySchemeSettings(sch) {
   if (ddCore.DETAIL_BIAS[det] != null) S.set.detail = det; // scheme default; the settings seg still overrides
   S.set.mapStyle = 'scheme';
 }
-/* behaviour → the params with Nav homes today; the rest (reroute, pitch, lane
+/* behaviour → the params with Nav homes today; the rest (reroute, lane
    guidance, TTS…) have no machinery yet and are skipped per the contract */
 function applyBehaviorSettings(bh) {
   const p = bh.params || {};
@@ -7632,6 +7645,7 @@ function applyBehaviorSettings(bh) {
   if (p['camera.followMode'] === 'northUp' || p['camera.followMode'] === 'courseUp') S.set.orient = 'north';
   if (typeof p['camera.autoZoom'] === 'boolean') S.set.autoZoom = p['camera.autoZoom'];
   put('easeMs', num('camera.easeMs'));
+  put('pitch', num('camera.pitch')); // compass-mode tilt now has machinery (2026-08-15)
   if (num('camera.approachSecs') != null) { a.apprS = num('camera.approachSecs'); a.apprUnit = 's'; }
   put('apprMul', num('camera.approachMul'));
   put('apprFloor', num('camera.approachFloorM'));
