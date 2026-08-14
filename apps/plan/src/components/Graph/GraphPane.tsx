@@ -592,7 +592,9 @@ export function GraphPane({
             onClick={onClick}
             style={{
                 background: active ? color : 'transparent',
-                color: active ? '#fff' : color,
+                // ink-on-vivid like the status chips — white sat at 1.9-2.9:1
+                // on these fills (rendered contrast sweep finding)
+                color: active ? 'var(--dd-surface-0)' : color,
                 border: `1px solid ${color}`,
                 padding: '2px 8px',
                 borderRadius: 4,

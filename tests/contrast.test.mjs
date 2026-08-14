@@ -159,8 +159,8 @@ test('contrast: Nav chrome (night + day)', (t) => {
   // body.daymode override (--accent), then body.daymode #panel's redefinitions
   const day = resolveVarRefs(new Map([
     ...night,
-    ...parseCssVarBlock(style, 'body.daymode'),
-    ...parseCssVarBlock(style, 'body.daymode #panel'),
+    ...parseCssVarBlock(style, 'body.daymode:not(.schemed)'),
+    ...parseCssVarBlock(style, 'body.daymode:not(.schemed) #panel'),
   ]));
   checkPairs(t, 'nav daymode panel', (k) => day.get(k), varPairs);
 
