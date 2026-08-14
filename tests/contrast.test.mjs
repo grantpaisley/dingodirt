@@ -126,7 +126,12 @@ test('contrast: schemes (day + night)', (t) => {
 /* ---- C. apps/plan chrome palette ---- */
 test('contrast: Plan chrome', (t) => {
   const css = readFileSync(join(REPO, 'apps/plan/src/App.css'), 'utf8');
-  const vars = resolveVarRefs(parseCssVarBlock(css, ':root'));
+  // Plan's :root remaps its legacy var names onto core/ui tokens (ladder
+  // PR 3), so resolution starts from tokens.css — the same cascade the
+  // browser sees (tokens load before App.css in main.tsx).
+  const tokens = parseCssVarBlock(
+    readFileSync(join(REPO, 'core/ui/tokens.css'), 'utf8'), ':root');
+  const vars = resolveVarRefs(new Map([...tokens, ...parseCssVarBlock(css, ':root')]));
   checkPairs(t, 'plan App.css', (k) => vars.get(k), [
     ['--text-primary', '--pane-bg', NORMAL], ['--text-primary', '--bg-dark', NORMAL],
     ['--text-secondary', '--pane-bg', NORMAL], ['--text-secondary', '--bg-dark', NORMAL],
