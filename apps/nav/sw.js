@@ -18,7 +18,7 @@ const SHELL = [
   './basemap/sprites/light@2x.json', './basemap/sprites/light@2x.png',
 ];
 // ride schemas — Studio's look (.dingoscheme) + feel (.dingobehavior) presets, offline-first
-for (const f of ['default', 'google-maps', 'waze', 'locus', 'oziexplorer', 'dmd2', 'index'])
+for (const f of ['default', 'classic', 'google-maps', 'waze', 'locus', 'oziexplorer', 'dmd2', 'index'])
   SHELL.push(`./schemes/${f}.json`);
 for (const f of ['default', 'google-maps', 'waze', 'locus', 'dmd2', 'index'])
   SHELL.push(`./behaviors/${f}.json`);
