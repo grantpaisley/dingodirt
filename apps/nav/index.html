@@ -146,7 +146,7 @@
   body.navving #vargInd{top:calc(env(safe-area-inset-top) + 124px)} /* below the inset turn strip */
   /* mute: one tap on the riding screen, ghosted like the other ride controls */
   #muteBtn{position:fixed; top:calc(env(safe-area-inset-top) + 64px); right:10px; z-index:12;
-    width:96px; height:96px; border-radius:28px; background:rgba(22,28,34,.5); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+    width:96px; height:96px; border-radius:28px; background:color-mix(in srgb, var(--panel) 50%, transparent); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     display:none; align-items:center; justify-content:center; font-size:44px; opacity:var(--navOp,.4); cursor:pointer}
   #muteBtn:active{opacity:1}
   body.navving #muteBtn{display:flex}
@@ -296,10 +296,10 @@
   /* riding: the row grows for gloves and goes near-transparent — icons over the map,
      full face only while pressed (the --navOp idle fade still applies on top) */
   body.navving #baseRow .ctl{width:104px; height:104px; font-size:46px;
-    background:rgba(22,28,34,.35); border-color:rgba(42,53,64,.5)}
+    background:color-mix(in srgb, var(--panel) 35%, transparent); border-color:color-mix(in srgb, var(--fg) 18%, transparent)}
   body.navving.portrait #baseRow .ctl{width:auto; height:104px}
   body.navving:not(.portrait) #baseRow #dotBtn{width:104px; height:104px}
-  body.navving #baseRow .ctl:active{background:rgba(22,28,34,.92)}
+  body.navving #baseRow .ctl:active{background:color-mix(in srgb, var(--panel) 92%, transparent)}
   /* START: green, stopped-with-a-track only. In landscape it's an in-flow member of the
      base row, sitting in the gap between the + and the dot. */
   /* space-between on the row spreads ☰ − + START ◎ evenly, START simply joining in */
@@ -315,12 +315,11 @@
      Stopped-screen only — never during navigation. */
   #revToggle{position:fixed; left:10px; bottom:calc(var(--chromeB,0px) + 112px); z-index:16;
     height:68px; padding:0 24px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:18px;
-    background:rgba(22,28,34,.92); color:var(--fg); font-size:20px; font-weight:800;
+    background:color-mix(in srgb, var(--panel) 92%, transparent); color:var(--fg); font-size:20px; font-weight:800;
     letter-spacing:.03em; cursor:pointer; display:none; align-items:center; gap:10px;
     box-shadow:0 4px 18px rgba(0,0,0,.45)}
   body:not(.navving) #revToggle.on{display:flex}
   #revToggle.rev{background:var(--warn); border-color:var(--warn); color:#231a00}
-  body.daymode:not(.schemed) #revToggle:not(.rev){background:var(--panel); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg)}
   /* retired chrome: the standalone rose, top-right mute and the rose's mode label */
   #north{display:none !important} #muteBtn{display:none !important} #orientLabel{display:none !important}
   /* riding: same buttons, resting dimmed like the rest of the ride chrome —
@@ -396,9 +395,9 @@
     padding:10px 12px calc(env(safe-area-inset-bottom) + 10px); display:flex; gap:10px; align-items:center}
   body.navving #bottom{display:none} /* riding: bar removed — ☰ opens the ride-controls panel instead */
   /* ☰ menu: first slot of the base row (bottom-left), glove-sized like its neighbours;
-     slightly lighter plate so it reads as the odd one out */
-  #menuBtn{background:rgba(34,41,48,.85); text-shadow:0 1px 6px rgba(0,0,0,.8)}
-  #menuBtn:active{background:rgba(52,62,72,.9)}
+     the raised panel2 plate makes it the odd one out — in the scheme's own colours */
+  #menuBtn{background:color-mix(in srgb, var(--panel2) 85%, transparent)}
+  #menuBtn:active{background:color-mix(in srgb, var(--fg) 10%, var(--panel2))}
   #trackInfo{flex:1; min-width:0; line-height:1.25}
   #trackName{font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   #trackSub{font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
@@ -491,8 +490,6 @@
   body.daymode:not(.schemed){--navOp:1}
   body.daymode:not(.schemed) .ctl{background:var(--panel); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg)}
   body.daymode:not(.schemed) .ctl:active{background:color-mix(in srgb, var(--fg) 8%, var(--panel))}
-  body.daymode:not(.schemed) #menuBtn{background:var(--panel); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg); text-shadow:none}
-  body.daymode:not(.schemed) #menuBtn:active{background:color-mix(in srgb, var(--fg) 8%, var(--panel))}
   body.daymode:not(.schemed) #dotBtn{background:color-mix(in srgb, var(--panel) 92%, transparent); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg)}
   body.daymode:not(.schemed) #hudSpeed, body.daymode:not(.schemed) #vargModeBig{color:var(--fg);
     text-shadow:0 1px 8px rgba(255,255,255,.85), 0 0 3px rgba(255,255,255,.7)}
