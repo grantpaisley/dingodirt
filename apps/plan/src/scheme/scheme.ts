@@ -22,24 +22,10 @@ export interface SchemeEntry {
     file: string
 }
 
-/** Defaults for the tokens Plan consumes (subset of Studio's TOKEN_DEFS) —
- *  values match Nav/Studio factory so a sparse scheme changes nothing. */
-const SCHEME_DEFAULTS: Record<string, unknown> = {
-    'overlays.heatOwn': '#ff7a00',
-    'overlays.heatPlan': '#3390ff',
-    'overlays.heatOther': '#ff2d2d',
-    'hud.bg': '#0e1216',
-    'hud.panel': '#161c22',
-    'hud.text': '#e8eef4',
-    'hud.dim': '#8fa0b0',
-    'hud.accent': '#00e5ff',
-}
-
-/** Effective token value: scheme's if set, else the registry default. */
-export function tok(scheme: DingoScheme, key: string): unknown {
-    const v = scheme.tokens?.[key]
-    return v == null ? SCHEME_DEFAULTS[key] : v
-}
+/** Effective token value: scheme's if set, else the canonical registry
+ *  default (core/appliers TOKEN_DEFS) — the local defaults copy is gone,
+ *  so Plan can never drift from Nav/Studio on a missing token. */
+export { tok } from '../../../../core/appliers/scheme.js'
 
 let indexPromise: Promise<SchemeEntry[]> | null = null
 
