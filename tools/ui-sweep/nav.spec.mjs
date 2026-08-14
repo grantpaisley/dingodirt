@@ -15,7 +15,7 @@ import { collectTextStyles, contrastFailures } from './contrast-dom.mjs';
 
 const NAV = 'http://localhost:8148';
 const ENFORCE = process.env.CONTRAST_ENFORCE === '1';
-const SCHEMES = ['factory', 'Google Maps', 'Waze', 'Locus Map', 'OziExplorer', 'DMD2'];
+const SCHEMES = ['factory', 'Classic', 'Google Maps', 'Waze', 'Locus Map', 'OziExplorer', 'DMD2'];
 mkdirSync(new URL('./artifacts', import.meta.url).pathname, { recursive: true });
 
 async function boot(page) {
