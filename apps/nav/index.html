@@ -23,7 +23,10 @@
   #map{position:fixed; inset:0; background:var(--bg)}
   .maplibregl-ctrl-scale{background:rgba(14,18,22,.6)!important; color:var(--fg)!important;
     border-color:rgba(232,238,244,.5)!important; font-size:11px}
-  .maplibregl-ctrl-attrib{background:rgba(14,18,22,.5)!important; font-size:10px}
+  /* whole attribution follows the chrome vars — the non-link text kept
+     MapLibre's default black, invisible on the dark plate (sweep finding) */
+  .maplibregl-ctrl-attrib{background:color-mix(in srgb, var(--bg) 60%, transparent)!important;
+    color:var(--dim)!important; font-size:10px}
   .maplibregl-ctrl-attrib a{color:var(--dim)!important}
 
   /* ---------- top HUD ---------- */
@@ -255,7 +258,7 @@
   /* ---------- corner controls (2026-07-19 design): N top-left, ☰ top-right, and a base
      row along the bottom — box (whole track) · − · + · dot (centre on me). The SAME
      chrome idle and riding; only the bottom anchor (--chromeB) moves with the bar/strip. ---------- */
-  .ctl{width:54px; height:54px; border-radius:14px; background:rgba(22,28,34,.92); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+  .ctl{width:54px; height:54px; border-radius:14px; background:color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     color:var(--fg); font-size:26px; display:flex; align-items:center; justify-content:center; cursor:pointer}
   .ctl:active{background:var(--panel2)}
   .ctl.active{border-color:var(--accent); color:var(--accent)}
@@ -311,7 +314,7 @@
     box-shadow:0 4px 18px rgba(0,0,0,.45)}
   body:not(.navving) #revToggle.on{display:flex}
   #revToggle.rev{background:var(--warn); border-color:var(--warn); color:#231a00}
-  body.daymode #revToggle:not(.rev){background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
+  body.daymode:not(.schemed) #revToggle:not(.rev){background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
   /* retired chrome: the standalone rose, top-right mute and the rose's mode label */
   #north{display:none !important} #muteBtn{display:none !important} #orientLabel{display:none !important}
   /* riding: same buttons, resting dimmed like the rest of the ride chrome —
@@ -346,17 +349,28 @@
     padding:calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 14px);
     align-items:center; justify-content:center}
   #gloveOverlay.on{display:flex}
+  /* daymode (no scheme): the full-screen menus flip to day plates like the
+     settings panel — night tiles + day accent measured 2.6:1 (sweep) */
+  body.daymode:not(.schemed) #gloveOverlay, body.daymode:not(.schemed) #schemaPicker,
+  body.daymode:not(.schemed) #dlg{
+    --bg:#e4e9ee; --panel:#eef1f4; --panel2:#ffffff; --fg:#15202b; --dim:#5a6a78;
+    color:var(--fg)} /* re-resolve inherited body colour inside this scope */
   #gloveGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:min(94vw,720px); margin:0 auto}
   .gtile{height:min(26vh,180px); border-radius:18px; background:var(--panel2); border:2px solid color-mix(in srgb, var(--fg) 15%, transparent);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer}
   .gtile:active{background:#26313d}
-  .gtile .gs{font-size:12px; color:var(--dim); margin-top:-4px; text-align:center; padding:0 6px}
-  .gtile.active .gs{color:var(--accent); opacity:.8}
-  .gtile.active{border-color:var(--accent)}
+  /* labels at full fg, subtitles at a fg/panel mix — --dim on the derived
+     tile surface dips under 4.5:1 for some schemes (sweep finding) */
+  .gtile .gs{font-size:12px; color:color-mix(in srgb, var(--fg) 78%, var(--panel));
+    margin-top:-4px; text-align:center; padding:0 6px}
+  /* active = accent BORDER; labels keep fg/dim — scheme accents meet the
+     3:1 large/graphics bar, not the 4.5:1 small-text bar (sweep finding) */
+  .gtile.active .gs{opacity:.85}
+  .gtile.active{border-color:var(--accent); border-width:3px}
   .gtile .gi{font-size:42px; line-height:1; display:flex; align-items:center; justify-content:center; gap:10px}
   .gtile .gi .gv{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums}
-  .gtile .gl{font-size:15px; font-weight:700; color:var(--dim); letter-spacing:.02em}
-  .gtile.active .gl{color:var(--accent)}
+  .gtile .gl{font-size:15px; font-weight:700; color:var(--fg); letter-spacing:.02em}
+  .gtile.active .gl{color:var(--fg)}
   /* ---------- progress strip ---------- */
   #progress{position:fixed; left:0; right:0; z-index:14; display:none;
     background:rgba(14,18,22,.92); border-top:1px solid #232d38; padding:4px 10px 0}
@@ -383,7 +397,8 @@
 
   /* ---------- bottom bar ---------- */
   #bottom{position:fixed; left:0; right:0; bottom:0; z-index:15;
-    background:rgba(14,18,22,.96); border-top:1px solid #232d38;
+    background:color-mix(in srgb, var(--bg) 96%, transparent);
+    border-top:1px solid color-mix(in srgb, var(--fg) 14%, transparent);
     padding:10px 12px calc(env(safe-area-inset-bottom) + 10px); display:flex; gap:10px; align-items:center}
   body.navving #bottom{display:none} /* riding: bar removed — ☰ opens the ride-controls panel instead */
   /* ☰ menu: first slot of the base row (bottom-left), glove-sized like its neighbours;
@@ -445,7 +460,7 @@
     max-width:480px; width:100%; margin:0 auto 10px}
   #schemaHead b{font-size:17px}
   #schemaClose{background:none; border:none; color:var(--dim); font-size:22px; padding:8px; cursor:pointer}
-  .schSec{max-width:480px; width:100%; margin:8px auto 6px; font-size:12.5px; color:var(--dim);
+  .schSec{max-width:480px; width:100%; margin:8px auto 6px; font-size:12.5px; color:var(--fg);
     text-transform:uppercase; letter-spacing:.06em}
   .schGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:480px; width:100%; margin:0 auto}
   .schGrid .mtile{padding:18px 6px}
@@ -465,7 +480,7 @@
   #panelClose{position:fixed; left:10px; top:calc(env(safe-area-inset-top) + 10px); z-index:22;
     width:88px; height:88px; font-size:44px; display:flex; align-items:center; justify-content:center;
     background:rgba(34,41,48,.85); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:24px; color:var(--fg); cursor:pointer}
-  body.daymode #panelClose{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
+  body.daymode:not(.schemed) #panelClose{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
   #panel > [data-reg="style"]{margin-left:104px} /* first row clears the back arrow */
   #panel h3{font-size:13px; letter-spacing:.06em; color:var(--dim); margin:18px 0 8px}
   /* ---------- Mac-like day theme (2026-07-17 samples review) ----------
@@ -474,37 +489,40 @@
      light panel with white controls and green switches, dark speed text with a
      light halo (white failed 1.8:1 on day maps), frosted turn strip, and no
      riding fade — light plates are already quiet. Night chrome is untouched. */
-  body.daymode{--accent:#007AFF; --navOp:1;
+  /* --accent darkened #007AFF→#0062cc (2026-08-14): the rendered sweep
+     measured 14px accent labels (glove tiles) at 3.3–3.8:1 on light plates —
+     small text needs 4.5:1. #0062cc clears it on every light surface. */
+  body.daymode:not(.schemed){--accent:#0062cc; --navOp:1;
     /* status hues darken for light plates (night values sit at 1.6-3.0:1).
        Chosen to also keep the fixed button-text inks readable: #04240f on
        --ok and #231a00 on --warn stay over 4.5:1, white on --bad hits 5.7. */
     --ok:#1b9750; --warn:#b57a00; --bad:#c22a2a}
-  body.daymode #bottom{--fg:#15202b; --dim:#5a6a78; color:var(--fg);
+  body.daymode:not(.schemed) #bottom{--fg:#15202b; --dim:#5a6a78; color:var(--fg);
     background:rgba(245,247,249,.96); border-top-color:#ccd5dd}
-  body.daymode .ctl{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
-  body.daymode .ctl:active{background:#e8e8ed}
-  body.daymode #menuBtn{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f; text-shadow:none}
-  body.daymode #menuBtn:active{background:#e8e8ed}
-  body.daymode #dotBtn{background:rgba(245,245,247,.92); border-color:#c9c9ce; color:#1d1d1f}
-  body.daymode #hudSpeed, body.daymode #vargModeBig{color:#15202b;
+  body.daymode:not(.schemed) .ctl{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
+  body.daymode:not(.schemed) .ctl:active{background:#e8e8ed}
+  body.daymode:not(.schemed) #menuBtn{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f; text-shadow:none}
+  body.daymode:not(.schemed) #menuBtn:active{background:#e8e8ed}
+  body.daymode:not(.schemed) #dotBtn{background:rgba(245,245,247,.92); border-color:#c9c9ce; color:#1d1d1f}
+  body.daymode:not(.schemed) #hudSpeed, body.daymode:not(.schemed) #vargModeBig{color:#15202b;
     text-shadow:0 1px 8px rgba(255,255,255,.85), 0 0 3px rgba(255,255,255,.7)}
-  body.daymode #hudSpeed small, body.daymode #vargModeDetail .l{color:#3f4a55}
-  body.daymode #hudSpeed.cd, body.daymode #hudSpeed.cd small{color:#b45309}
-  body.daymode #hudSpeed.low, body.daymode #hudSpeed.low small{color:#c22a2a}
-  body.daymode #hudBox{background:rgba(255,255,255,.72); border-bottom-color:#d0d5db}
-  body.daymode #hudType, body.daymode #hudDist{color:#15202b}
-  body.daymode #hudDist small{color:#5a6a78}
-  body.daymode #hudType.left, body.daymode #hudType.right{color:#b45309}
-  body.daymode #hudRoad{color:#5a6a78}
-  body.daymode #panel{--fg:#15202b; --dim:#5a6a78; --panel:#eef1f4; --panel2:#ffffff; --bg:#e4e9ee;
+  body.daymode:not(.schemed) #hudSpeed small, body.daymode:not(.schemed) #vargModeDetail .l{color:#3f4a55}
+  body.daymode:not(.schemed) #hudSpeed.cd, body.daymode:not(.schemed) #hudSpeed.cd small{color:#b45309}
+  body.daymode:not(.schemed) #hudSpeed.low, body.daymode:not(.schemed) #hudSpeed.low small{color:#c22a2a}
+  body.daymode:not(.schemed) #hudBox{background:rgba(255,255,255,.72); border-bottom-color:#d0d5db}
+  body.daymode:not(.schemed) #hudType, body.daymode:not(.schemed) #hudDist{color:#15202b}
+  body.daymode:not(.schemed) #hudDist small{color:#5a6a78}
+  body.daymode:not(.schemed) #hudType.left, body.daymode:not(.schemed) #hudType.right{color:#b45309}
+  body.daymode:not(.schemed) #hudRoad{color:#5a6a78}
+  body.daymode:not(.schemed) #panel{--fg:#15202b; --dim:#5a6a78; --panel:#eef1f4; --panel2:#ffffff; --bg:#e4e9ee;
     background:#eef1f4; color:var(--fg)}
-  body.daymode #panel .btn{border-color:#c9c9ce}
-  body.daymode #panel .row input[type=text]{border-color:#c9c9ce}
-  body.daymode #panel .seg button{border-color:#c9c9ce}
-  body.daymode #panel .seg button.active{background:var(--accent); border-color:var(--accent); color:#fff}
-  body.daymode #panel .sw span{background:#d1d1d6}
-  body.daymode #panel .sw span::before{background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25)}
-  body.daymode #panel .sw input:checked + span{background:#34c759}
+  body.daymode:not(.schemed) #panel .btn{border-color:#c9c9ce}
+  body.daymode:not(.schemed) #panel .row input[type=text]{border-color:#c9c9ce}
+  body.daymode:not(.schemed) #panel .seg button{border-color:#c9c9ce}
+  body.daymode:not(.schemed) #panel .seg button.active{background:var(--accent); border-color:var(--accent); color:#fff}
+  body.daymode:not(.schemed) #panel .sw span{background:#d1d1d6}
+  body.daymode:not(.schemed) #panel .sw span::before{background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  body.daymode:not(.schemed) #panel .sw input:checked + span{background:#34c759}
   #panelNav{display:flex; gap:10px; margin-bottom:6px}
   #panelNav #navBtn{flex:1}
   #verLine{font-size:12px; color:var(--dim); text-align:right; margin:10px 0 -6px}
@@ -630,18 +648,18 @@
   #startup .btn{flex:none; min-height:64px; padding:16px 30px; font-size:17px; pointer-events:auto}
   #suSlow{display:none} #startup.slow #suSlow{display:block}
   /* day mode: #startup is OUTSIDE #panel, so it inherits none of the overrides below */
-  body.daymode #startup{--panel:#eef1f4; --panel2:#ffffff; --bg:#e4e9ee; --fg:#15202b;
+  body.daymode:not(.schemed) #startup{--panel:#eef1f4; --panel2:#ffffff; --bg:#e4e9ee; --fg:#15202b;
     --dim:#5a6a78; color:var(--fg)}
-  body.daymode #suCard, body.daymode #suCard input, body.daymode #suBar,
-  body.daymode #startup .btn{border-color:#c9c9ce}
-  body.daymode .suGday{border-top-color:#c9c9ce}
-  body.daymode #startup .btn.primary{color:#fff}      /* #00252b on #007AFF fails in sun */
+  body.daymode:not(.schemed) #suCard, body.daymode:not(.schemed) #suCard input, body.daymode:not(.schemed) #suBar,
+  body.daymode:not(.schemed) #startup .btn{border-color:#c9c9ce}
+  body.daymode:not(.schemed) .suGday{border-top-color:#c9c9ce}
+  body.daymode:not(.schemed) #startup .btn.primary{color:#fff}      /* #00252b on #007AFF fails in sun */
   /* The ready-empty text floats over the live map, and what is BEHIND it does not
      track the theme: with no basemap the map renders dark even in day mode. So it
      carries its own plate rather than relying on contrast with the map. */
   #suEmptyHead{background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:14px;
     padding:14px 22px; text-align:center; box-shadow:0 4px 18px rgba(0,0,0,.45)}
-  body.daymode #suEmptyHead{border-color:#c9c9ce; box-shadow:0 4px 18px rgba(0,0,0,.18)}
+  body.daymode:not(.schemed) #suEmptyHead{border-color:#c9c9ce; box-shadow:0 4px 18px rgba(0,0,0,.18)}
 
   /* ---------- responsive: landscape / split-screen (short viewports) ---------- */
   @media (max-height: 500px) {
@@ -3967,7 +3985,7 @@ function drawCountdown(ctx, w, h, ns) {
   const near = d <= (ns.cdNear || 0);
   ctx.fillStyle = '#26313d'; ctx.fillRect(0, 0, w, h);
   // canvas can't read CSS vars — mirror the day/night accent swap by hand
-  ctx.fillStyle = near ? '#ffb020' : (document.body.classList.contains('daymode') ? '#007AFF' : '#00e5ff');
+  ctx.fillStyle = near ? '#ffb020' : (document.body.matches('.daymode:not(.schemed)') ? '#0062cc' : '#00e5ff');
   ctx.fillRect(w - frac * w, 0, frac * w, h);
   let txt;
   if (S.set.countUnit === 's') {
@@ -7464,6 +7482,9 @@ function mountScheme(sch) {
   // dark-on-dark labels in the glove menu and schema picker.
   document.documentElement.style.setProperty('--panel2',
     'color-mix(in srgb, var(--panel) 88%, var(--fg) 12%)');
+  // gates the body.daymode overrides: a mounted scheme owns the chrome,
+  // otherwise daymode's body-scope vars shadow the scheme's html-scope ones
+  document.body.classList.add('schemed');
   const mc = ddCore.markColors(sch);
   for (const k in MARKS) MARKS[k].col = mc[k] || MARKS_D[k];
 }
@@ -7472,6 +7493,7 @@ function unmountScheme() {
   for (const v of Object.keys(ddCore.cssVars({})))
     document.documentElement.style.removeProperty(v);
   document.documentElement.style.removeProperty('--panel2');
+  document.body.classList.remove('schemed');
   for (const k in MARKS) MARKS[k].col = MARKS_D[k];
 }
 /* scheme → the settings half: ADV knobs + hillshade toggle + the map style */

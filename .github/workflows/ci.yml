@@ -65,6 +65,16 @@ jobs:
             site:
               - '.github/workflows/ci.yml'
               - 'apps/site/**'
+            ui:
+              - '.github/workflows/ci.yml'
+              - 'core/ui/**'
+              - 'core/schemes/**'
+              - 'core/behaviors/**'
+              - 'core/appliers/**'
+              - 'core/basemap/**'
+              - 'apps/nav/**'
+              - 'apps/plan/**'
+              - 'tools/ui-sweep/**'
 
   # Unconditional and cheap. This is the guard that stops core/ being vendored
   # back into an app — gating it on paths would let the very change it exists
@@ -229,6 +239,47 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # Rendered contrast sweep — Playwright measures the ACTUAL menus (glove
+  # grid, ride-schema picker, settings) across scheme x day/night states.
+  # The static token guard cannot see a var that stops following a mounted
+  # scheme; this job can (and did, day one). CONTRAST_ENFORCE=1 blocks.
+  ui:
+    name: UI — rendered contrast sweep
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            apps/plan/package-lock.json
+            tools/ui-sweep/package-lock.json
+      - run: npm ci
+        working-directory: apps/plan
+      - run: npm run build
+        working-directory: apps/plan
+      - run: npm ci
+        working-directory: tools/ui-sweep
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tools/ui-sweep/package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+        working-directory: tools/ui-sweep
+      - run: npx playwright test
+        working-directory: tools/ui-sweep
+        env:
+          CONTRAST_ENFORCE: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-sweep-screenshots
+          path: tools/ui-sweep/artifacts/
+          if-no-files-found: ignore
+
   # Single required status check. Path-filtered jobs report "skipped", which
   # branch protection treats as never-completed and blocks on; this gate turns
   # the whole matrix into one check that passes when nothing actually failed.
@@ -238,7 +289,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [changes, repo, rust, plan, studio, nav, site]
+    needs: [changes, repo, rust, plan, studio, nav, site, ui]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
