@@ -68,7 +68,7 @@ test('applier contract: fixture scheme → pinned overrides', () => {
   assert.equal(full.adv.colRoute, '#4AA8FF');
   assert.equal(full.css['--warn'], '#ffb020');
   assert.equal(full.marks.danger, '#f0c24b');
-  assert.equal(full.hill['hillshade-exaggeration'], 0.35);
+  assert.equal(full.hill['hillshade-exaggeration'], 0.8); // registry default since the light-terrain look (2026-08-15)
 });
 
 test('night overlay resolves over day, day untouched', () => {
