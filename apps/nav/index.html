@@ -689,6 +689,50 @@
     #startup .btn{min-height:52px; padding:12px 22px}
   }
 
+  /* ---------- landscape: controls own the LEFT edge, the ride owns the right ----------
+     (2026-08-14 request) Buttons keep the portrait size and style — the short-screen
+     shrink is retired for landscape. Left edge, top to bottom: N · turn panel +
+     off-track pill · box (square) · dot — the square sits above the dot; ☰ − +
+     line the bottom, clear of the column. START keeps the bottom-right corner.
+     The countdown strip and its giant amber arrow take the left third; the right
+     two-thirds is all map. Kept after the media queries so these win the cascade;
+     a saved layout-editor slot still wins over all of it (inline styles). */
+  body:not(.portrait) #baseRow{display:contents}
+  body:not(.portrait) #menuBtn{position:fixed; left:106px; bottom:calc(var(--chromeB,0px) + 8px)}
+  body:not(.portrait) #zoomOut{position:fixed; left:202px; bottom:calc(var(--chromeB,0px) + 8px)}
+  body:not(.portrait) #zoomIn{position:fixed; left:298px; bottom:calc(var(--chromeB,0px) + 8px)}
+  body:not(.portrait) #boxBtn{left:10px; right:auto; top:auto; bottom:calc(var(--chromeB,0px) + 104px)}
+  body:not(.portrait) #baseRow #dotBtn{position:fixed; left:10px; bottom:calc(var(--chromeB,0px) + 8px)}
+  body:not(.portrait) #startBtn{position:fixed; right:10px; bottom:calc(var(--chromeB,0px) + 8px)}
+  /* ride-direction toggle joins the bottom rank, right of the + */
+  body:not(.portrait) #revToggle{left:calc(106px + 3 * 96px + 8px); bottom:calc(var(--chromeB,0px) + 8px)}
+  body:not(.portrait) #orientCtl, body:not(.portrait) #boxBtn, body:not(.portrait) #menuBtn,
+  body:not(.portrait) #zoomOut, body:not(.portrait) #zoomIn,
+  body:not(.portrait) #baseRow #dotBtn{width:88px; height:88px; border-radius:24px; font-size:40px}
+  body:not(.portrait) #baseRow #dotBtn{border-radius:50%}
+  body.navving:not(.portrait) #orientCtl, body.navving:not(.portrait) #boxBtn,
+  body.navving:not(.portrait) #menuBtn, body.navving:not(.portrait) #zoomOut,
+  body.navving:not(.portrait) #zoomIn,
+  body.navving:not(.portrait) #baseRow #dotBtn{width:104px; height:104px; font-size:46px}
+  /* riding: 104px plates need a wider pitch along the bottom and a taller column */
+  body.navving:not(.portrait) #menuBtn{left:124px}
+  body.navving:not(.portrait) #zoomOut{left:238px}
+  body.navving:not(.portrait) #zoomIn{left:352px}
+  body.navving:not(.portrait) #boxBtn{bottom:calc(var(--chromeB,0px) + 120px)}
+  /* turn panel + off-track pill: the slot between the N and the square */
+  body:not(.portrait) #hud{left:10px; right:auto; width:min(34vw, 380px); top:calc(env(safe-area-inset-top) + 108px)}
+  body:not(.portrait) #hudBox{border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+    border-radius:16px; padding:8px 14px; gap:12px}
+  body:not(.portrait) #banner{left:10px; right:auto; transform:none; top:calc(env(safe-area-inset-top) + 116px)}
+  /* the countdown strip (and its giant amber arrow) lives in the left third */
+  body:not(.portrait) #progress{right:auto; width:min(34vw, 380px)}
+  /* the left column took the speed readout's home — riding, it moves to the top-right
+     (Varg cockpits with the big mode digit there may want the layout editor) */
+  body.navving:not(.portrait) #hudSpeed{left:auto; right:16px; top:calc(env(safe-area-inset-top) + 106px)}
+  /* mute keeps out of the readout's way: bottom-right, where START sits when stopped */
+  body.navving:not(.portrait) #muteBtn{top:auto; bottom:calc(var(--chromeB,0px) + 8px); right:10px}
+  body:not(.portrait) #vargPill{right:10px} /* the box no longer holds the top-right corner */
+
   /* ---------- editable screen layout (edit mode) ----------
      A layout-design tool (Settings → General → Edit screen layout), not a riding
      feature: buttons/readouts wobble, drag to a 5×6 slot grid; dragging to the
@@ -3046,14 +3090,17 @@ function cruiseZoom(la) {
    travel direction (heading south → dot drifts toward the top of the screen). */
 let camOffX = 0, camOffY = 0;
 function camTargetOff() {
-  if (S.snapZoom) return [0, Math.round(innerHeight * 0.18)]; // snap zoom: junction fills the view ahead
+  // landscape: the controls own the left edge, so the ride happens on the right —
+  // a steady rightward bias keeps the rider clear of the button column
+  const bias = innerWidth > innerHeight ? Math.round(innerWidth * 0.13) : 0;
+  if (S.snapZoom) return [bias, Math.round(innerHeight * 0.18)]; // snap zoom: junction fills the view ahead
   const o = effOrient();
   if (o === 'north') {
     if (S.courseBearing == null || !S.pos || S.pos.speed < 1.5) return [camOffX, camOffY]; // hold last
     const R = Math.min(innerWidth, innerHeight) * 0.18, r = S.courseBearing * Math.PI / 180;
-    return [-Math.sin(r) * R, Math.cos(r) * R];
+    return [-Math.sin(r) * R + bias, Math.cos(r) * R];
   }
-  return [0, Math.round(innerHeight * 0.15)];
+  return [bias, Math.round(innerHeight * 0.15)];
 }
 let lastEase = 0;
 function followCamera() {
