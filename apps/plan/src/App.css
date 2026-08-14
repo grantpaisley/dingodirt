@@ -1,12 +1,15 @@
 :root {
+  /* Plan's legacy var names, remapped onto the shared core/ui tokens
+     (ladder PR 3 — the navy palette retires). applierPlan.ts still
+     overrides these same names when a ride scheme is active. */
   --pane-width: 320px;
-  --pane-bg: #1a1a2e;
-  --bg-dark: #0f0f1a;
-  --accent: #4f7cff;
-  --accent-hover: #6a93ff;
-  --text-primary: #e8e8f0;
-  --text-secondary: #8a8a9a;
-  --border-color: #2a2a3e;
+  --pane-bg: var(--dd-surface-1);
+  --bg-dark: var(--dd-surface-0);
+  --accent: var(--dd-accent);
+  --accent-hover: var(--dd-accent-hot);
+  --text-primary: var(--dd-text);
+  --text-secondary: var(--dd-text-dim);
+  --border-color: var(--dd-line);
 }
 
 * {
@@ -24,7 +27,7 @@ body,
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--dd-font); /* Barlow (Rule 9) — Inter retires */
   background: var(--bg-dark);
   color: var(--text-primary);
 }
@@ -118,7 +121,7 @@ body {
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
-  background: rgba(26, 26, 46, 0.9);
+  background: color-mix(in srgb, var(--pane-bg) 90%, transparent);
   border-bottom: 1px solid var(--border-color);
   font-size: 13px;
   z-index: 10;
@@ -194,11 +197,11 @@ body {
 }
 
 .places-label:hover {
-  background: rgba(79, 124, 255, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .places-label.active {
-  background: rgba(79, 124, 255, 0.2);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
   color: var(--accent-hover);
 }
 
@@ -324,9 +327,10 @@ body {
 }
 
 .preview-pill.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  /* Rule 7: active toggle = bone fill, ink text */
+  background: var(--dd-toggle-fill);
+  border-color: var(--dd-toggle-fill);
+  color: var(--dd-on-toggle);
 }
 
 .preview-pill:disabled {
@@ -370,7 +374,7 @@ select.export-input {
 }
 
 .export-dest-row:hover {
-  background: rgba(79, 124, 255, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .export-dest-name {
@@ -470,7 +474,7 @@ select.export-input {
 
 .export-warning {
   font-size: 12px;
-  color: #f0b64f;
+  color: var(--dd-alert-warn);
   padding: 6px 8px;
   border: 1px solid rgba(240, 182, 79, 0.4);
   border-radius: 4px;
@@ -478,7 +482,7 @@ select.export-input {
 
 .export-error {
   font-size: 12px;
-  color: #ff7070;
+  color: var(--dd-alert-bad);
   padding: 6px 8px;
   border: 1px solid rgba(255, 112, 112, 0.4);
   border-radius: 4px;
@@ -557,7 +561,7 @@ select.export-input {
 
 .export-skipped {
   font-size: 12px;
-  color: #f0b64f;
+  color: var(--dd-alert-warn);
 }
 
 .export-hint {
@@ -582,7 +586,7 @@ select.export-input {
    has to read as a blocker rather than another grey hint. */
 .export-warning {
   font-size: 12px;
-  color: #f0b64f;
+  color: var(--dd-alert-warn);
   line-height: 1.5;
   padding: 6px 8px;
   margin: 4px 0;
@@ -639,9 +643,10 @@ select.export-input {
 }
 
 .list-toggle.active {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
+  /* Rule 7: exclusive-choice seg — active is bone fill, not clay */
+  background: var(--dd-toggle-fill);
+  color: var(--dd-on-toggle);
+  border-color: var(--dd-toggle-fill);
 }
 
 .list-count {
@@ -707,7 +712,7 @@ select.export-input {
 .list-item-basket:hover {
   opacity: 1 !important;
   color: var(--text-primary);
-  background: rgba(79, 124, 255, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .list-item-basket.in-basket {
@@ -793,15 +798,18 @@ select.export-input {
   cursor: pointer;
   transition: background 0.15s;
   border-bottom: 1px solid var(--border-color);
+  border-left: var(--dd-select-bar) solid transparent; /* reserve Rule 8 bar */
 }
 
 .list-item:hover {
-  background: rgba(79, 124, 255, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .list-item.selected {
-  background: rgba(79, 124, 255, 0.2);
-  border-color: var(--accent);
+  /* Rule 8: clay edge bar + one-step raised surface */
+  background: var(--dd-surface-2);
+  border-left-color: var(--dd-accent);
+  border-radius: 0 6px 6px 0;
 }
 
 .list-item-icon {
@@ -942,7 +950,7 @@ select.export-input {
 
 .pack-refresh:hover:not(:disabled) {
   color: var(--text-primary);
-  background: rgba(79, 124, 255, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .pack-refresh:disabled {
@@ -955,7 +963,7 @@ select.export-input {
 }
 
 .pack-refresh.failed {
-  color: #e05c5c;
+  color: var(--dd-alert-bad);
 }
 
 .pack-stale-dot {
@@ -969,7 +977,7 @@ select.export-input {
 }
 
 .pack-refresh.failed .pack-stale-dot {
-  background: #e05c5c;
+  background: var(--dd-alert-bad);
 }
 
 /* Right-pane pack editor */
@@ -1036,7 +1044,7 @@ select.export-input {
 }
 
 .pack-track.drag-over {
-  background: rgba(79, 124, 255, 0.18);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .pack-track-grip {
@@ -1083,7 +1091,7 @@ select.export-input {
 }
 
 .pack-track-remove:hover {
-  color: #e05c5c;
+  color: var(--dd-alert-bad);
   opacity: 1;
 }
 
@@ -1137,7 +1145,7 @@ select.export-input {
 }
 
 .pack-mark.focused {
-  background: rgba(79, 124, 255, 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .pack-mark.accepted .pack-mark-title,
@@ -1182,7 +1190,7 @@ select.export-input {
   padding: 1px 5px;
   border-radius: 8px;
   background: rgba(93, 202, 165, 0.2);
-  color: #5dcaa5;
+  color: var(--dd-status-ok);
 }
 
 .pack-mark-btn {
@@ -1196,8 +1204,8 @@ select.export-input {
   cursor: pointer;
 }
 
-.pack-mark-btn.ok { color: #5dcaa5; }
-.pack-mark-btn.no { color: #e05c5c; }
+.pack-mark-btn.ok { color: var(--dd-status-ok); }
+.pack-mark-btn.no { color: var(--dd-alert-bad); }
 
 .pack-mark-btn:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -1239,9 +1247,10 @@ select.export-input {
 }
 
 .pill.active {
-  border-color: var(--accent);
-  color: white;
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  /* Rule 7: active toggle = bone fill, ink text — clay stays reserved */
+  border-color: var(--dd-toggle-fill);
+  color: var(--dd-on-toggle);
+  background: var(--dd-toggle-fill);
 }
 
 .pill-label {
@@ -1315,7 +1324,7 @@ select.export-input {
   max-width: 280px;
   max-height: 320px;
   overflow-y: auto;
-  background: var(--bg-secondary, #23272e);
+  background: var(--dd-surface-2);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
@@ -1330,7 +1339,7 @@ select.export-input {
   background: none;
   border: none;
   border-radius: 4px;
-  color: var(--text-primary, #ddd);
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
 }
@@ -1348,7 +1357,7 @@ select.export-input {
   align-items: center;
   gap: 2px;
   font-size: 12px;
-  color: var(--text-primary, #ddd);
+  color: var(--text-primary);
 }
 
 .pill-dropdown-row label {
@@ -1394,7 +1403,7 @@ select.export-input {
   color: var(--text-secondary);
 }
 
-.pill-dropdown-error { color: #e66; }
+.pill-dropdown-error { color: var(--dd-alert-bad); }
 
 /* Unified list: per-type item icons tint routes and packs */
 .list-item-icon.route { color: #7f9dff; }
