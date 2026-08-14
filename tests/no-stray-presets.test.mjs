@@ -30,6 +30,7 @@ const LINKS = [
   ['apps/plan/public/schemes', 'core/schemes'],
   ['apps/plan/public/behaviors', 'core/behaviors'],
   ['apps/nav/appliers', 'core/appliers'],
+  ['apps/studio/core-ui', 'core/ui'],
   ['apps/studio/js/applier-nav.js', 'core/appliers/applier-nav.js'],
   ['apps/studio/js/scheme.js', 'core/appliers/scheme.js'],
   ['apps/studio/js/detail.js', 'core/appliers/detail.js'],

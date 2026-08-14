@@ -6,17 +6,24 @@
 <meta name="theme-color" content="#0e1216">
 <title>Dingo Studio</title>
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="core-ui/tokens.css">
+<link rel="stylesheet" href="core-ui/fonts.css">
 <style>
-  /* ---------- Studio chrome (fixed dark — the canvas, not the artwork) ---------- */
+  /* ---------- Studio chrome (fixed dark — the canvas, not the artwork) ----------
+     Ladder PR 4: the slate palette retires — Studio's legacy var names remap
+     onto the shared core/ui tokens (core-ui is a symlink to ../../core/ui,
+     dereferenced at deploy like the presets). The PREVIEW inside the stage
+     stays scheme-driven (--accent etc.) — that's the artwork, not chrome. */
   :root{
-    --sbg:#0b0e12; --spanel:#12171d; --spanel2:#1a212a; --sfg:#e8eef4; --sdim:#8fa0b0;
-    --saccent:#00e5ff; --sline:#242e38;
+    --sbg:var(--dd-surface-0); --spanel:var(--dd-surface-1); --spanel2:var(--dd-surface-2);
+    --sfg:var(--dd-text); --sdim:var(--dd-text-dim);
+    --saccent:var(--dd-accent); --sline:var(--dd-line);
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   svg.ic{width:1.12em; height:1.12em; fill:none; stroke:currentColor; stroke-width:2;
     stroke-linecap:round; stroke-linejoin:round; display:inline-block; vertical-align:-0.16em; flex:none}
   html,body{height:100%; overflow:hidden; background:var(--sbg); color:var(--sfg);
-    font-family:-apple-system,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none}
+    font-family:var(--dd-font); user-select:none; -webkit-user-select:none}
   button{font:inherit; color:inherit; background:var(--spanel2); border:1px solid var(--sline);
     border-radius:9px; padding:7px 12px; cursor:pointer}
   button:hover{border-color:var(--sdim)}
@@ -57,7 +64,9 @@
   #modeSeg [data-v=day].active{background:#ffd769; color:#3a2c00}
   .seg{display:inline-flex; border:1px solid var(--sline); border-radius:9px; overflow:hidden}
   .seg button{border:none; border-radius:0; padding:5px 10px; font-size:12.5px; background:var(--spanel2)}
-  .seg button.active{background:var(--saccent); color:#03252b; font-weight:700}
+  /* Rule 7: active toggle = bone fill, ink text (day/night keeps its
+     semantic sun/moon colours below; wsSeg keeps its workspace codes) */
+  .seg button.active{background:var(--dd-toggle-fill); color:var(--dd-on-toggle); font-weight:700}
 
   /* ---------- stage: live preview ---------- */
   #stage{flex:1; display:flex; flex-direction:column; min-width:0}
@@ -304,8 +313,8 @@
   .si-groups{display:flex; flex-wrap:wrap; gap:6px; padding:9px 12px}
   .si-pill{padding:3px 10px; font-size:12px; border-radius:14px}
   .si-pill span{color:var(--sdim); font-size:10.5px}
-  .si-pill.on{background:var(--saccent); color:#03252b; border-color:var(--saccent)}
-  .si-pill.on span{color:#03252b99}
+  .si-pill.on{background:var(--dd-toggle-fill); color:var(--dd-on-toggle); border-color:var(--dd-toggle-fill)}
+  .si-pill.on span{color:color-mix(in srgb, var(--dd-on-toggle) 60%, transparent)}
   .si-note{padding:6px 12px; font-size:11.5px; color:var(--sdim)}
   .si-note:empty{display:none}
   .si-axis{display:flex; align-items:center; padding:2px 12px 3px; border-bottom:1px solid var(--sline)}
