@@ -152,7 +152,11 @@ test('contrast: Nav chrome (night + day)', (t) => {
     ['--accent', '--panel', LARGE],
   ];
 
-  const night = resolveVarRefs(parseCssVarBlock(style, ':root'));
+  // Nav's :root remaps its legacy var names onto core/ui tokens (ladder
+  // PR 5), so resolution seeds from tokens.css — the browser's cascade.
+  const tokens = parseCssVarBlock(
+    readFileSync(join(REPO, 'core/ui/tokens.css'), 'utf8'), ':root');
+  const night = resolveVarRefs(new Map([...tokens, ...parseCssVarBlock(style, ':root')]));
   checkPairs(t, 'nav night', (k) => night.get(k), varPairs);
 
   // day = cascade for elements inside the settings panel: :root, then the
