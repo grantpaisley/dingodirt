@@ -13,7 +13,7 @@ export const SCHEMA_VERSION = '1.0';
    old schemes survive basemap upgrades. */
 export const TOKEN_GROUPS = [
   { key: 'basemap', label: 'Basemap', tokens: {
-    'basemap.base':          { type: 'select', opts: ['dark', 'light'], def: 'dark', label: 'Base flavour' },
+    'basemap.base':          { type: 'select', opts: ['dark', 'light'], def: 'light', label: 'Base flavour' },
     'basemap.background':    { type: 'color', def: null, label: 'Background' },
     'basemap.earth':         { type: 'color', def: null, label: 'Earth' },
     'basemap.park':          { type: 'color', def: null, label: 'Parks / bush' },
@@ -29,12 +29,12 @@ export const TOKEN_GROUPS = [
     /* when tracks/minor roads appear: populated = base style (~z14 tracks),
        outback = 2 zooms earlier (z12 — the tile-data floor). Applied by
        appliers/detail.js; apps may expose their own override on top. */
-    'basemap.detail':        { type: 'select', opts: ['populated', 'regional', 'outback'], def: 'populated', label: 'Track detail' },
+    'basemap.detail':        { type: 'select', opts: ['populated', 'regional', 'outback'], def: 'outback', label: 'Track detail' },
     'basemap.labelText':     { type: 'color', def: null, label: 'Label text' },
     'basemap.labelHalo':     { type: 'color', def: null, label: 'Label halo' },
     'basemap.hillshade':     { type: 'bool', def: true, label: 'Hillshade' },
     'basemap.hillshadeShadow':   { type: 'color', def: '#54524a', label: 'Hillshade shadow' },
-    'basemap.hillshadeStrength': { type: 'number', min: 0, max: 1, step: 0.05, def: 0.35, label: 'Hillshade strength' },
+    'basemap.hillshadeStrength': { type: 'number', min: 0, max: 1, step: 0.05, def: 0.8, label: 'Hillshade strength' },
   } },
   { key: 'overlays', label: 'Overlays', tokens: {
     'overlays.heatOwn':      { type: 'color', def: '#ff7a00', label: 'Heat — own rides' },
