@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <link rel="stylesheet" href="core-ui/tokens.css">
 <link rel="stylesheet" href="core-ui/fonts.css">
+<link rel="stylesheet" href="core-ui/chrome.css">
 <style>
   /* Ladder PR 5: the slate factory chrome retires — Nav's legacy var names
      remap onto the shared core/ui tokens (ink surfaces, clay accent, bone
@@ -173,23 +174,24 @@
   /* one-off explainer dialog (e.g. favourite-zoom tip) */
   #dlgShade{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:40; display:none}
   #dlgShade.on{display:block}
+  /* The frame skin (surface, hairline, radius, title) is core/ui's
+     .dd-dialog — Nav keeps positioning, glove-width buttons and sizes. */
   #dlg{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(88vw,360px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
-    padding:20px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
+    width:min(88vw,360px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #dlg.on{display:block}
-  #dlg h4{font-size:18px; margin-bottom:10px}
+  #dlg h2{font-size:18px}
   #dlgMsg{font-size:15px; color:var(--fg); line-height:1.55}
   #dlgMsg b{color:var(--accent)}
   #dlgOk{margin-top:18px; width:100%; padding:13px; border:none; border-radius:12px;
-    background:var(--accent); color:#00252b; font-size:16px; font-weight:800; cursor:pointer}
+    background:var(--accent); color:var(--dd-on-accent); font-size:16px; font-weight:800; cursor:pointer}
   /* first-visit capture lives in the startup card now (#suIntro) — see the block there */
   /* track picker — one card, two modes (rider-asked 'pick' / Follow-mode 'off') */
-  #trkPick{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(90vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
-    padding:16px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
-  #trkPick.on{display:block}
-  #trkPick h4{font-size:17px; margin-bottom:2px}
-  #trkPick.off h4{color:var(--bad)}
+  /* Track picker = the Sheet frame (Rule 4 docking: side when wide,
+     bottom with a drag handle when tall — .dd-sheet supplies both). */
+  #trkPick{position:fixed; z-index:41; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6); padding:0 16px 16px}
+  #trkPick.on{display:flex}
+  #trkPick header{font-size:17px}
+  #trkPick.off header{color:var(--bad)}
   #tpSub{font-size:12px; color:var(--dim); margin-bottom:12px}
   #tpList{display:flex; flex-direction:column; gap:6px; max-height:44vh; overflow-y:auto}
   .tpRow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
@@ -212,8 +214,7 @@
   #tpBtns button.go{background:var(--ok); border-color:var(--ok); color:#04240f; font-weight:800}
   /* ride briefing — the last thing between the rider and moving, so it reads at a glance */
   #briefDlg{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(90vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
-    padding:18px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
+    width:min(90vw,380px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #briefDlg.on{display:block}
   #briefName{font-size:21px; font-weight:800; line-height:1.2}
   #briefMode{font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px}
@@ -229,10 +230,9 @@
   /* ---------- training ride: demo chooser + coach cards + spotlight (2026-07-19 design)
      (#colourPick shares the chooser look — ☰ Track colour tile) ---------- */
   #demoPick, #colourPick{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(88vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
-    padding:20px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
+    width:min(88vw,380px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #demoPick.on, #colourPick.on{display:block}
-  #demoPick h4, #colourPick h4{font-size:18px; margin-bottom:14px}
+  #demoPick h2, #colourPick h2{font-size:18px; margin-bottom:14px}
   .dpBtn{display:flex; flex-direction:column; gap:4px; width:100%; padding:14px; margin-bottom:10px;
     border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px; background:var(--panel2); color:var(--fg);
     font-size:16px; text-align:left; cursor:pointer}
@@ -427,7 +427,8 @@
   /* MARK PICKER: full-screen kind grid — tap a point (riding or edit mode) to open it.
      Fixed 12 slots: 9 kinds, Delete/Restore, two blanks reserved for future kinds —
      3×4 portrait, 6×2 landscape, so the geometry never reflows. */
-  #markPicker{position:fixed; inset:0; z-index:40; display:none; background:rgba(10,13,16,.92);
+  #markPicker{position:fixed; inset:0; z-index:40; display:none;
+    background:color-mix(in srgb, var(--bg) 92%, transparent);
     flex-direction:column; justify-content:center; padding:18px}
   #markPicker.open{display:flex}
   #markPickerHead{display:flex; align-items:center; justify-content:space-between;
@@ -835,20 +836,21 @@
 <div id="toast"></div>
 <div id="updBar"><span id="updTxt">New version ready</span><button class="btn" id="updGo">Update</button><button class="btn" id="updLater">Later</button></div>
 <div id="dlgShade"></div>
-<div id="dlg"><h4 id="dlgTitle"></h4><div id="dlgMsg"></div><button id="dlgOk">Got it</button></div>
+<div id="dlg" class="dd-dialog"><h2 id="dlgTitle"></h2><div id="dlgMsg"></div><button id="dlgOk">Got it</button></div>
 <!-- first visit only (who you are) now lives inside the startup card as #suIntro,
      so the cold-boot download is spent on setup instead of a bare progress bar -->
 <!-- track picker: long-press a track / tap the bottom bar, or Follow mode noticing you
      left the route while sitting on another track you've loaded -->
-<div id="trkPick">
-  <h4 id="tpTitle">Choose track</h4>
+<div id="trkPick" class="dd-sheet">
+  <div class="dd-sheet-handle"></div>
+  <header id="tpTitle">Choose track</header>
   <div id="tpSub"></div>
-  <div id="tpList"></div>
+  <div id="tpList" class="dd-sheet-body"></div>
   <div id="tpRev"><span>Ride reversed</span><span id="tpRevSw"></span></div>
   <div id="tpBtns"></div>
 </div>
 <!-- ride briefing: what you're about to set off on, confirmed before the screen goes to riding chrome -->
-<div id="briefDlg">
+<div id="briefDlg" class="dd-dialog">
   <div id="briefName"></div>
   <div id="briefMode"></div>
   <div id="briefRows"></div>
@@ -857,11 +859,11 @@
     <button id="briefGo" class="go">Ride</button>
   </div>
 </div>
-<div id="demoPick"><h4>Demo ride</h4>
+<div id="demoPick" class="dd-dialog"><h2>Demo ride</h2>
   <button class="dpBtn" id="dpTrain"><b>Training ride</b><span>learn DingoNav on a guided fake ride — no track needed</span></button>
   <button class="dpBtn" id="dpPlain"><b>Plain demo</b><span id="dpPlainSub">replay the selected track at 30 km/h</span></button>
   <button id="dpCancel">Cancel</button></div>
-<div id="colourPick"><h4>Track colour</h4>
+<div id="colourPick" class="dd-dialog"><h2>Track colour</h2>
   <button class="dpBtn" data-tc="none"><b>None</b><span>route blue — dark casing on day maps, white at night</span></button>
   <button class="dpBtn" data-tc="slope"><b>Slope</b><span>brighter blue = steeper (needs elevation data)</span></button>
   <button class="dpBtn" data-tc="surface"><b>Surface</b><span>sealed blue · dirt amber · singletrack purple</span></button>
@@ -7480,6 +7482,18 @@ function mountScheme(sch) {
     hill: ddCore.hillPaint(sch) };
   for (const [v, val] of Object.entries(ddCore.cssVars(sch)))
     document.documentElement.style.setProperty(v, String(val));
+  // The core/ui frame classes (.dd-dialog/.dd-sheet, ladder frames) read
+  // --dd-* tokens, which schemes don't know about — bridge them onto the
+  // scheme's values so frames restyle with the rest of the chrome. The
+  // scheme vars are inline literals here, so var() refs can't cycle.
+  const DD_BRIDGE = { '--dd-surface-0': '--bg', '--dd-surface-1': '--panel',
+    '--dd-text': '--fg', '--dd-text-dim': '--dim', '--dd-accent': '--accent' };
+  for (const [dd, legacy] of Object.entries(DD_BRIDGE))
+    document.documentElement.style.setProperty(dd, `var(${legacy})`);
+  document.documentElement.style.setProperty('--dd-surface-2',
+    'color-mix(in srgb, var(--panel) 88%, var(--fg) 12%)');
+  document.documentElement.style.setProperty('--dd-line',
+    'color-mix(in srgb, var(--fg) 15%, transparent)');
   // --panel2 (raised tiles, buttons, banners) has no scheme token — derive it
   // from the scheme's panel and text so a LIGHT scheme raises light tiles.
   // Without this, menu tiles kept the factory dark while --fg went ink:
@@ -7498,6 +7512,9 @@ function unmountScheme() {
   for (const v of Object.keys(ddCore.cssVars({})))
     document.documentElement.style.removeProperty(v);
   document.documentElement.style.removeProperty('--panel2');
+  for (const dd of ['--dd-surface-0', '--dd-surface-1', '--dd-surface-2',
+    '--dd-text', '--dd-text-dim', '--dd-accent', '--dd-line'])
+    document.documentElement.style.removeProperty(dd);
   document.body.classList.remove('schemed');
   syncDayTokens();
   for (const k in MARKS) MARKS[k].col = MARKS_D[k];
