@@ -1268,7 +1268,7 @@ function angDiff(a, b) { let d = b - a; while (d > 180) d -= 360; while (d < -18
    a clean slate before laying a preset over the top */
 const SET_D = { sound: true, confirm: true, autoZoom: true, wake: true, name: '', email: '', code: '', orient: 'north',
   profile: false, vehicle: 'enduro', trackColour: 'none', trail: true,
-  compassAuto: 'turns', countUnit: 'm', showAdv: false, mapStyle: 'daylight', hillshade: true, detail: 'populated',
+  compassAuto: 'turns', countUnit: 'm', showAdv: false, mapStyle: 'daylight', hillshade: true, detail: 'outback',
   varg: false, vargOwn: false, vargVin: '', vargPin: '', vargExtra: false, rideProfile: 'adventure', bigLeft: '',
   navMode: 'follow', startBrief: true };  // navMode: follow | explore | snap — survives restarts by design
 const factorySet = () => ({ ...SET_D, zoomPresets: {}, adv: {}, keys: {}, layout: {} });
@@ -2158,7 +2158,7 @@ const EMPTY = { type: 'FeatureCollection', features: [] };
    light flavor plus small paint override tables (tracks are near-invisible in
    stock light — the whole reason for this feature). */
 const TRACK_W = ['interpolate', ['exponential', 1.6], ['zoom'], 13, 1.2, 16, 3.5, 20, 16];
-const HILL_LIGHT = { 'hillshade-exaggeration': 0.3, 'hillshade-shadow-color': '#5b4933', 'hillshade-highlight-color': '#ffffff' };
+const HILL_LIGHT = { 'hillshade-exaggeration': 0.8, 'hillshade-shadow-color': '#5b4933', 'hillshade-highlight-color': '#ffffff' };
 // Trail flavor: stronger, neutral-grey relief — the planner-map (outdoor topo) look.
 const HILL_TRAIL = { 'hillshade-exaggeration': 0.45, 'hillshade-shadow-color': '#54524a', 'hillshade-highlight-color': '#ffffff' };
 // Muted sage bush palette for Trail (stock Protomaps light is minty): parks and
