@@ -30,6 +30,7 @@ jobs:
       studio: ${{ steps.filter.outputs.studio }}
       nav: ${{ steps.filter.outputs.nav }}
       site: ${{ steps.filter.outputs.site }}
+      ui: ${{ steps.filter.outputs.ui }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
