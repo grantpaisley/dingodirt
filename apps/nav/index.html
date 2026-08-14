@@ -855,6 +855,8 @@
   <button class="dpBtn" data-tc="none"><b>None</b><span>route blue — dark casing on day maps, white at night</span></button>
   <button class="dpBtn" data-tc="slope"><b>Slope</b><span>brighter blue = steeper (needs elevation data)</span></button>
   <button class="dpBtn" data-tc="surface"><b>Surface</b><span>sealed blue · dirt amber · singletrack purple</span></button>
+  <button class="dpBtn" data-tc="hr"><b>Heart rate</b><span>Plan's thermal ramp — blue 108 → red 172 bpm (recorded rides)</span></button>
+  <button class="dpBtn" data-tc="speed"><b>Speed</b><span>Plan's spectrum ramp — purple 0 → yellow 80 km/h (recorded rides)</span></button>
   <button id="cpCancel">Cancel</button></div>
 <div id="trainCard">
   <div id="trainTop"><span id="trainStep"></span><span id="trainExit">✕ end training</span></div>
@@ -1536,7 +1538,14 @@ function parseGPX(text, fallbackName) {
       const lat = parseFloat(el.getAttribute('lat')), lon = parseFloat(el.getAttribute('lon'));
       const eleEl = el.getElementsByTagName('ele')[0];
       const ele = eleEl ? parseFloat(eleEl.textContent) : NaN;
-      if (isFinite(lat) && isFinite(lon)) pts.push([lat, lon, ele]);
+      // recorded rides carry more than geometry: heart rate rides in the
+      // Garmin TPX extension (namespace prefixes vary — match by local name),
+      // and per-point time gives speed. Planned routes simply have neither.
+      const hrEl = el.getElementsByTagNameNS('*', 'hr')[0];
+      const hr = hrEl ? parseFloat(hrEl.textContent) : NaN;
+      const tEl = el.getElementsByTagName('time')[0];
+      const t = tEl ? Date.parse(tEl.textContent) / 1000 : NaN;
+      if (isFinite(lat) && isFinite(lon)) pts.push([lat, lon, ele, hr, t]);
     }
     if (pts.length) break;
   }
@@ -1558,21 +1567,28 @@ function processTrack(id, name, ptsLL) {
     if (lo < minLon) minLon = lo; if (lo > maxLon) maxLon = lo;
   }
   const rx = [raw[0]], ry = [raw[1]], re = [ptsLL[0][2] ?? NaN];
+  const rh = [ptsLL[0][3] ?? NaN], rt = [ptsLL[0][4] ?? NaN]; // heart rate + time ride the same resample
   let carry = 0;
+  const lerp = (a, b, t) => a + (b - a) * t; // NaN in → NaN out, which is what missing data should do
   for (let i = 1; i < ptsLL.length; i++) {
     let ax = raw[(i - 1) * 2], ay = raw[(i - 1) * 2 + 1], bx = raw[i * 2], by = raw[i * 2 + 1];
     const ea = ptsLL[i - 1][2] ?? NaN, eb = ptsLL[i][2] ?? NaN;
+    const ha = ptsLL[i - 1][3] ?? NaN, hb = ptsLL[i][3] ?? NaN;
+    const ta = ptsLL[i - 1][4] ?? NaN, tb = ptsLL[i][4] ?? NaN;
     let seg = dist(ax, ay, bx, by);
-    if (seg > 2000) { carry = 0; rx.push(bx); ry.push(by); re.push(eb); continue; } // GPS gap — don't interpolate across
+    if (seg > 2000) { carry = 0; rx.push(bx); ry.push(by); re.push(eb); rh.push(hb); rt.push(tb); continue; } // GPS gap — don't interpolate across
     let along = RESAMPLE_M - carry;
     while (along < seg) {
       const t = along / seg;
-      rx.push(ax + (bx - ax) * t); ry.push(ay + (by - ay) * t); re.push(ea + (eb - ea) * t);
+      rx.push(lerp(ax, bx, t)); ry.push(lerp(ay, by, t)); re.push(lerp(ea, eb, t));
+      rh.push(lerp(ha, hb, t)); rt.push(lerp(ta, tb, t));
       along += RESAMPLE_M;
     }
     carry = seg - (along - RESAMPLE_M);
   }
-  rx.push(raw[(ptsLL.length - 1) * 2]); ry.push(raw[(ptsLL.length - 1) * 2 + 1]); re.push(ptsLL[ptsLL.length - 1][2] ?? NaN);
+  const last = ptsLL[ptsLL.length - 1];
+  rx.push(raw[(ptsLL.length - 1) * 2]); ry.push(raw[(ptsLL.length - 1) * 2 + 1]); re.push(last[2] ?? NaN);
+  rh.push(last[3] ?? NaN); rt.push(last[4] ?? NaN);
   const n = rx.length;
   const xy = new Float32Array(n * 2), cum = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -1589,7 +1605,31 @@ function processTrack(id, name, ptsLL) {
     llBounds: [[minLon, minLat], [maxLon, maxLat]], lengthM: cum[n - 1], alerts: null,
     hasEle: false, profile: null, eleMin: 0, eleMax: 0 };
   buildProfile(trk);
+  buildRideSeries(trk, rh, rt);
   return trk;
+}
+/* recorded-ride series: heart rate straight off the resample; speed derived from
+   per-point time over a ±3-sample window (~±24 m) so GPS timing jitter doesn't
+   strobe the colours. Planned routes have neither — the flags stay false and the
+   HR/speed colour modes grey out, exactly like slope without elevation. */
+function buildRideSeries(trk, rh, rt) {
+  const n = trk.n;
+  const finite = (a) => { let k = 0; for (let i = 0; i < n; i++) if (isFinite(a[i])) k++; return k / n; };
+  trk.hr = Float32Array.from(rh);
+  trk.hasHr = finite(trk.hr) > 0.5;
+  if (!trk.hasHr) trk.hr = null;
+  trk.spd = null; trk.hasSpd = false;
+  if (finite(rt) > 0.5) {
+    const spd = new Float32Array(n), W = 3;
+    for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - W), b = Math.min(n - 1, i + W);
+      const dt = rt[b] - rt[a];
+      spd[i] = dt > 0 && isFinite(dt) ? (trk.cum[b] - trk.cum[a]) / dt : NaN; // m/s
+    }
+    trk.spd = spd;
+    trk.hasSpd = finite(spd) > 0.5;
+    if (!trk.hasSpd) trk.spd = null;
+  }
 }
 function buildProfile(trk) {
   const e = trk.ele, n = trk.n;
@@ -2815,6 +2855,28 @@ function dimColour(hex) { // travelled variant: same hue dropped toward the dark
   const n = parseInt(hex.slice(1), 16), f = v => Math.round(v * 0.42);
   return 'rgb(' + f((n >> 16) & 255) + ',' + f((n >> 8) & 255) + ',' + f(n & 255) + ')';
 }
+/* HR / speed colour scales — Plan's defaults verbatim (apps/plan store.ts:
+   thermal over 108–172 bpm, spectrum over 0–80 km/h), so a ride reads the
+   same in both apps. The gradient is sampled at 12 discrete levels so
+   equal-colour runs still merge into a handful of line features. */
+const RIDE_SCALES = {
+  hr:    { stops: [108, 126, 145, 163, 172],
+           cols: [[0, 0, 255], [0, 255, 255], [0, 255, 0], [255, 255, 0], [255, 0, 0]] },
+  speed: { stops: [0, 5, 15, 30, 80],
+           cols: [[128, 0, 128], [0, 0, 255], [0, 255, 255], [0, 255, 0], [255, 255, 0]] },
+};
+function scaleColour(kind, v) {
+  if (!isFinite(v)) return null;
+  const { stops, cols } = RIDE_SCALES[kind];
+  const lo = stops[0], hi = stops[stops.length - 1];
+  // quantize the overall fraction (12 levels), then sample Plan's piecewise-
+  // linear gradient at that value — exact Plan colours, coarse enough to merge
+  const val = lo + Math.round(Math.min(1, Math.max(0, (v - lo) / (hi - lo))) * 11) / 11 * (hi - lo);
+  let s = 1; while (s < stops.length - 1 && stops[s] < val) s++;
+  const t = Math.min(1, Math.max(0, (val - stops[s - 1]) / Math.max(1e-9, stops[s] - stops[s - 1])));
+  return '#' + cols[s - 1].map((a, i) =>
+    Math.round(a + (cols[s][i] - a) * t).toString(16).padStart(2, '0')).join('');
+}
 /* per-point |grade| buckets, cached per track. Grades come from the smoothed profile
    so GPS elevation noise doesn't shred the line into confetti. */
 function slopeBuckets(trk) {
@@ -2841,6 +2903,8 @@ function refreshRouteFeatures() {
     const surfOf = c => c === 1 ? 'sealed' : c === 3 ? 'single' : 'dirt'; // unmapped = dirt, the safe guess out there
     const sb = mode === 'slope' && trk.hasEle ? slopeBuckets(trk) : null;
     const colAt = i => sb ? (sb[i] < 0 ? ADV('colRoute') : SLOPE_RAMP[sb[i]])
+      : mode === 'hr' && trk.hr ? (scaleColour('hr', trk.hr[i]) || ADV('colRoute'))
+      : mode === 'speed' && trk.spd ? (scaleColour('speed', trk.spd[i] * 3.6) || ADV('colRoute'))
       : mode === 'surface' && trk.wayCls ? (SURF_COLOURS[surfOf(trk.wayCls[i])] || ADV('colRoute'))
       : ADV('colRoute');
     const cls = progClassAt(trk);
@@ -4603,11 +4667,15 @@ document.getElementById('gSettings').onclick = () => { closeGlove(); openPanel()
 /* Demo tile doubles as STOP: any active ride (real or demo) ends here — the two-tap
    ☰ → tile path is the mis-tap protection that used to guard gStartStop */
 document.getElementById('gDemo').onclick = () => { closeGlove(); S.nav ? stopNav() : demoChoice(); };
-/* Track colour: ☰ tile → chooser (none / slope / surface). Slope greys out without elevation. */
+/* Track colour: ☰ tile → chooser (none / slope / surface / hr / speed).
+   Modes grey out when the selected track lacks their data — slope needs
+   elevation, HR and speed need a recorded ride. */
 document.getElementById('gColour').onclick = () => {
   closeGlove();
   const trk = S.tracks[S.sel];
   document.querySelector('#colourPick [data-tc="slope"]').disabled = !(trk && trk.hasEle);
+  document.querySelector('#colourPick [data-tc="hr"]').disabled = !(trk && trk.hasHr);
+  document.querySelector('#colourPick [data-tc="speed"]').disabled = !(trk && trk.hasSpd);
   document.getElementById('dlgShade').classList.add('on');
   document.getElementById('colourPick').classList.add('on');
 };
@@ -4617,6 +4685,8 @@ for (const b of document.querySelectorAll('#colourPick [data-tc]'))
     refreshRouteFeatures(); refreshGlove();
     toast(b.dataset.tc === 'none' ? 'Track colour: plain route blue'
       : b.dataset.tc === 'slope' ? 'Track colour: slope — brighter blue is steeper'
+      : b.dataset.tc === 'hr' ? 'Track colour: heart rate — Plan’s thermal ramp'
+      : b.dataset.tc === 'speed' ? 'Track colour: speed — Plan’s spectrum ramp'
       : 'Track colour: surface — blue sealed, amber dirt');
   };
 document.getElementById('cpCancel').onclick = closeDialog;
