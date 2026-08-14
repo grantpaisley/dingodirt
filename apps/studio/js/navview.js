@@ -193,12 +193,21 @@ export class NavView {
         <div class="nv-bigArrow nv-bigR">${icSvg('corner-up-right')}</div>
         <div class="nv-limit"><span>60</span></div>
         <div class="nv-eta"></div>
-        <div class="nv-zoom"><button class="nv-zin">+</button><button class="nv-zout">−</button></div>
-        <div class="nv-dot">${icSvg('square')}</div>
+        <div class="nv-orient"><span class="nv-needle"></span><span class="nv-orientGlyph">N</span></div>
+        <div class="nv-box">${icSvg('square')}</div>
+        <div class="nv-baseRow">
+          <button class="nv-menu">${icSvg('menu')}</button>
+          <button class="nv-zout">${icSvg('minus')}</button>
+          <button class="nv-zin">${icSvg('plus')}</button>
+          <button class="nv-dot">${icSvg('locate-fixed')}</button>
+        </div>
       </div>`;
     container.appendChild(el);
     this.$ = s => el.querySelector(s);
     this.mapEl = this.$('.nv-map');
+    // The corner + base-row buttons mirror Nav's real chrome (2026-08-14:
+    // "Studio should show the buttons as they would on Nav") — same geometry,
+    // same scheme-var plates, so an unreadable button is unreadable HERE first.
     // dot button = re-follow (Nav's recentre grammar); grids override to re-follow every view
     this.$('.nv-dot').onclick = () => {
       if (this.opts.onDot) this.opts.onDot();
@@ -206,6 +215,9 @@ export class NavView {
     };
     this.$('.nv-zin').onclick = () => this.map && this.map.zoomIn();
     this.$('.nv-zout').onclick = () => this.map && this.map.zoomOut();
+    this.$('.nv-box').onclick = () => { this.follow = false; this.fitTrack(); };
+    // the N needle counter-rotates with the map, exactly like Nav's
+    this.$('.nv-menu').onclick = () => {}; // look-preview only — Nav's ☰ opens the glove menu
     // HUD scaled to its frame: chrome sizes are em-based off this root font-size
     this.ro = new ResizeObserver(() => this._rescale());
     this.ro.observe(el);
@@ -263,7 +275,8 @@ export class NavView {
     el.style.setProperty('--turnBg', t('chrome.turnPanelBg') || '');
     el.classList.toggle('turn-tinted', !!t('chrome.turnPanelBg'));
     el.classList.toggle('no-bigarrows', !t('chrome.bigArrows'));
-    this.$('.nv-zoom').style.display = t('chrome.zoomButtons') ? '' : 'none';
+    // chrome.zoomButtons is NOT honoured here: Nav always shows − / + and this
+    // preview shows the buttons as they would be on Nav (2026-08-14)
     const live = this.navving || this.chromePreview;
     const limit = t('chrome.limitSign');
     const limitEl = this.$('.nv-limit');
@@ -293,6 +306,9 @@ export class NavView {
     this.map.touchZoomRotate.disableRotation();
     this.map.keyboard.disableRotation();
     this.map.on('dragstart', () => { if (this._b('camera.pauseOnGesture')) this.follow = false; });
+    // the N button's red needle counter-rotates with the map — Nav's grammar
+    this.map.on('rotate', () => { const n = this.$('.nv-needle');
+      if (n) n.style.transform = 'rotate(' + (-this.map.getBearing()) + 'deg)'; });
     await new Promise(res => {
       if (this.map.isStyleLoaded()) return res();
       const t = setInterval(() => { if (this.map.isStyleLoaded()) { clearInterval(t); res(); } }, 250);

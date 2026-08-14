@@ -37,7 +37,7 @@ const OBJECTS = [
   { id: 'recentre', label: 'Re-centre button', glyph: '▣', el: '.nv-dot',
     drag: { token: 'chrome.recentrePos', slots: { bottomLeft: [0, 1], bottomRight: [1, 1] } },
     tokens: ['chrome.recentrePos', 'chrome.recentreStyle'], params: [] },
-  { id: 'zoom', label: 'Zoom buttons', glyph: '±', el: '.nv-zoom',
+  { id: 'zoom', label: 'Zoom buttons', glyph: '±', el: '.nv-zin',
     tokens: ['chrome.zoomButtons'], params: [] },
   { id: 'marker', label: 'Position marker & trail', glyph: '➤', el: null,
     tokens: ['overlays.breadcrumb'],

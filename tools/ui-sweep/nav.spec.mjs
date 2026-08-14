@@ -45,6 +45,29 @@ async function boot(page) {
   if (await later.isVisible().catch(() => false)) await later.click();
 }
 
+/* Stopped-with-a-track chrome (FORWARD toggle, cue-edit pencil) floats over the
+   map on near-opaque plates. Load a tiny local track through Nav's own import
+   path so that state exists — the exact plate that shipped ink-on-dark under
+   the light schemes (Grant's Locus screenshot, 2026-08-14). */
+async function selectSweepTrack(page) {
+  // a scheme apply swaps the map style and re-adds the overlay sources async —
+  // selecting a track mid-swap hits refreshMapData with the sources missing
+  await page.waitForFunction(
+    () => typeof mapReady !== 'undefined' && mapReady && window.__map && __map.getSource('selSurf'),
+    null, { timeout: 30_000 });
+  await page.evaluate(async () => {
+    let lat = -33.42, ele = 100;
+    const pts = [];
+    for (let i = 0; i < 20; i++) {
+      pts.push(`<trkpt lat="${lat.toFixed(6)}" lon="151.200000"><ele>${ele}</ele></trkpt>`);
+      lat += 0.00045; if (i % 10 < 5) ele += 10;
+    }
+    await addFile('sweep.gpx',
+      `<?xml version="1.0"?><gpx version="1.1"><trk><name>sweep track</name><trkseg>${pts.join('')}</trkseg></trk></gpx>`);
+    selectTrack(S.tracks.findIndex((t) => t.name === 'sweep track'));
+  });
+}
+
 const openGlove = async (page) => {
   await page.locator('#menuBtn').click();
   await expect(page.locator('#gloveOverlay')).toBeVisible();
@@ -78,6 +101,10 @@ for (const scheme of SCHEMES) {
     if (scheme !== 'factory') await applyScheme(page, scheme);
 
     await measure(page, `${scheme}-main`, results);
+
+    await selectSweepTrack(page);
+    await expect(page.locator('#revToggle')).toBeVisible();
+    await measure(page, `${scheme}-track-selected`, results);
 
     await openGlove(page);
     await measure(page, `${scheme}-glove-menu`, results);
