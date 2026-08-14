@@ -70,7 +70,7 @@
      tap = release it to the Stark app (tuning), tap again = take it back. */
   #vargPill{position:fixed; top:calc(env(safe-area-inset-top) + 10px); right:108px; z-index:12;
     height:88px; box-sizing:border-box;
-    background:rgba(14,18,22,.85); border:1px solid #2a3540; border-radius:24px; padding:0 18px;
+    background:rgba(14,18,22,.85); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:24px; padding:0 18px;
     font-size:26px; font-weight:700; display:none; align-items:center; gap:8px;
     font-variant-numeric:tabular-nums; cursor:pointer}
   #vargPill.on{display:flex}
@@ -136,7 +136,7 @@
   body.navving #vargInd{top:calc(env(safe-area-inset-top) + 124px)} /* below the inset turn strip */
   /* mute: one tap on the riding screen, ghosted like the other ride controls */
   #muteBtn{position:fixed; top:calc(env(safe-area-inset-top) + 64px); right:10px; z-index:12;
-    width:96px; height:96px; border-radius:28px; background:rgba(22,28,34,.5); border:1px solid #2a3540;
+    width:96px; height:96px; border-radius:28px; background:rgba(22,28,34,.5); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     display:none; align-items:center; justify-content:center; font-size:44px; opacity:var(--navOp,.4); cursor:pointer}
   #muteBtn:active{opacity:1}
   body.navving #muteBtn{display:flex}
@@ -150,7 +150,7 @@
     border-radius:12px; display:none; box-shadow:0 4px 20px rgba(0,0,0,.5)}
   #banner.on{display:block}
   #toast{position:fixed; bottom:calc(var(--chromeB,0px) + 116px); left:50%; transform:translateX(-50%); z-index:30;
-    background:var(--panel2); border:1px solid #2a3540; color:var(--fg); font-size:15px; padding:10px 18px;
+    background:var(--panel2); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg); font-size:15px; padding:10px 18px;
     border-radius:12px; display:none; max-width:88vw; text-align:center}
   /* new-version banner: above the pills/toast, below modal dialogs — never shown mid-ride */
   #updBar{position:fixed; top:calc(env(safe-area-inset-top) + 10px); left:50%; transform:translateX(-50%);
@@ -163,7 +163,7 @@
   #dlgShade{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:40; display:none}
   #dlgShade.on{display:block}
   #dlg{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(88vw,360px); background:var(--panel); border:1px solid #2a3540; border-radius:16px;
+    width:min(88vw,360px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
     padding:20px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #dlg.on{display:block}
   #dlg h4{font-size:18px; margin-bottom:10px}
@@ -174,7 +174,7 @@
   /* first-visit capture lives in the startup card now (#suIntro) — see the block there */
   /* track picker — one card, two modes (rider-asked 'pick' / Follow-mode 'off') */
   #trkPick{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(90vw,380px); background:var(--panel); border:1px solid #2a3540; border-radius:16px;
+    width:min(90vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
     padding:16px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #trkPick.on{display:block}
   #trkPick h4{font-size:17px; margin-bottom:2px}
@@ -182,7 +182,7 @@
   #tpSub{font-size:12px; color:var(--dim); margin-bottom:12px}
   #tpList{display:flex; flex-direction:column; gap:6px; max-height:44vh; overflow-y:auto}
   .tpRow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
-    border:1px solid #2a3540; cursor:pointer}
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); cursor:pointer}
   .tpRow.sel{border-color:var(--accent); background:rgba(0,229,255,.08)}
   .tpRow .dot{width:10px; height:10px; border-radius:50%; flex:none; background:var(--dim)}
   .tpRow.on .dot{background:var(--ok)} .tpRow.left .dot{background:var(--bad)}
@@ -196,12 +196,12 @@
     border-radius:50%; background:var(--fg); transition:left .18s}
   #tpRevSw.rev{background:var(--warn)} #tpRevSw.rev::after{left:25px}
   #tpBtns{display:flex; gap:10px; margin-top:14px}
-  #tpBtns button{flex:1; padding:12px; border:1px solid #2a3540; border-radius:12px;
+  #tpBtns button{flex:1; padding:12px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px;
     background:var(--panel2); color:var(--fg); font-size:15px; font-weight:700; cursor:pointer}
   #tpBtns button.go{background:var(--ok); border-color:var(--ok); color:#04240f; font-weight:800}
   /* ride briefing — the last thing between the rider and moving, so it reads at a glance */
   #briefDlg{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(90vw,380px); background:var(--panel); border:1px solid #2a3540; border-radius:16px;
+    width:min(90vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
     padding:18px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #briefDlg.on{display:block}
   #briefName{font-size:21px; font-weight:800; line-height:1.2}
@@ -211,19 +211,19 @@
   #briefRows .bv{text-align:right; font-variant-numeric:tabular-nums}
   #briefRows .bv.warn{color:var(--warn); font-weight:700}
   #briefBtns{display:flex; gap:10px; margin-top:18px}
-  #briefBtns button{flex:1; padding:14px; border:1px solid #2a3540; border-radius:12px;
+  #briefBtns button{flex:1; padding:14px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px;
     background:var(--panel2); color:var(--fg); font-size:16px; font-weight:700; cursor:pointer}
   #briefBtns button.go{background:var(--ok); border-color:var(--ok); color:#04240f; font-weight:800}
 
   /* ---------- training ride: demo chooser + coach cards + spotlight (2026-07-19 design)
      (#colourPick shares the chooser look — ☰ Track colour tile) ---------- */
   #demoPick, #colourPick{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(88vw,380px); background:var(--panel); border:1px solid #2a3540; border-radius:16px;
+    width:min(88vw,380px); background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px;
     padding:20px; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #demoPick.on, #colourPick.on{display:block}
   #demoPick h4, #colourPick h4{font-size:18px; margin-bottom:14px}
   .dpBtn{display:flex; flex-direction:column; gap:4px; width:100%; padding:14px; margin-bottom:10px;
-    border:1px solid #2a3540; border-radius:12px; background:var(--panel2); color:var(--fg);
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px; background:var(--panel2); color:var(--fg);
     font-size:16px; text-align:left; cursor:pointer}
   .dpBtn b{color:var(--accent)}
   .dpBtn span{font-size:13px; color:var(--dim)}
@@ -255,7 +255,7 @@
   /* ---------- corner controls (2026-07-19 design): N top-left, ☰ top-right, and a base
      row along the bottom — box (whole track) · − · + · dot (centre on me). The SAME
      chrome idle and riding; only the bottom anchor (--chromeB) moves with the bar/strip. ---------- */
-  .ctl{width:54px; height:54px; border-radius:14px; background:rgba(22,28,34,.92); border:1px solid #2a3540;
+  .ctl{width:54px; height:54px; border-radius:14px; background:rgba(22,28,34,.92); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     color:var(--fg); font-size:26px; display:flex; align-items:center; justify-content:center; cursor:pointer}
   .ctl:active{background:var(--panel2)}
   .ctl.active{border-color:var(--accent); color:var(--accent)}
@@ -305,7 +305,7 @@
   /* ride-direction toggle: START's twin above ☰ (bottom-left); amber when reversed.
      Stopped-screen only — never during navigation. */
   #revToggle{position:fixed; left:10px; bottom:calc(var(--chromeB,0px) + 112px); z-index:16;
-    height:68px; padding:0 24px; border:1px solid #2a3540; border-radius:18px;
+    height:68px; padding:0 24px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:18px;
     background:rgba(22,28,34,.92); color:var(--fg); font-size:20px; font-weight:800;
     letter-spacing:.03em; cursor:pointer; display:none; align-items:center; gap:10px;
     box-shadow:0 4px 18px rgba(0,0,0,.45)}
@@ -326,10 +326,10 @@
   /* stacked under the speed readout, clear of the glance card (top centre) */
   #holdPill{position:fixed; top:64px; left:12px; z-index:14;
     display:none; padding:6px 14px; border-radius:999px; font-size:14px; color:var(--fg);
-    background:rgba(22,28,34,.75); border:1px solid #2a3540}
+    background:rgba(22,28,34,.75); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent)}
   #holdPill.on{display:block}
   #north{position:fixed; left:12px; bottom:120px; z-index:10; width:88px; height:88px; border-radius:50%;
-    background:rgba(22,28,34,.9); border:1px solid #2a3540; display:flex; align-items:center; justify-content:center;
+    background:rgba(22,28,34,.9); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); display:flex; align-items:center; justify-content:center;
     font-weight:800; color:var(--bad); font-size:30px; cursor:pointer}
   #north.course{border-color:var(--accent)}
   #north.oriented{border-color:var(--warn); color:var(--warn)}
@@ -342,12 +342,12 @@
      compromise. One tap in, one tap out (or on empty space), auto-closes after ~8 s. ---------- */
   #gloveBtn{display:none !important}
   #gloveOverlay{position:fixed; inset:0; z-index:25; display:none;
-    background:rgba(10,13,16,.96);
+    background:color-mix(in srgb, var(--bg) 96%, transparent);
     padding:calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 14px);
     align-items:center; justify-content:center}
   #gloveOverlay.on{display:flex}
   #gloveGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:min(94vw,720px); margin:0 auto}
-  .gtile{height:min(26vh,180px); border-radius:18px; background:var(--panel2); border:2px solid #2a3540;
+  .gtile{height:min(26vh,180px); border-radius:18px; background:var(--panel2); border:2px solid color-mix(in srgb, var(--fg) 15%, transparent);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer}
   .gtile:active{background:#26313d}
   .gtile .gs{font-size:12px; color:var(--dim); margin-top:-4px; text-align:center; padding:0 6px}
@@ -425,19 +425,20 @@
   .mtile.del .ml{color:var(--bad)}
   .mtile.restore{border-color:var(--ok)}
   .mtile.restore .ml{color:var(--ok)}
-  .mtile{background:var(--panel2); border:1px solid #2c3640; border-radius:14px; padding:16px 6px 12px;
+  .mtile{background:var(--panel2); border:1px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius:14px; padding:16px 6px 12px;
     text-align:center; cursor:pointer; color:var(--fg)}
-  .mtile:active{background:#26313c}
+  .mtile:active{background:color-mix(in srgb, var(--fg) 10%, var(--panel))}
   .mtile.cur{border-color:var(--accent)}
   .mtile .ic{width:30px; height:30px; stroke-width:1.8}
   .mtile .ml{font-size:14px; margin-top:7px}
   .mtile .ms{font-size:11.5px; color:var(--dim); margin-top:2px; min-height:14px}
   #dirChip{display:inline-block; margin-top:2px; padding:2px 10px; border-radius:999px;
-    background:#26313c; font-size:12px; color:var(--accent)}
+    background:color-mix(in srgb, var(--fg) 10%, var(--panel)); font-size:12px; color:var(--accent)}
 
   /* SCHEMA PICKER: full-screen like the mark picker — Look (.dingoscheme) and
      Behaviour (.dingobehavior) tile rows; tap = reset-then-apply, glove-sized */
-  #schemaPicker{position:fixed; inset:0; z-index:40; display:none; background:rgba(10,13,16,.92);
+  #schemaPicker{position:fixed; inset:0; z-index:40; display:none;
+    background:color-mix(in srgb, var(--bg) 92%, transparent);
     flex-direction:column; justify-content:center; padding:18px; overflow-y:auto}
   #schemaPicker.open{display:flex}
   #schemaHead{display:flex; align-items:center; justify-content:space-between;
@@ -463,7 +464,7 @@
   #panel.on{transform:translateY(0)}
   #panelClose{position:fixed; left:10px; top:calc(env(safe-area-inset-top) + 10px); z-index:22;
     width:88px; height:88px; font-size:44px; display:flex; align-items:center; justify-content:center;
-    background:rgba(34,41,48,.85); border:1px solid #2a3540; border-radius:24px; color:var(--fg); cursor:pointer}
+    background:rgba(34,41,48,.85); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:24px; color:var(--fg); cursor:pointer}
   body.daymode #panelClose{background:#f5f5f7; border-color:#c9c9ce; color:#1d1d1f}
   #panel > [data-reg="style"]{margin-left:104px} /* first row clears the back arrow */
   #panel h3{font-size:13px; letter-spacing:.06em; color:var(--dim); margin:18px 0 8px}
@@ -508,10 +509,10 @@
   #panelNav #navBtn{flex:1}
   #verLine{font-size:12px; color:var(--dim); text-align:right; margin:10px 0 -6px}
   #setTabs{display:flex; gap:5px; margin:14px 0 4px}
-  #setTabs button{flex:1; padding:10px 0; border-radius:10px; border:1px solid #2a3540; background:var(--panel2);
+  #setTabs button{flex:1; padding:10px 0; border-radius:10px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--dim); font-size:13px; font-weight:700; cursor:pointer}
   #setTabs button.active{border-color:var(--accent); color:var(--accent)}
-  #trackSearch{width:100%; margin:8px 0 4px; background:var(--bg); border:1px solid #2a3540; color:var(--fg);
+  #trackSearch{width:100%; margin:8px 0 4px; background:var(--bg); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg);
     border-radius:10px; padding:11px 12px; font-size:15px}
   .tabSec{display:none}
   .tabSec.on{display:block}
@@ -535,13 +536,13 @@
   .packHdr .rev{font-size:12px; color:var(--accent); font-weight:700; flex:none}
   .packHdr .act{flex:none; color:var(--dim); font-size:17px; padding:4px 8px; cursor:pointer}
   .btnRow{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap}
-  .btn{flex:1; min-width:130px; padding:13px; border-radius:12px; border:1px solid #2a3540; background:var(--panel2);
+  .btn{flex:1; min-width:130px; padding:13px; border-radius:12px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--fg); font-size:15px; font-weight:600; cursor:pointer; text-align:center}
   .btn.primary{background:var(--accent); color:#00252b; border:none}
   .btn.danger{color:var(--bad)}
   .row{display:flex; align-items:center; justify-content:space-between; padding:11px 4px; gap:10px}
   .row label{font-size:15px}
-  .row input[type=text]{background:var(--bg); border:1px solid #2a3540; color:var(--fg); border-radius:10px;
+  .row input[type=text]{background:var(--bg); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg); border-radius:10px;
     padding:10px 12px; font-size:15px; width:170px}
   .sw{position:relative; width:52px; height:30px; flex:none}
   .sw input{opacity:0; width:0; height:0}
@@ -551,13 +552,13 @@
   .sw input:checked + span{background:var(--accent)}
   .sw input:checked + span::before{background:#fff; transform:translateX(22px)}
   .seg{display:flex; gap:6px}
-  .seg button{padding:9px 13px; border-radius:10px; border:1px solid #2a3540; background:var(--panel2);
+  .seg button{padding:9px 13px; border-radius:10px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--dim); font-size:14px; font-weight:700; cursor:pointer}
   .seg button.active{border-color:var(--accent); color:var(--accent)}
   .hint{font-size:12.5px; color:var(--dim); margin-top:6px; line-height:1.45}
   /* pairing pre-flight / recovery box — walks the rider through Android's permission prompt */
   .callout{margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--panel2);
-    border:1px solid #2a3540; border-left:3px solid var(--accent); font-size:13.5px; line-height:1.5}
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-left:3px solid var(--accent); font-size:13.5px; line-height:1.5}
   .callout b{color:var(--fg)}
   .callout ol{margin:8px 0 0; padding-left:20px}
   .callout li{margin:4px 0}
@@ -587,7 +588,7 @@
      another ~150, which overflows 720x720 and certainly the short-viewport case. Tap
      targets stay 64px — a gloved form should scroll, not shrink. */
   #suCard{position:relative; display:none; width:min(88vw,420px); background:var(--panel);
-    border:1px solid #2a3540; border-radius:16px; padding:22px 20px;
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:16px; padding:22px 20px;
     max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
     box-shadow:0 8px 40px rgba(0,0,0,.6); transition:opacity .22s ease}
   #startup.loading #suCard, #startup.bye #suCard{display:block}
@@ -599,7 +600,7 @@
   .suBlurb{font-size:14px; color:var(--dim); line-height:1.45; margin-top:4px}
   /* the app's first and only loading bar — #progress is a ride canvas, not this */
   #suBar{height:14px; margin:18px 0 8px; border-radius:999px; background:var(--panel2);
-    border:1px solid #2a3540; overflow:hidden}
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); overflow:hidden}
   #suFill{display:block; height:100%; width:0; border-radius:999px; background:var(--accent);
     transition:width .25s ease}
   #startup.indet #suFill{width:38%; transition:none; animation:suSlide 1.2s ease-in-out infinite}
@@ -612,7 +613,7 @@
   .suLbl{display:block; font-size:15px; font-weight:600; margin:18px 0 6px}
   .suLbl span{display:block; font-size:12.5px; font-weight:400; color:var(--dim); margin-top:2px}
   #suCard input{width:100%; box-sizing:border-box; height:64px; background:var(--bg);
-    border:1px solid #2a3540; color:var(--fg); border-radius:12px; padding:0 14px;
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg); border-radius:12px; padding:0 14px;
     font-size:20px; font-family:inherit}
   #suCard input:focus{outline:none; border-color:var(--accent)}
   /* first run only — the old #introDlg, gated on S.set.seenIntro via .firstrun */
@@ -638,7 +639,7 @@
   /* The ready-empty text floats over the live map, and what is BEHIND it does not
      track the theme: with no basemap the map renders dark even in day mode. So it
      carries its own plate rather than relying on contrast with the map. */
-  #suEmptyHead{background:var(--panel); border:1px solid #2a3540; border-radius:14px;
+  #suEmptyHead{background:var(--panel); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:14px;
     padding:14px 22px; text-align:center; box-shadow:0 4px 18px rgba(0,0,0,.45)}
   body.daymode #suEmptyHead{border-color:#c9c9ce; box-shadow:0 4px 18px rgba(0,0,0,.18)}
 
@@ -722,7 +723,7 @@
     border-bottom:1px dashed #2a3540}
   /* floating edit controls, bottom-right; above the ride panel (z25) so Done/Export always reachable */
   body.editing #editCtls{display:flex; position:fixed; right:10px; bottom:10px; z-index:27; gap:10px}
-  .edbtn{padding:9px 18px; border-radius:999px; border:1px solid #2a3540;
+  .edbtn{padding:9px 18px; border-radius:999px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     background:var(--panel2); color:var(--fg); font-size:15px; font-weight:800; cursor:pointer; flex:none}
   #editDone{background:var(--accent); color:#00252b; border:none}
   body.editing #slotDots{display:block; position:fixed; inset:0; z-index:16; pointer-events:none}
@@ -7457,6 +7458,12 @@ function mountScheme(sch) {
     hill: ddCore.hillPaint(sch) };
   for (const [v, val] of Object.entries(ddCore.cssVars(sch)))
     document.documentElement.style.setProperty(v, String(val));
+  // --panel2 (raised tiles, buttons, banners) has no scheme token — derive it
+  // from the scheme's panel and text so a LIGHT scheme raises light tiles.
+  // Without this, menu tiles kept the factory dark while --fg went ink:
+  // dark-on-dark labels in the glove menu and schema picker.
+  document.documentElement.style.setProperty('--panel2',
+    'color-mix(in srgb, var(--panel) 88%, var(--fg) 12%)');
   const mc = ddCore.markColors(sch);
   for (const k in MARKS) MARKS[k].col = mc[k] || MARKS_D[k];
 }
@@ -7464,6 +7471,7 @@ function unmountScheme() {
   activeScheme = null; delete MAP_STYLES.scheme;
   for (const v of Object.keys(ddCore.cssVars({})))
     document.documentElement.style.removeProperty(v);
+  document.documentElement.style.removeProperty('--panel2');
   for (const k in MARKS) MARKS[k].col = MARKS_D[k];
 }
 /* scheme → the settings half: ADV knobs + hillshade toggle + the map style */
