@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-glove>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -8,18 +8,26 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="core-ui/tokens.css">
+<link rel="stylesheet" href="core-ui/fonts.css">
 <style>
+  /* Ladder PR 5: the slate factory chrome retires — Nav's legacy var names
+     remap onto the shared core/ui tokens (ink surfaces, clay accent, bone
+     text; core-ui is a symlink like ./appliers, dereferenced at deploy).
+     A mounted scheme still overrides these same names (mountScheme). The
+     status triad already WAS the dd alert triad, value for value. */
   :root{
-    --bg:#0e1216; --panel:#161c22; --panel2:#1e2630; --fg:#e8eef4; --dim:#8fa0b0;
-    --accent:#00e5ff; --own:#ff7a00; --plan:#3390ff; --other:#ff2d2d;
-    --ok:#38d178; --warn:#ffb020; --bad:#ff4545;
+    --bg:var(--dd-surface-0); --panel:var(--dd-surface-1); --panel2:var(--dd-surface-2);
+    --fg:var(--dd-text); --dim:var(--dd-text-dim);
+    --accent:var(--dd-accent); --own:#ff7a00; --plan:#3390ff; --other:#ff2d2d;
+    --ok:var(--dd-alert-ok); --warn:var(--dd-alert-warn); --bad:var(--dd-alert-bad);
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   /* Lucide icons: sized by the parent's font-size, coloured by currentColor */
   svg.ic{width:1.12em; height:1.12em; fill:none; stroke:currentColor; stroke-width:2;
     stroke-linecap:round; stroke-linejoin:round; display:inline-block; vertical-align:-0.16em; flex:none}
   html,body{height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
-    font-family:-apple-system,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none}
+    font-family:var(--dd-font); user-select:none; -webkit-user-select:none}
   #map{position:fixed; inset:0; background:var(--bg)}
   .maplibregl-ctrl-scale{background:rgba(14,18,22,.6)!important; color:var(--fg)!important;
     border-color:rgba(232,238,244,.5)!important; font-size:11px}
@@ -258,7 +266,7 @@
   /* ---------- corner controls (2026-07-19 design): N top-left, ☰ top-right, and a base
      row along the bottom — box (whole track) · − · + · dot (centre on me). The SAME
      chrome idle and riding; only the bottom anchor (--chromeB) moves with the bar/strip. ---------- */
-  .ctl{width:54px; height:54px; border-radius:14px; background:color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+  .ctl{width:var(--dd-control-size); height:var(--dd-control-size); border-radius:14px; background:color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     color:var(--fg); font-size:26px; display:flex; align-items:center; justify-content:center; cursor:pointer}
   .ctl:active{background:var(--panel2)}
   .ctl.active{border-color:var(--accent); color:var(--accent)}
