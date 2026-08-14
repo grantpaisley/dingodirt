@@ -67,10 +67,22 @@ export function collectTextStyles(rootSelector) {
       if (bg[3] >= 0.999) break;
       if (n.querySelector?.(':scope > canvas') || n.tagName === 'CANVAS') overCanvas = true;
     }
+    // near-opaque plates over the map (the .9x chrome buttons) ARE measurable:
+    // whatever the map shows underneath, the real background sits between the
+    // plate composited over pure black and over pure white. Report both and
+    // let the Node side take the worse ratio — a plate that fails either
+    // extreme is a plate that fails on some map. Genuinely translucent
+    // chrome (alpha < 0.9) stays pixel-territory and is skipped as before.
+    let bgLo = null;
     if (bg[3] < 0.999) {
-      // never reached opaque — text sits over the map canvas or the page
-      // default; measurable only by pixels, so report as over-canvas.
-      overCanvas = true;
+      if (bg[3] >= 0.9) {
+        bgLo = composite(bg, [0, 0, 0, 1]);
+        bg = composite(bg, [255, 255, 255, 1]);
+      } else {
+        // never near opaque — text sits over the map canvas or the page
+        // default; measurable only by pixels, so report as over-canvas.
+        overCanvas = true;
+      }
     }
     // fg with alpha composites over the resolved bg before measuring
     const fgFlat = fg[3] < 1 && bg[3] >= 0.999 ? composite(fg, bg) : fg;
@@ -80,6 +92,7 @@ export function collectTextStyles(rootSelector) {
       sel: shortSel(el),
       fg: hex(fgFlat),
       bg: bg[3] >= 0.999 ? hex(bg) : null,
+      bg2: bgLo ? hex(bgLo) : null,
       px: parseFloat(cs.fontSize),
       bold: +cs.fontWeight >= 600,
       overCanvas,
@@ -97,10 +110,16 @@ export function contrastFailures(samples, state) {
     if (s.overCanvas || !s.bg) { skipped++; continue; }
     const large = s.px >= 24 || (s.px >= 18.66 && s.bold);
     const need = large ? 3 : 4.5;
-    const ratio = contrastRatio(s.fg, s.bg);
+    // near-opaque plates carry both extremes (over-black, over-white);
+    // judge by whichever map underneath would read worse
+    let ratio = contrastRatio(s.fg, s.bg), bg = s.bg;
+    if (s.bg2) {
+      const r2 = contrastRatio(s.fg, s.bg2);
+      if (r2 < ratio) { ratio = r2; bg = s.bg2; }
+    }
     if (ratio < need) {
       failures.push(
-        `[${state}] ${s.sel} "${s.text}" — ${s.fg} on ${s.bg} = ${ratio.toFixed(2)}:1 (needs ${need}:1)`);
+        `[${state}] ${s.sel} "${s.text}" — ${s.fg} on ${bg} = ${ratio.toFixed(2)}:1 (needs ${need}:1)`);
     }
   }
   return { failures, skipped, measured: samples.length - skipped };
