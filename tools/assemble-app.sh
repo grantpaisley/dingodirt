@@ -66,8 +66,14 @@ if [ "$app" = nav ]; then
   sw="$out/sw.js"
   [ -f "$sw" ] || { echo "error: sw.js missing from the nav artefact" >&2; exit 1; }
 
-  # Hash the assembled presets, sorted for stability across filesystems.
-  hash=$(find "$out/schemes" "$out/behaviors" -name '*.json' -print0 \
+  # The canonical appliers ship the same way the presets do (apps/nav/appliers
+  # -> core/appliers). A dangling link would deploy an app that cannot style
+  # its map at all.
+  [ -s "$out/appliers/applier-nav.js" ] || { echo "error: appliers/ missing/empty in the artefact — broken core/appliers symlink?" >&2; exit 1; }
+
+  # Hash the assembled presets AND appliers, sorted for stability across
+  # filesystems — an applier-only change must also refresh riders' caches.
+  hash=$( { find "$out/schemes" "$out/behaviors" -name '*.json' -print0; find "$out/appliers" -name '*.js' -print0; } \
     | sort -z | xargs -0 cat | shasum -a 256 | cut -c1-8)
 
   before=$(grep -oE "dingonav-v[0-9]+(-[0-9a-f]{8})?" "$sw" | head -1)
