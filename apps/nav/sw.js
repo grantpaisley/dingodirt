@@ -9,7 +9,7 @@ const SHELL = [
   // cannot style itself offline without them
   './appliers/applier-nav.js', './appliers/scheme.js', './appliers/detail.js',
   // shared chrome tokens + type (core/ui via the ./core-ui symlink)
-  './core-ui/tokens.css', './core-ui/fonts.css',
+  './core-ui/tokens.css', './core-ui/fonts.css', './core-ui/chrome.css',
   './core-ui/fonts/barlow-400.woff2', './core-ui/fonts/barlow-500.woff2',
   './basemap/layers.json', './basemap/layers-light.json',
   './basemap/sprites/dark.json', './basemap/sprites/dark.png',
