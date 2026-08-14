@@ -47,6 +47,7 @@ macro_rules! define_id {
 }
 
 define_id!(AreaId, "Unique identifier for a riding area");
+define_id!(OwnerId, "Unique identifier for an owner (person or data source)");
 define_id!(FileId, "Unique identifier for an ingested file");
 define_id!(RideId, "Unique identifier for a ride");
 define_id!(RouteId, "Unique identifier for a route (geometry-only)");

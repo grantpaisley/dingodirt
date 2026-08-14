@@ -1,6 +1,6 @@
 //! Database operations for file and ride ingestion
 
-use dingo_core::{Error, FileId, Result, RideId};
+use dingo_core::{Error, FileId, OwnerId, Result, RideId};
 use sqlx::{PgExecutor, PgPool};
 
 use crate::format::FileFormat;
@@ -130,6 +130,7 @@ pub async fn insert_planned_ride(
     track: &Track,
     collection: &str,
     color: &str,
+    owner: Option<OwnerId>,
 ) -> Result<RideId> {
     let ride_id = RideId::new();
     let geojson = track_to_geojson(track);
@@ -142,7 +143,7 @@ pub async fn insert_planned_ride(
             raw_geometry, raw_time_series,
             cleaned_geometry, cleaned_time_series, cleaned_at,
             geometry_z10, geometry_z14,
-            origin, kind, collection, color, description
+            origin, kind, collection, color, description, owner_id
         )
         SELECT
             $1, $2, $3, 'route'::track_type, $4,
@@ -150,7 +151,7 @@ pub async fn insert_planned_ride(
             g.geom, $6, NOW(),
             ST_SimplifyPreserveTopology(g.geom, 0.001),
             ST_SimplifyPreserveTopology(g.geom, 0.0001),
-            'other'::ride_origin, 'planned'::ride_kind, $7, $8, $9
+            'other'::ride_origin, 'planned'::ride_kind, $7, $8, $9, $10
         FROM (
             SELECT ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON($5), 4326)) AS geom
         ) g
@@ -163,7 +164,8 @@ pub async fn insert_planned_ride(
         time_series,
         collection,
         color,
-        track.description
+        track.description,
+        owner.map(|o| o.0)
     )
     .execute(executor)
     .await?;

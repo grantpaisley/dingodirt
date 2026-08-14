@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use std::path::Path;
 use tracing::info;
 
-use dingo_core::{Error, FileId, Result};
+use dingo_core::{Error, FileId, OwnerId, Result};
 
 use crate::file_store::FileStore;
 use crate::format::{FileFormat, detect_format};
@@ -34,12 +34,16 @@ pub struct RoutesImportResult {
 /// * `replace` — delete the collection's existing planned rides + POIs first.
 ///   Without it, importing into an existing collection is an error, so a
 ///   re-download can't silently duplicate a network.
+/// * `owner` — owners.id assigned to every planned ride created here.
+///   Without it `rides.owner_id` stays NULL, and the items browser's inner
+///   JOIN on owners leaves such rides out of the Tracks list entirely.
 pub async fn import_routes(
     pool: &PgPool,
     file_store: &FileStore,
     path: &Path,
     collection: &str,
     replace: bool,
+    owner: Option<OwnerId>,
 ) -> Result<RoutesImportResult> {
     let collection = collection.trim();
     if collection.is_empty() {
@@ -118,7 +122,7 @@ pub async fn import_routes(
         if track.points.len() < 2 {
             continue;
         }
-        repository::insert_planned_ride(&mut *tx, file_id, track, collection, color).await?;
+        repository::insert_planned_ride(&mut *tx, file_id, track, collection, color, owner).await?;
         routes_created += 1;
     }
 
