@@ -90,6 +90,8 @@ enum Commands {
         #[arg(long)]
         all: bool,
     },
+    /// Fill missing point elevations from the Terrarium DEM (routes + rides)
+    ElevationBackfill,
     /// Name rides via the offline gazetteer
     Name {
         /// Generate names for all rides (offline gazetteer required)
@@ -1174,6 +1176,16 @@ async fn main() -> anyhow::Result<()> {
             println!("   Junctions added: {marks}");
             if failed > 0 {
                 println!("   Rides failed:    {failed}");
+            }
+        }
+        Commands::ElevationBackfill => {
+            let summary = dingo_enrich::backfill_elevation(&pool).await?;
+            println!("\n⛰️  Elevation backfill:");
+            println!("   Rides processed: {}", summary.rides_processed);
+            println!("   Rides filled:    {}", summary.rides_filled);
+            println!("   Points filled:   {}", summary.points_filled);
+            if summary.rides_failed > 0 {
+                println!("   Rides failed:    {}", summary.rides_failed);
             }
         }
         Commands::Enrich { ride, all } => {
