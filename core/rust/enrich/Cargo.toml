@@ -16,3 +16,4 @@ sqlx.workspace = true
 uuid.workspace = true
 sunrise = "2"
 osmpbf.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
