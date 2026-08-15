@@ -9,18 +9,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, ChevronRight, ChevronDown } from 'lucide-react'
 import {
-    useDimensions, useFolders, useLabels, fetchFacet,
+    useDimensions, useFolders, useLabels, useOwners, fetchFacet,
     type Dimension, type FacetValue, type PillState, type Folder, type Label,
+    type Owner,
 } from '../../api/hooks'
-import { useSettings } from '../../store'
+import { useSettings, useUiState, facetLabelKey } from '../../store'
+
+/** Reference data pillSummary names ids from without waiting on a facet. */
+interface PillNames {
+    folders: Folder[]
+    labels: Label[]
+    owners: Owner[]
+    /** Facet labels seen this session, keyed by facetLabelKey() */
+    facetLabels: Record<string, string>
+}
 
 /** Pill label summary: "Start: Maroota +2". */
-function pillSummary(
-    pill: PillState,
-    dims: Dimension[],
-    folders: Folder[],
-    labels: Label[],
-): string {
+function pillSummary(pill: PillState, dims: Dimension[], names: PillNames): string {
     const dim = dims.find(d => d.id === pill.dimension)
     const name = dim?.name ?? pill.dimension
     if (dim?.kind === 'boolean') return name
@@ -31,13 +36,19 @@ function pillSummary(
         label = first[first.length - 1]
     } else if (pill.dimension === 'folder') {
         label = first === 'unfiled' ? 'Unfiled'
-            : folders.find(f => f.id === first)?.name ?? String(first)
+            : names.folders.find(f => f.id === first)?.name ?? String(first)
     } else if (pill.dimension.startsWith('labelset:')) {
-        label = labels.find(l => l.id === first)?.name ?? String(first)
+        label = names.labels.find(l => l.id === first)?.name ?? String(first)
+    } else if (pill.dimension === 'owner') {
+        label = names.owners.find(o => o.id === first)?.name ?? String(first)
     } else if (pill.dimension === 'type') {
         label = { track: 'Tracks', route: 'Routes', pack: 'Packs' }[String(first)] ?? String(first)
     } else {
-        label = String(first)
+        // Anything else: the label the server sent with the facet row the
+        // value was ticked from — so a future id-valued dimension names its
+        // values with no case here. Falls back to the raw value only when no
+        // dropdown has been opened this session.
+        label = names.facetLabels[facetLabelKey(pill.dimension, String(first))] ?? String(first)
     }
     const more = pill.values.length - 1
     return `${name}: ${label}${more > 0 ? ` +${more}` : ''}`
@@ -158,12 +169,19 @@ function PillDropdown({ pill, dim, onChange, onClose, pills, search }: DropdownP
     const [open, setOpen] = useState<Set<string>>(new Set())
     const { data: folders } = useFolders()
     const { data: labelsData } = useLabels()
+    const rememberFacetLabels = useUiState(s => s.rememberFacetLabels)
     const ref = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         let cancelled = false
         fetchFacet(dim.id, pills, search)
-            .then(v => { if (!cancelled) setFacet(v) })
+            .then(v => {
+                if (cancelled) return
+                setFacet(v)
+                // Keep the names so the chip can show them after the
+                // dropdown closes.
+                rememberFacetLabels(dim.id, v)
+            })
             .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) })
         return () => { cancelled = true }
         // Refetch when the surrounding pill state changes — that is the
@@ -261,6 +279,8 @@ export function PillRow() {
     const { data: dims } = useDimensions()
     const { data: folders } = useFolders()
     const { data: labelsData } = useLabels()
+    const { data: owners } = useOwners()
+    const facetLabels = useUiState(s => s.facetLabels)
     const [openPill, setOpenPill] = useState<number | null>(null)
     const [menuOpen, setMenuOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -276,6 +296,12 @@ export function PillRow() {
 
     const search = searchPills
     const available = (dims ?? []).filter(d => !pills.some(p => p.dimension === d.id))
+    const names: PillNames = {
+        folders: folders ?? [],
+        labels: labelsData?.labels ?? [],
+        owners: owners ?? [],
+        facetLabels,
+    }
 
     return (
         <div className="pill-row">
@@ -298,7 +324,7 @@ export function PillRow() {
                                 }
                             }}
                         >
-                            {pillSummary(pill, dims ?? [], folders ?? [], labelsData?.labels ?? [])}
+                            {pillSummary(pill, dims ?? [], names)}
                         </button>
                         <button
                             className="pill-remove"
