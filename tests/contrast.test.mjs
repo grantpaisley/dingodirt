@@ -78,7 +78,9 @@ test('contrast: core/ui tokens', (t) => {
     pairs.push(['--dd-accent', bg, LARGE]);
     for (const s of ['ok', 'warn', 'bad']) pairs.push([`--dd-alert-${s}`, bg, LARGE]);
   }
-  for (const s of ['ok', 'mid', 'bad']) pairs.push([`--dd-status-${s}`, '--dd-surface-1', LARGE]);
+  // --dd-status-* chip fills are NOT checked against surfaces: status chips are
+  // muted by design (Rule 11) and carry their information in their text, which
+  // IS checked at 4.5:1 above. Alerts stay checked — they interrupt via colour.
 
   // completeness guard: every on-* token must be exercised as a foreground
   const fgs = new Set(pairs.map(([fg]) => fg));
@@ -124,7 +126,12 @@ test('contrast: schemes (day + night)', (t) => {
 /* ---- C. apps/plan chrome palette ---- */
 test('contrast: Plan chrome', (t) => {
   const css = readFileSync(join(REPO, 'apps/plan/src/App.css'), 'utf8');
-  const vars = resolveVarRefs(parseCssVarBlock(css, ':root'));
+  // Plan's :root remaps its legacy var names onto core/ui tokens (ladder
+  // PR 3), so resolution starts from tokens.css — the same cascade the
+  // browser sees (tokens load before App.css in main.tsx).
+  const tokens = parseCssVarBlock(
+    readFileSync(join(REPO, 'core/ui/tokens.css'), 'utf8'), ':root');
+  const vars = resolveVarRefs(new Map([...tokens, ...parseCssVarBlock(css, ':root')]));
   checkPairs(t, 'plan App.css', (k) => vars.get(k), [
     ['--text-primary', '--pane-bg', NORMAL], ['--text-primary', '--bg-dark', NORMAL],
     ['--text-secondary', '--pane-bg', NORMAL], ['--text-secondary', '--bg-dark', NORMAL],
@@ -145,24 +152,23 @@ test('contrast: Nav chrome (night + day)', (t) => {
     ['--accent', '--panel', LARGE],
   ];
 
-  const night = resolveVarRefs(parseCssVarBlock(style, ':root'));
+  // Nav's :root remaps its legacy var names onto core/ui tokens (ladder
+  // PR 5), so resolution seeds from tokens.css — the browser's cascade.
+  const tokens = parseCssVarBlock(
+    readFileSync(join(REPO, 'core/ui/tokens.css'), 'utf8'), ':root');
+  const night = resolveVarRefs(new Map([...tokens, ...parseCssVarBlock(style, ':root')]));
   checkPairs(t, 'nav night', (k) => night.get(k), varPairs);
 
-  // day = cascade for elements inside the settings panel: :root, then the
-  // body.daymode override (--accent), then body.daymode #panel's redefinitions
-  const day = resolveVarRefs(new Map([
-    ...night,
-    ...parseCssVarBlock(style, 'body.daymode'),
-    ...parseCssVarBlock(style, 'body.daymode #panel'),
-  ]));
-  checkPairs(t, 'nav daymode panel', (k) => day.get(k), varPairs);
-
-  // literal daymode plates (declared inline in their rules, not as vars)
-  const literals = [
-    ['#1d1d1f', '#f5f5f7', NORMAL], // .ctl glyphs on day plates
-    ['#15202b', '#f5f7f9', NORMAL], // #bottom bar text on its frosted plate
-  ];
-  checkPairs(t, 'nav daymode literals', (k) => k, literals);
+  // day = the core/ui light mode: daymode sets data-mode="light" on <html>,
+  // the tokens flip, and Nav's :root remap follows. The old body-scope
+  // colour overrides and literal Mac plates are gone (2026-08-14).
+  const lightTokens = new Map([
+    ...tokens,
+    ...parseCssVarBlock(
+      readFileSync(join(REPO, 'core/ui/tokens.css'), 'utf8'), ':root[data-mode="light"]'),
+  ]);
+  const day = resolveVarRefs(new Map([...lightTokens, ...parseCssVarBlock(style, ':root')]));
+  checkPairs(t, 'nav daymode (token light mode)', (k) => day.get(k), varPairs);
 });
 
 /* ---- E. apps/site palette ---- */

@@ -6,17 +6,24 @@
 <meta name="theme-color" content="#0e1216">
 <title>Dingo Studio</title>
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="core-ui/tokens.css">
+<link rel="stylesheet" href="core-ui/fonts.css">
 <style>
-  /* ---------- Studio chrome (fixed dark — the canvas, not the artwork) ---------- */
+  /* ---------- Studio chrome (fixed dark — the canvas, not the artwork) ----------
+     Ladder PR 4: the slate palette retires — Studio's legacy var names remap
+     onto the shared core/ui tokens (core-ui is a symlink to ../../core/ui,
+     dereferenced at deploy like the presets). The PREVIEW inside the stage
+     stays scheme-driven (--accent etc.) — that's the artwork, not chrome. */
   :root{
-    --sbg:#0b0e12; --spanel:#12171d; --spanel2:#1a212a; --sfg:#e8eef4; --sdim:#8fa0b0;
-    --saccent:#00e5ff; --sline:#242e38;
+    --sbg:var(--dd-surface-0); --spanel:var(--dd-surface-1); --spanel2:var(--dd-surface-2);
+    --sfg:var(--dd-text); --sdim:var(--dd-text-dim);
+    --saccent:var(--dd-accent); --sline:var(--dd-line);
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   svg.ic{width:1.12em; height:1.12em; fill:none; stroke:currentColor; stroke-width:2;
     stroke-linecap:round; stroke-linejoin:round; display:inline-block; vertical-align:-0.16em; flex:none}
   html,body{height:100%; overflow:hidden; background:var(--sbg); color:var(--sfg);
-    font-family:-apple-system,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none}
+    font-family:var(--dd-font); user-select:none; -webkit-user-select:none}
   button{font:inherit; color:inherit; background:var(--spanel2); border:1px solid var(--sline);
     border-radius:9px; padding:7px 12px; cursor:pointer}
   button:hover{border-color:var(--sdim)}
@@ -57,7 +64,9 @@
   #modeSeg [data-v=day].active{background:#ffd769; color:#3a2c00}
   .seg{display:inline-flex; border:1px solid var(--sline); border-radius:9px; overflow:hidden}
   .seg button{border:none; border-radius:0; padding:5px 10px; font-size:12.5px; background:var(--spanel2)}
-  .seg button.active{background:var(--saccent); color:#03252b; font-weight:700}
+  /* Rule 7: active toggle = bone fill, ink text (day/night keeps its
+     semantic sun/moon colours below; wsSeg keeps its workspace codes) */
+  .seg button.active{background:var(--dd-toggle-fill); color:var(--dd-on-toggle); font-weight:700}
 
   /* ---------- stage: live preview ---------- */
   #stage{flex:1; display:flex; flex-direction:column; min-width:0}
@@ -74,9 +83,9 @@
   #frame[data-vp=square]{height:min(100%, 70vh); aspect-ratio:1/1; width:auto}
 
   /* ---------- NavView chrome (em-scaled to its frame; colours from the scheme) ---------- */
-  .nv{position:relative; width:100%; height:100%; overflow:hidden; background:var(--bg,#0e1216);
-    --bg:#0e1216; --fg:#e8eef4; --dim:#8fa0b0; --accent:#00e5ff; --ok:#38d178; --warn:#ffb020;
-    --bad:#ff4545; --banner:#ff4545; --flash:#ffb020; --arrowFill:#ffb020; --arrowOp:.55; --panel:#161c22}
+  .nv{position:relative; width:100%; height:100%; overflow:hidden; background:var(--bg,#141109);
+    --bg:#141109; --fg:#ece4d2; --dim:#a89d83; --accent:#d96f32; --ok:#38d178; --warn:#ffb020;
+    --bad:#ff4545; --banner:#ff4545; --flash:#ffb020; --arrowFill:#ffb020; --arrowOp:.55; --panel:#1d1910}
   .nv-map{position:absolute; inset:0}
   .nv-chrome{position:absolute; inset:0; pointer-events:none; z-index:5}
   .nv-hud{position:absolute; top:0; left:0; right:0; display:none}
@@ -114,12 +123,25 @@
   .nv-bigArrow svg.ic{display:block; fill:currentColor; stroke:none; vertical-align:0}
   .nv-bigL{left:.06em} .nv-bigR{right:.06em}
   .nv-bigArrow.on{display:block}
-  .nv-dot{position:absolute; right:.9em; bottom:1em; width:4.4em; height:4.4em; border-radius:1.3em;
-    background:color-mix(in srgb, var(--panel) 55%, transparent); border:1px solid color-mix(in srgb, var(--fg) 22%, transparent);
-    display:flex; align-items:center; justify-content:center; font-size:1em; color:var(--fg); opacity:.5;
-    pointer-events:auto; cursor:pointer}
-  .nv-dot:active{opacity:1}
-  .nv-dot svg.ic{width:2em; height:2em}
+  /* Nav's real chrome, faithfully: N top-left, box top-right, base row
+     ☰ − + ◎ along the bottom — same geometry and the same scheme-var plates
+     (.ctl recipe: 92% panel mix, 15% fg hairline). A scheme that makes a
+     button unreadable in Nav is unreadable in this preview too. */
+  .nv-orient, .nv-box, .nv-baseRow button{width:4.4em; height:4.4em; border-radius:1.2em;
+    background:color-mix(in srgb, var(--panel) 92%, transparent);
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
+    color:var(--fg); display:flex; align-items:center; justify-content:center;
+    font-size:1em; pointer-events:auto; cursor:pointer; flex:none; padding:0}
+  .nv-orient{position:absolute; top:.6em; left:.6em; z-index:9; flex-direction:column}
+  .nv-needle{width:0; height:0; border:.3em solid transparent; border-bottom:.55em solid var(--bad);
+    margin-top:.1em; will-change:transform}
+  .nv-orientGlyph{font-weight:800; font-size:1.9em; line-height:1; margin-top:.1em}
+  .nv-box{position:absolute; top:.6em; right:.6em; z-index:9}
+  .nv-baseRow{position:absolute; left:0; right:0; bottom:.6em; z-index:9; display:flex;
+    align-items:flex-end; justify-content:space-between; padding:0 .6em; pointer-events:none}
+  .nv-dot{border-radius:50%}
+  .nv-baseRow button:active{background:var(--panel)}
+  .nv-orient svg.ic, .nv-box svg.ic, .nv-baseRow svg.ic{width:2em; height:2em}
 
   /* ---------- chrome layout variants (scheme chrome.* tokens via data-attrs) ---------- */
   .nv.no-bigarrows .nv-bigArrow{display:none!important}
@@ -158,7 +180,7 @@
   .nv-cell:last-child{border-right:none}
   .nv-cell b{display:block; font-size:1.7em; line-height:1.15}
   .nv-cell small{display:block; font-size:.95em; color:var(--dim); text-transform:uppercase; letter-spacing:.06em}
-  .nv.eta-on .nv-dot{bottom:5.2em}
+  .nv.eta-on .nv-baseRow{bottom:5.2em}
   .nv.eta-on[data-speedopos=bottomLeft] .nv-speed{bottom:5.6em}
   .nv-limit{position:absolute; bottom:4.4em; right:.9em; background:#fff; color:#101418;
     font-weight:800; font-size:1.15em; align-items:center; justify-content:center; display:flex; z-index:9}
@@ -166,12 +188,7 @@
   .nv-limit[data-shape=rect]{width:2.5em; height:3.1em; border-radius:.3em; border:.14em solid #101418}
   .nv[data-speedopos=bottomLeft] .nv-limit{left:5.8em; right:auto}
   .nv.eta-on .nv-limit{bottom:5.6em}
-  .nv-zoom{position:absolute; right:.9em; top:38%; display:flex; flex-direction:column; gap:.45em; pointer-events:auto; z-index:9}
-  .nv-zoom button{width:2.7em; height:2.7em; font-size:1.35em; border-radius:.4em; line-height:1;
-    background:color-mix(in srgb, var(--panel) 80%, transparent); color:var(--fg);
-    border:1px solid color-mix(in srgb, var(--fg) 22%, transparent); cursor:pointer}
-  .nv[data-recentre=bottomLeft] .nv-dot{right:auto; left:.9em}
-  .nv[data-recentrestyle=circle] .nv-dot{border-radius:50%}
+  .nv[data-recentrestyle=square] .nv-dot{border-radius:1.2em}
   .maplibregl-ctrl-attrib{background:rgba(14,18,22,.5)!important; font-size:9px}
   .maplibregl-ctrl-attrib a{color:#8fa0b0!important}
 
@@ -185,7 +202,7 @@
     border-bottom:1px solid color-mix(in srgb, var(--fg,#e8eef4) 15%, transparent); font-size:15px}
   .pc-chips{display:flex; gap:8px; margin-left:auto}
   .chip{padding:3px 12px; border-radius:20px; font-size:12px; border:1px solid color-mix(in srgb, var(--fg,#e8eef4) 25%, transparent); color:var(--dim,#8fa0b0)}
-  .chip.on{background:var(--accent,#00e5ff); border-color:var(--accent,#00e5ff); color:#03252b; font-weight:700}
+  .chip.on{background:var(--accent,#d96f32); border-color:var(--accent,#d96f32); color:#2b1305; font-weight:700}
   .pc-side{position:absolute; top:44px; left:0; bottom:0; width:min(240px,42%);
     background:color-mix(in srgb, var(--panel,#161c22) 93%, transparent); padding:14px 12px;
     display:flex; flex-direction:column; gap:12px}
@@ -304,8 +321,8 @@
   .si-groups{display:flex; flex-wrap:wrap; gap:6px; padding:9px 12px}
   .si-pill{padding:3px 10px; font-size:12px; border-radius:14px}
   .si-pill span{color:var(--sdim); font-size:10.5px}
-  .si-pill.on{background:var(--saccent); color:#03252b; border-color:var(--saccent)}
-  .si-pill.on span{color:#03252b99}
+  .si-pill.on{background:var(--dd-toggle-fill); color:var(--dd-on-toggle); border-color:var(--dd-toggle-fill)}
+  .si-pill.on span{color:color-mix(in srgb, var(--dd-on-toggle) 60%, transparent)}
   .si-note{padding:6px 12px; font-size:11.5px; color:var(--sdim)}
   .si-note:empty{display:none}
   .si-axis{display:flex; align-items:center; padding:2px 12px 3px; border-bottom:1px solid var(--sline)}
@@ -390,6 +407,10 @@
   <symbol id="i-volume-2" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
   <symbol id="i-volume-x" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></symbol>
   <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-locate-fixed" viewBox="0 0 24 24"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
 </svg>

@@ -1,0 +1,12 @@
+{
+  "name": "dingo-ui-sweep",
+  "private": true,
+  "description": "Rendered contrast sweep — measures the ACTUAL menus across scheme × day/night combinations (Stage 2 of the contrast work). Own package.json so the repo root and the no-build apps stay dependency-free.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}

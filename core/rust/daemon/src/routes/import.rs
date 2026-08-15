@@ -244,6 +244,11 @@ async fn postprocess_new_rides(
     if ride_ids.is_empty() {
         return placed;
     }
+    // DEM elevation BEFORE cleaning: the clean step derives its series from the
+    // raw points, so a filled raw series propagates into the cleaned one for free
+    if let Err(e) = dingo_enrich::backfill_elevation_for(pool, &ride_ids).await {
+        tracing::warn!(error = %e, "post-import elevation fill failed (offline?)");
+    }
     if let Err(e) = dingo_geo::clean_all_rides(pool, &dingo_geo::CleaningConfig::default()).await {
         tracing::warn!(error = %e, "post-import cleaning failed");
     }

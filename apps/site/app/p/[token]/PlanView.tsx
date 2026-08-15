@@ -10,8 +10,19 @@
 // overlays, Dingo vector basemap with the City/Regional/Outback detail
 // toggle.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type * as maplibreNs from "maplibre-gl";
+// One canonical copy in core/ui (turbopack.root spans the monorepo so
+// this import can leave apps/site — see next.config.ts).
+import "../../../../../core/ui/tokens.css";
+import "../../../../../core/ui/chrome.css";
 import {
   buildDingoStyle,
   ensurePmtilesProtocol,
@@ -164,7 +175,10 @@ const DETAIL_LABELS: Record<DetailLevel, string> = {
   outback: "Outback",
 };
 
-const TRACK_COLOR = "#e07a3f"; // clay-ish, matches the site accent
+// MapLibre paint needs literals; these mirror core/ui/tokens.css —
+// TRACK_COLOR is --dd-accent (the clay fallback for tracks without an
+// original colour), VERDICT_COLORS are the muted --dd-status-* triad.
+const TRACK_COLOR = "#d96f32";
 const VERDICT_COLORS: Record<string, string> = {
   yes: "#57a557",
   maybe: "#c9a227",
@@ -850,11 +864,11 @@ export default function PlanView({
   const tallyLabel = (f?: ItemFeedback) => {
     const c = tally(f);
     const bits = [];
-    if (c.yes) bits.push(<span key="y" className="text-[#57a557]">{c.yes} yes</span>);
-    if (c.maybe) bits.push(<span key="m" className="text-[#c9a227]">{c.maybe} maybe</span>);
-    if (c.no) bits.push(<span key="n" className="text-[#c96a5a]">{c.no} no</span>);
+    if (c.yes) bits.push(<span key="y" className="dd-chip ok">{c.yes} yes</span>);
+    if (c.maybe) bits.push(<span key="m" className="dd-chip mid">{c.maybe} maybe</span>);
+    if (c.no) bits.push(<span key="n" className="dd-chip bad">{c.no} no</span>);
     if (!bits.length) return <span>no votes yet</span>;
-    return bits.flatMap((b, i) => (i ? [" · ", b] : [b]));
+    return <span className="inline-flex gap-1">{bits}</span>;
   };
 
   const voteButtons = (itemType: "track" | "mark", id: string) => {
@@ -867,9 +881,7 @@ export default function PlanView({
           post(itemType, id, { vote: v });
         }}
         className={`rounded border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
-          mine === v
-            ? `${on} text-ink`
-            : "border-line text-bone-dim hover:text-bone"
+          mine === v ? on : "border-line text-bone-dim hover:text-bone"
         }`}
       >
         {label}
@@ -877,9 +889,9 @@ export default function PlanView({
     );
     return (
       <span className="flex gap-1.5">
-        {btn("yes", "Yes", "border-[#57a557] bg-[#57a557]")}
-        {btn("maybe", "Maybe", "border-[#c9a227] bg-[#c9a227]")}
-        {btn("no", "No", "border-[#c96a5a] bg-[#c96a5a]")}
+        {btn("yes", "Yes", "border-[var(--dd-status-ok)] bg-[var(--dd-status-ok)] text-[var(--dd-on-status-ok)]")}
+        {btn("maybe", "Maybe", "border-[var(--dd-status-mid)] bg-[var(--dd-status-mid)] text-[var(--dd-on-status-mid)]")}
+        {btn("no", "No", "border-[var(--dd-status-bad)] bg-[var(--dd-status-bad)] text-[var(--dd-on-status-bad)]")}
       </span>
     );
   };
@@ -907,19 +919,19 @@ export default function PlanView({
     />
   );
 
-  /** A row of small radio-style buttons for the map control stack. */
+  /** A segmented switch for the map control stack (core/ui .dd-seg, Rule 7). */
   const controlRow = <T extends string>(
     entries: [T, string][],
     active: T,
     onPick: (v: T) => void,
   ) => (
-    <div className="flex overflow-hidden rounded border border-line bg-ink/90 text-xs">
+    <div className="dd-seg text-xs">
       {entries.map(([key, label]) => (
         <button
           key={key}
           onClick={() => onPick(key)}
-          className={`px-2.5 py-1.5 uppercase tracking-wider transition-colors ${
-            active === key ? "bg-clay text-ink" : "text-bone-dim hover:text-bone"
+          className={`uppercase tracking-wider transition-colors ${
+            active === key ? "is-active" : ""
           }`}
         >
           {label}
@@ -928,13 +940,12 @@ export default function PlanView({
     </div>
   );
 
+  /** A filter pill for map overlays (core/ui .dd-pill, Rule 7). */
   const toggleChip = (label: string, on: boolean, onToggle: () => void) => (
     <button
       onClick={onToggle}
-      className={`rounded border px-2.5 py-1.5 text-xs uppercase tracking-wider transition-colors ${
-        on
-          ? "border-clay bg-ink/90 text-clay-hot"
-          : "border-line bg-ink/90 text-bone-dim hover:text-bone"
+      className={`dd-pill text-xs uppercase tracking-wider transition-colors ${
+        on ? "is-active" : ""
       }`}
     >
       {label}
@@ -945,11 +956,16 @@ export default function PlanView({
   const mapH = () => mapDiv.current?.clientHeight || 600;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-[480px] flex-col md:flex-row">
+    // --dd-font: the site loads Barlow through next/font under a hashed
+    // family name, so core/ui's literal 'Barlow' would miss it.
+    <div
+      className="flex h-[calc(100vh-4rem)] min-h-[480px] flex-col md:flex-row"
+      style={{ "--dd-font": "var(--font-body), sans-serif" } as CSSProperties}
+    >
       <div className="order-2 h-1/2 w-full overflow-y-auto border-t border-line md:order-1 md:h-full md:w-[400px] md:border-r md:border-t-0">
         <div className="border-b border-line px-4 py-3 text-sm text-bone-dim">
           <div>
-            <span className="text-[#57a557]">{rollup.liked} liked</span>
+            <span className="text-[var(--dd-status-ok)]">{rollup.liked} liked</span>
             {rollup.liked ? ` (${rollup.likedKm.toLocaleString()} km)` : ""} ·{" "}
             <span className="text-[#c96a5a]">{rollup.vetoed} vetoed</span> ·{" "}
             {rollup.undecided} undecided
@@ -1004,7 +1020,7 @@ export default function PlanView({
             </div>
           )}
           {postError && (
-            <div className="mt-2 text-xs text-[#c96a5a]">{postError}</div>
+            <div className="mt-2 text-xs text-[var(--dd-alert-bad)]">{postError}</div>
           )}
         </div>
         {tracksInOrder.map((t) => {
@@ -1017,7 +1033,7 @@ export default function PlanView({
               id={`plan-track-${t.id}`}
               onClick={() => toggleTrack(t, true)}
               className={`cursor-pointer border-b border-line px-4 py-3 transition-colors hover:bg-ink-2/60 ${
-                active ? "bg-ink-2 shadow-[inset_3px_0_0_#e07a3f]" : ""
+                active ? "bg-ink-2 shadow-[inset_3px_0_0_var(--dd-accent)]" : ""
               }`}
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-bone">
@@ -1239,11 +1255,9 @@ export default function PlanView({
 
       {askName && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70">
-          <div className="w-80 rounded-lg border border-line bg-ink-2 p-6 shadow-xl">
-            <h2 className="font-display text-lg font-bold uppercase">
-              Who are you?
-            </h2>
-            <p className="mt-1 text-sm text-bone-dim">
+          <div className="dd-dialog w-80 shadow-xl">
+            <h2>Who are you?</h2>
+            <p>
               Shown next to your votes and comments. Remembered on this
               device.
             </p>
@@ -1254,22 +1268,14 @@ export default function PlanView({
               onChange={(e) => setNameDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && saveName()}
               placeholder="e.g. Dave"
-              className="mt-4 w-full rounded border border-line bg-ink px-3 py-2 text-sm text-bone"
+              className="w-full rounded border border-line bg-ink px-3 py-2 text-sm text-bone"
             />
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={saveName}
-                className="flex-1 rounded bg-clay px-4 py-2 font-display font-bold uppercase text-ink transition-colors hover:bg-clay-hot"
-              >
+            <footer>
+              <button onClick={() => setAskName(false)}>Cancel</button>
+              <button onClick={saveName} className="dd-primary">
                 Start voting
               </button>
-              <button
-                onClick={() => setAskName(false)}
-                className="rounded border border-line px-4 py-2 text-sm text-bone-dim hover:text-bone"
-              >
-                Cancel
-              </button>
-            </div>
+            </footer>
           </div>
         </div>
       )}

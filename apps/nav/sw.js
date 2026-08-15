@@ -1,10 +1,16 @@
 // DingoNav service worker — cache-first so the app works fully offline.
 // Bump CACHE when shipping a new version.
-const CACHE = 'dingonav-v67';
+const CACHE = 'dingonav-v69';
 const SHELL = [
   './', './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './vendor/pmtiles.js', './vendor/fflate.js',
   './corridor.js',
+  // canonical appliers (core/appliers via the ./appliers symlink) — the map
+  // cannot style itself offline without them
+  './appliers/applier-nav.js', './appliers/scheme.js', './appliers/detail.js',
+  // shared chrome tokens + type (core/ui via the ./core-ui symlink)
+  './core-ui/tokens.css', './core-ui/fonts.css', './core-ui/chrome.css',
+  './core-ui/fonts/barlow-400.woff2', './core-ui/fonts/barlow-500.woff2',
   './basemap/layers.json', './basemap/layers-light.json',
   './basemap/sprites/dark.json', './basemap/sprites/dark.png',
   './basemap/sprites/dark@2x.json', './basemap/sprites/dark@2x.png',
@@ -12,7 +18,7 @@ const SHELL = [
   './basemap/sprites/light@2x.json', './basemap/sprites/light@2x.png',
 ];
 // ride schemas — Studio's look (.dingoscheme) + feel (.dingobehavior) presets, offline-first
-for (const f of ['default', 'google-maps', 'waze', 'locus', 'oziexplorer', 'dmd2', 'index'])
+for (const f of ['default', 'classic', 'google-maps', 'waze', 'locus', 'oziexplorer', 'dmd2', 'index'])
   SHELL.push(`./schemes/${f}.json`);
 for (const f of ['default', 'google-maps', 'waze', 'locus', 'dmd2', 'index'])
   SHELL.push(`./behaviors/${f}.json`);

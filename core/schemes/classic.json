@@ -1,13 +1,13 @@
 {
-  "name": "Dingo default",
+  "name": "Classic",
   "author": "Dingo",
   "version": 1,
   "schemaVersion": "1.0",
   "tokens": {
-    "basemap.base": "light",
+    "basemap.base": "dark",
     "basemap.hillshade": true,
     "basemap.hillshadeShadow": "#54524a",
-    "basemap.hillshadeStrength": 0.8,
+    "basemap.hillshadeStrength": 0.35,
     "overlays.heatOwn": "#ff7a00",
     "overlays.heatPlan": "#3390ff",
     "overlays.heatOther": "#ff2d2d",
@@ -32,16 +32,15 @@
     "marks.camp": "#97c459",
     "marks.banner": "#ff4545",
     "marks.flash": "#ffb020",
-    "hud.bg": "#141109",
-    "hud.panel": "#1d1910",
-    "hud.text": "#ece4d2",
-    "hud.dim": "#a89d83",
-    "hud.accent": "#d96f32",
+    "hud.bg": "#0e1216",
+    "hud.panel": "#161c22",
+    "hud.text": "#e8eef4",
+    "hud.dim": "#8fa0b0",
+    "hud.accent": "#00e5ff",
     "hud.ok": "#38d178",
     "hud.warn": "#ffb020",
     "hud.bad": "#ff4545",
     "hud.arrow": "#ffb020",
-    "hud.arrowOp": 0.55,
-    "basemap.detail": "outback"
+    "hud.arrowOp": 0.55
   }
 }
