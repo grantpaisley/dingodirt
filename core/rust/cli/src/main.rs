@@ -242,6 +242,10 @@ enum RoutesAction {
         /// Replace the collection if it already exists (the re-download path)
         #[arg(long)]
         replace: bool,
+        /// Owner to assign to the planned rides: an owners.name (exact,
+        /// case-insensitive) or an owners.id UUID
+        #[arg(long)]
+        owner: Option<String>,
     },
     /// List planned-route collections
     List,
@@ -762,11 +766,25 @@ async fn main() -> anyhow::Result<()> {
                 file,
                 collection,
                 replace,
+                owner,
             } => {
                 let file_store = dingo_ingest::FileStore::new(&config.file_store_path)?;
-                let result =
-                    dingo_ingest::import_routes(&pool, &file_store, &file, &collection, replace)
-                        .await?;
+                let owner = match owner.as_deref() {
+                    Some(spec) => Some(resolve_owner(&pool, spec).await?),
+                    None => None,
+                };
+                let result = dingo_ingest::import_routes(
+                    &pool,
+                    &file_store,
+                    &file,
+                    &collection,
+                    replace,
+                    owner.as_ref().map(|(id, _)| *id),
+                )
+                .await?;
+                if let Some((_, name)) = &owner {
+                    println!("👤 Owner: {name}");
+                }
                 if result.replaced != (0, 0) {
                     println!(
                         "♻️  Replaced {} routes, {} POIs in \"{}\"",
@@ -1546,4 +1564,36 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Resolve an `--owner` value — an owners.id UUID or an exact
+/// (case-insensitive) owners.name — to the id + display name.
+async fn resolve_owner(
+    pool: &sqlx::PgPool,
+    spec: &str,
+) -> anyhow::Result<(dingo_core::OwnerId, String)> {
+    let found: Option<(dingo_core::OwnerId, String)> =
+        match dingo_core::OwnerId::parse(spec) {
+            Ok(id) => sqlx::query_as("SELECT id, name FROM owners WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?,
+            Err(_) => sqlx::query_as("SELECT id, name FROM owners WHERE lower(name) = lower($1)")
+                .bind(spec)
+                .fetch_optional(pool)
+                .await?,
+        };
+    match found {
+        Some(owner) => Ok(owner),
+        None => {
+            let names: Vec<String> =
+                sqlx::query_scalar("SELECT name FROM owners ORDER BY name")
+                    .fetch_all(pool)
+                    .await?;
+            Err(anyhow::anyhow!(
+                "no owner matches '{spec}' — known owners: {}",
+                names.join(", ")
+            ))
+        }
+    }
 }
