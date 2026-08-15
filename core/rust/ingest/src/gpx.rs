@@ -235,21 +235,48 @@ fn find_trk_open(text: &str) -> Option<usize> {
     None
 }
 
-/// Look for a color value in a track header. Understands the common
-/// producers: `<gpx_style:color>`, OsmAnd `<osmand:color>` / plain
-/// `<color>`, and Garmin `<gpxx:DisplayColor>` named colors.
+/// Look for a color value in a track header.
+///
+/// Matching is on the *local* element name, with any namespace prefix
+/// ignored: the prefix is the producer's free choice, so the same gpx_style
+/// namespace arrives as `<gpx_style:color>` from one tool and
+/// `<xstyle:color>` from Memory-Map. OsmAnd's `<osmand:color>` and the
+/// unprefixed `<color>` fall out of the same rule.
+///
+/// `color` is tried before Garmin's `<gpxx:DisplayColor>`, so a file that
+/// carries both keeps the exact hex rather than the nearest named color.
 fn color_from_header(header: &str) -> Option<String> {
     let lower = header.to_ascii_lowercase();
-    for tag in ["gpx_style:color", "osmand:color", "color", "gpxx:displaycolor"] {
-        let open = format!("<{tag}>");
-        let close = format!("</{tag}>");
-        let Some(s) = lower.find(&open) else { continue };
-        let val_start = s + open.len();
-        let Some(e) = lower[val_start..].find(&close) else {
+    ["color", "displaycolor"]
+        .into_iter()
+        .find_map(|local| color_by_local_name(header, &lower, local))
+}
+
+/// First element in `header` whose local name is `local` and whose text
+/// normalises to a color. `lower` must be `header.to_ascii_lowercase()` —
+/// that leaves byte lengths untouched, so offsets found in one index the
+/// other, and the original casing survives for named colors.
+fn color_by_local_name(header: &str, lower: &str, local: &str) -> Option<String> {
+    let mut from = 0;
+    while let Some(pos) = lower[from..].find('<') {
+        let after = from + pos + 1;
+        let gt = after + lower[after..].find('>')?;
+        let raw = &lower[after..gt];
+        let val_start = gt + 1;
+        from = val_start;
+
+        // Closing and self-closing tags hold no text
+        if raw.starts_with('/') || raw.ends_with('/') {
+            continue;
+        }
+        let name = raw.split_whitespace().next().unwrap_or(raw);
+        if name.rsplit(':').next() != Some(local) {
+            continue;
+        }
+        let Some(end_off) = lower[val_start..].find('<') else {
             continue;
         };
-        // Slice the original-case header so named colors keep their casing
-        if let Some(color) = normalize_color(header[val_start..val_start + e].trim()) {
+        if let Some(color) = normalize_color(header[val_start..val_start + end_off].trim()) {
             return Some(color);
         }
     }
@@ -450,5 +477,55 @@ mod tests {
 <trkseg><trkpt lat="-28.0" lon="152.0"/><trkpt lat="-28.1" lon="152.1"/></trkseg></trk></gpx>"#;
         let parsed = parse_gpx_file(garmin).unwrap();
         assert_eq!(parsed.tracks[0].color.as_deref(), Some("#8b0000"));
+    }
+
+    /// Memory-Map binds the gpx_style namespace to its own `xstyle:` prefix
+    /// and nests the color inside `<xstyle:line>`. The prefix is arbitrary,
+    /// so only the local name may be matched.
+    #[test]
+    fn memory_map_xstyle_prefix_is_honoured() {
+        let mm = br#"<?xml version="1.0"?>
+<gpx version="1.1" creator="Memory-Map iOS https://memory-map.com"
+ xmlns="http://www.topografix.com/GPX/1/1"
+ xmlns:xstyle="http://www.topografix.com/GPX/gpx_style/0/2">
+<trk>
+<name>D1 Sth Coast Goaty G3 259km</name>
+<extensions> <xstyle:line>
+<xstyle:color>7e1cf2</xstyle:color>
+<xstyle:opacity>1.00</xstyle:opacity>
+<xstyle:width>4.01</xstyle:width>
+<xstyle:pattern>Solid</xstyle:pattern>
+</xstyle:line></extensions>
+<trkseg><trkpt lat="-34.8667756" lon="150.6020472"/><trkpt lat="-34.8672075" lon="150.6022277"/></trkseg>
+</trk></gpx>"#;
+        let parsed = parse_gpx_file(mm).unwrap();
+        assert_eq!(parsed.tracks[0].color.as_deref(), Some("#7e1cf2"));
+    }
+
+    /// An exact hex outranks a Garmin named color in the same header, and
+    /// attributes on the element must not defeat the name match.
+    #[test]
+    fn hex_wins_over_named_and_attributes_are_tolerated() {
+        let both = br#"<?xml version="1.0"?>
+<gpx version="1.1" creator="t" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3"><trk><name>C</name>
+<extensions><line xmlns="http://www.topografix.com/GPX/gpx_style/0/2">
+<color id="1">D85A30</color></line>
+<gpxx:TrackExtension><gpxx:DisplayColor>Blue</gpxx:DisplayColor></gpxx:TrackExtension></extensions>
+<trkseg><trkpt lat="-28.0" lon="152.0"/><trkpt lat="-28.1" lon="152.1"/></trkseg></trk></gpx>"#;
+        let parsed = parse_gpx_file(both).unwrap();
+        assert_eq!(parsed.tracks[0].color.as_deref(), Some("#d85a30"));
+    }
+
+    /// A closing tag carries no text — matching it would yield an empty
+    /// value and mask a real color later in the header.
+    #[test]
+    fn closing_tags_are_skipped() {
+        assert_eq!(
+            color_from_header("<extensions></xstyle:color><xstyle:color>ff0000</xstyle:color>")
+                .as_deref(),
+            Some("#ff0000")
+        );
+        assert_eq!(color_from_header("<name>No color here</name>"), None);
+        assert_eq!(color_from_header("<color/><color>00ff00</color>").as_deref(), Some("#00ff00"));
     }
 }
