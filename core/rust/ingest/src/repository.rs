@@ -52,14 +52,30 @@ pub async fn file_exists_by_hash(pool: &PgPool, hash: &str) -> Result<Option<Fil
     Ok(result.map(|r| FileId::from_uuid(r.id)))
 }
 
-/// Insert a new ride record into the database
+/// Insert a new ride record into the database.
+///
+/// `filename` is the source file's own name, stored as its own name variant —
+/// a GPX called `2026-06-01_flinders_day2.gpx` often carries a quite
+/// different `<trk><name>`, and both are worth keeping.
 pub async fn insert_ride(
     executor: impl PgExecutor<'_>,
     file_id: FileId,
     track: &Track,
     origin: RideOrigin,
+    filename: &str,
 ) -> Result<RideId> {
     let ride_id = RideId::new();
+
+    // Which name the ride displays until the user says otherwise. A file that
+    // named its track something real keeps that name; a FIT sport string or
+    // an "Active Log: ..." default is not worth showing, so the ride waits for
+    // the namer's generated name instead. Without this the ride would display
+    // "cycling" for ever, because the namer no longer overwrites `name`.
+    let name_source = if dingo_core::is_junk_name(track.name.as_deref()) {
+        "generated"
+    } else {
+        "original"
+    };
 
     // Convert points to GeoJSON for PostGIS
     let geojson = track_to_geojson(track);
@@ -82,15 +98,19 @@ pub async fn insert_ride(
             raw_geometry, raw_time_series,
             has_heart_rate, has_cadence, has_power,
             fit_sport, fit_sub_sport, device_manufacturer, device_product,
-            origin
+            origin,
+            original_name, filename, name_source
         )
         VALUES (
-            $1, $2, $3, $4::track_type, $5,
+            $1, $2,
+            resolve_ride_name($18, $3, $19, NULL, NULL),
+            $4::track_type, $5,
             $6, $7,
             ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON($8), 4326)), $9,
             $10, $11, $12,
             $13, $14, $15, $16,
-            $17::ride_origin
+            $17::ride_origin,
+            $3, $19, $18::ride_name_source
         )
         "#,
         ride_id.0,
@@ -109,7 +129,9 @@ pub async fn insert_ride(
         track.fit_sub_sport,
         track.device_manufacturer,
         track.device_product,
-        origin.as_str() as _
+        origin.as_str() as _,
+        name_source,
+        filename
     )
     .execute(executor)
     .await?;

@@ -110,7 +110,9 @@ pub async fn ingest_file(
 
     let mut ride_ids = Vec::with_capacity(tracks.len());
     for track in &tracks {
-        let ride_id = repository::insert_ride(&mut *tx, file_id, track, origin).await?;
+        let ride_id =
+            repository::insert_ride(&mut *tx, file_id, track, origin, &stored.original_name)
+                .await?;
         ride_ids.push(ride_id);
         info!(
             ride_id = %ride_id,

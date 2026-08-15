@@ -82,6 +82,15 @@ export interface RideDetail {
     original_name: string | null
     /** Original filename as uploaded/ingested */
     file_name: string | null
+    /** Built by the namer from geography, distance, time and date */
+    generated_name: string | null
+    /** Typed by the user; the namer never touches it */
+    custom_name: string | null
+    /** Which variant `name` currently shows */
+    name_source: NameVariant
+    /** Variants holding boilerplate ("cycling", "Active Log: ..."); the
+     *  picker greys these out but still shows their value. */
+    junk_variants: NameVariant[]
     imported_at: string
     /** Source folder when genuinely known (CLI ingest); null for web uploads */
     imported_from: string | null
@@ -543,6 +552,43 @@ export function useFolders() {
         },
         staleTime: 5 * 60 * 1000,
     })
+}
+
+/** The four names a track can display. Every one is kept; `name_source`
+ *  only chooses which is shown, so switching never loses anything. */
+export type NameVariant = 'original' | 'filename' | 'generated' | 'custom'
+
+export const NAME_VARIANT_LABELS: Record<NameVariant, string> = {
+    original: 'Track name',
+    filename: 'File name',
+    generated: 'Auto name',
+    custom: 'Custom name',
+}
+
+/** Re-point rides at a different name variant. Returns the number updated. */
+export async function setRideNameSource(
+    rideIds: string[],
+    nameSource: NameVariant,
+): Promise<number> {
+    const res = await fetch(`${API_BASE}/rides/name-source`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ ride_ids: rideIds, name_source: nameSource }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return (await res.json()).updated as number
+}
+
+/** Rename a ride. The typed name becomes the `custom` variant, so the auto
+ *  and ingested names stay available to switch back to. */
+export async function renameRide(id: string, name: string): Promise<{ id: string, name: string }> {
+    const res = await fetch(`${API_BASE}/rides/${id}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ name }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
 }
 
 export async function createFolder(name: string, parentId?: string | null): Promise<{ id: string }> {

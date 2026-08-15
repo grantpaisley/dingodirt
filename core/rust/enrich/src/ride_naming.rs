@@ -4,10 +4,18 @@
 //! - One-way: `<Suburb> to <End> [via <Mid>] <D> kms <H> hrs on <YYYY-MM-DD>`
 //!
 //! Names are suburb-only (no LGA prefix); the LGA/state/region live in ride
-//! attribute columns instead. When the original (ingested) name is meaningful
-//! it is appended in parens: `... on 2024-03-29 (Maroota Secret Track)`. Junk
-//! originals (FIT sport strings, "Active Log: ...", etc.) are dropped. Manual
-//! renames (`name_source = 'user'`) are never touched.
+//! attribute columns instead.
+//!
+//! The generated name is written to `rides.generated_name` and never to
+//! `rides.name` directly — `name_source` decides which of the four variants
+//! (`original_name`, `filename`, `generated_name`, `custom_name`) displays,
+//! and `resolve_ride_name()` in the database resolves it. This pass therefore
+//! cannot destroy a name a user chose: it owns one column and refreshes only
+//! that one.
+//!
+//! It also no longer appends the ingested name in parens
+//! (`... on 2024-03-29 (Maroota Secret Track)`). The original now has its own
+//! column, so the suffix was pure duplication.
 //!
 //! The same pass fills the ride locality attributes: `suburbs` and `lgas` are
 //! ALL localities the ride passes through (nearest locality sampled roughly
@@ -35,52 +43,19 @@ pub fn is_closed_loop(closure_m: f64, distance_m: f64) -> bool {
     closure_m < LOOP_CLOSURE_M.max(distance_m * LOOP_CLOSURE_FRACTION)
 }
 
-/// FIT sport strings and recorder defaults that carry no information.
-const JUNK_NAMES: &[&str] = &[
-    "cycling",
-    "generic",
-    "running",
-    "hiking",
-    "walking",
-    "swimming",
-    "motorcycling",
-    "training",
-    "transition",
-    "mountain_biking",
-    "e_biking",
-    "fitness_equipment",
-    "cross_country_skiing",
-    "tactical",
-    "track_me",
-    "navigate",
-    "untitled",
-];
-
-/// Whether an ingested name is meaningless boilerplate.
-pub fn is_junk_name(name: Option<&str>) -> bool {
-    let Some(name) = name else { return true };
-    let n = name.trim().to_ascii_lowercase();
-    if n.is_empty() {
-        return true;
-    }
-    if JUNK_NAMES.contains(&n.as_str()) {
-        return true;
-    }
-    n.starts_with("active log")
-        || n.starts_with("track ")
-        || n.starts_with("course")
-        || n.starts_with("move ")
-        // bare numbers, dates, timestamps ("2021-09-07 04:41")
-        || n.chars().all(|c| c.is_ascii_digit() || " -:./".contains(c))
-        // a previously generated name that leaked into original_name
-        || (n.contains(" kms ") && n.contains(" on 2"))
-}
+/// Whether an ingested name is meaningless boilerplate. Defined in
+/// `dingo_core` because the ingest path needs the same answer to choose a
+/// ride's initial `name_source`; re-exported here for existing callers.
+pub use dingo_core::is_junk_name;
 
 /// Summary of a naming pass
 #[derive(Debug, Default)]
 pub struct NamingSummary {
     pub rides_processed: usize,
     pub rides_named: usize,
+    /// Rides displaying a custom name that already hold a generated one, so
+    /// this pass left them alone. They keep both — switching back is a
+    /// pointer change, not a re-run.
     pub rides_skipped_user: usize,
     pub rides_failed: usize,
     /// A few example generated names for eyeballing
@@ -89,9 +64,6 @@ pub struct NamingSummary {
 
 struct RideNameInput {
     id: uuid::Uuid,
-    name: Option<String>,
-    original_name: Option<String>,
-    name_source: String,
     started_at: Option<DateTime<Utc>>,
     ended_at: Option<DateTime<Utc>>,
     start: (f64, f64),
@@ -132,7 +104,6 @@ fn assemble_name(
     distance_km: f64,
     duration_hours: Option<f64>,
     date: Option<&str>,
-    original: Option<&str>,
 ) -> String {
     let mut parts: Vec<String> = Vec::with_capacity(8);
     parts.push(start.suburb.clone());
@@ -158,13 +129,7 @@ fn assemble_name(
         parts.push(format!("on {d}"));
     }
 
-    let mut name = parts.join(" ");
-    if let Some(orig) = original {
-        if !is_junk_name(Some(orig)) {
-            name.push_str(&format!(" ({orig})"));
-        }
-    }
-    name
+    parts.join(" ")
 }
 
 /// Fold KNN samples along the track into ordered-distinct suburbs/LGAs,
@@ -271,8 +236,7 @@ async fn name_rides(pool: &PgPool, only_unlocated: bool) -> Result<NamingSummary
     let unlocated_clause = if only_unlocated { "AND state IS NULL" } else { "" };
     let rows = sqlx::query(&format!(
         r#"
-        SELECT id, name, original_name, name_source::TEXT as name_source,
-               started_at, ended_at,
+        SELECT id, started_at, ended_at,
                ST_X(ST_StartPoint(cleaned_geometry)) as sx, ST_Y(ST_StartPoint(cleaned_geometry)) as sy,
                ST_X(ST_EndPoint(cleaned_geometry))   as ex, ST_Y(ST_EndPoint(cleaned_geometry))   as ey,
                ST_X(ST_LineInterpolatePoint(cleaned_geometry, 0.5)) as mx,
@@ -283,8 +247,11 @@ async fn name_rides(pool: &PgPool, only_unlocated: bool) -> Result<NamingSummary
         FROM rides
         WHERE cleaned_geometry IS NOT NULL
           AND ST_NPoints(cleaned_geometry) >= 2
-          AND name_source != 'user'
-          -- Never rename planned routes: their curated names (e.g. the GOAT
+          -- A custom name is the user's choice, so once such a ride already
+          -- holds a generated name there is nothing to refresh. It is still
+          -- named once, so the picker can offer the auto name as an option.
+          AND (name_source != 'custom' OR generated_name IS NULL)
+          -- Never name planned routes: their curated names (e.g. the GOAT
           -- track names) ARE the payload, and they'd otherwise qualify — they
           -- carry cleaned_geometry like any recorded ride.
           AND kind = 'recorded'
@@ -296,7 +263,9 @@ async fn name_rides(pool: &PgPool, only_unlocated: bool) -> Result<NamingSummary
 
     let mut summary = NamingSummary {
         rides_skipped_user: sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM rides WHERE name_source = 'user' AND kind = 'recorded'",
+            "SELECT count(*) FROM rides
+              WHERE name_source = 'custom' AND generated_name IS NOT NULL
+                AND kind = 'recorded'",
         )
         .fetch_one(pool)
         .await? as usize,
@@ -306,9 +275,6 @@ async fn name_rides(pool: &PgPool, only_unlocated: bool) -> Result<NamingSummary
     for row in rows {
         let input = RideNameInput {
             id: row.get("id"),
-            name: row.get("name"),
-            original_name: row.get("original_name"),
-            name_source: row.get("name_source"),
             started_at: row.get("started_at"),
             ended_at: row.get("ended_at"),
             start: (row.get("sx"), row.get("sy")),
@@ -479,16 +445,6 @@ async fn name_one_ride(pool: &PgPool, input: &RideNameInput, regions: &RegionMap
     };
     let date = input.started_at.map(|t| t.format("%Y-%m-%d").to_string());
 
-    // The pre-generation original: original_name once set, otherwise the
-    // current name (only if it hasn't already been generated).
-    let original = input.original_name.clone().or_else(|| {
-        if input.name_source == "original" {
-            input.name.clone()
-        } else {
-            None
-        }
-    });
-
     let name = assemble_name(
         &start,
         &end,
@@ -497,7 +453,6 @@ async fn name_one_ride(pool: &PgPool, input: &RideNameInput, regions: &RegionMap
         input.distance_m / 1000.0,
         duration_hours,
         date.as_deref(),
-        original.as_deref(),
     );
 
     let samples = sample_ride_localities(pool, input.id).await?;
@@ -512,12 +467,15 @@ async fn name_one_ride(pool: &PgPool, input: &RideNameInput, regions: &RegionMap
         .and_then(|st| regions.region_for(st, end.lga.as_deref()))
         .map(str::to_string);
 
+    // Write only the column this pass owns, then re-resolve the display name
+    // through the single database definition. `name_source` is deliberately
+    // untouched: the pointer is the user's choice, not the namer's.
     sqlx::query(
         r#"
         UPDATE rides SET
-            original_name = COALESCE(original_name, name),
-            name = $2,
-            name_source = 'generated',
+            generated_name = $2,
+            name = resolve_ride_name(
+                name_source::TEXT, original_name, filename, $2, custom_name),
             state = $3,
             region = $4,
             lgas = $5,
@@ -571,22 +529,13 @@ mod tests {
         assert!(!is_closed_loop(80_000.0, 100_000.0));
     }
 
-    #[test]
-    fn junk_names_detected() {
-        assert!(is_junk_name(None));
-        assert!(is_junk_name(Some("cycling")));
-        assert!(is_junk_name(Some("Active Log: 02 Sep 2011 07:18 (segment 3)")));
-        assert!(is_junk_name(Some("13")));
-        assert!(is_junk_name(Some("2021-09-07 04:41")));
-        assert!(is_junk_name(Some(
-            "Hornsby:Berowra Waters loop 0 kms 0.0 hrs on 2024-03-14"
-        )));
-        assert!(!is_junk_name(Some("Maroota Secret Track")));
-        assert!(!is_junk_name(Some("03031116 Thredbo downhill")));
-    }
+    // is_junk_name moved to dingo_core::track_name; its tests moved with it.
 
+    /// The ingested name lives in its own column now, so it must NOT appear
+    /// in the generated one — that duplication is what the 2026-08-11
+    /// migration strips out of 822 existing rows.
     #[test]
-    fn loop_with_meaningful_original() {
+    fn generated_name_never_embeds_the_original() {
         let name = assemble_name(
             &loc("Maroota", Some("The Hills")),
             &loc("Maroota", Some("The Hills")),
@@ -595,16 +544,16 @@ mod tests {
             31.2,
             Some(2.8),
             Some("2025-06-01"),
-            Some("Maroota Secret Track"),
         );
         assert_eq!(
             name,
-            "Maroota loop via Canoelands 31 kms 2.8 hrs on 2025-06-01 (Maroota Secret Track)"
+            "Maroota loop via Canoelands 31 kms 2.8 hrs on 2025-06-01"
         );
+        assert!(!name.contains('('), "no bracketed suffix: {name}");
     }
 
     #[test]
-    fn one_way_junk_original_dropped() {
+    fn one_way_reads_start_to_end() {
         let name = assemble_name(
             &loc("Wisemans Ferry", Some("Hornsby")),
             &loc("St Albans", Some("Hawkesbury")),
@@ -613,7 +562,6 @@ mod tests {
             74.4,
             Some(3.2),
             Some("2011-09-02"),
-            Some("Active Log: 02 Sep 2011 07:18"),
         );
         assert_eq!(
             name,
@@ -631,12 +579,8 @@ mod tests {
             597.0,
             None,
             None,
-            Some("G.O.A.T STH NSW 597 Km"),
         );
-        assert_eq!(
-            name,
-            "Jindabyne to Omeo via Benambra 597 kms (G.O.A.T STH NSW 597 Km)"
-        );
+        assert_eq!(name, "Jindabyne to Omeo via Benambra 597 kms");
     }
 
     #[test]
@@ -655,7 +599,6 @@ mod tests {
             35.0,
             Some(3.4),
             Some("2024-03-22"),
-            None,
         );
         assert_eq!(name, "Eden loop via Nullica 35 kms 3.4 hrs on 2024-03-22");
     }
@@ -670,7 +613,6 @@ mod tests {
             10.0,
             Some(1.0),
             Some("2025-01-01"),
-            None,
         );
         assert_eq!(name, "Maroota loop 10 kms 1.0 hrs on 2025-01-01");
     }

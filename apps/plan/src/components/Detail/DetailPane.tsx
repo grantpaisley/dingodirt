@@ -1,9 +1,85 @@
-import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, useLabels, createLabel, createLabelSet, assignLabel, RIDE_MODES, SERVER_BASE, type PhotoSummary } from '../../api/hooks'
+import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, useLabels, createLabel, createLabelSet, assignLabel, setRideNameSource, NAME_VARIANT_LABELS, RIDE_MODES, SERVER_BASE, type PhotoSummary, type NameVariant, type RideDetail } from '../../api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { PackageMinus, PackagePlus } from 'lucide-react'
 import { useBasket, useSettings, type RideMode } from '../../store'
 import { OwnerPicker } from '../OwnerPicker'
+
+const NAME_VARIANT_ORDER: NameVariant[] = ['original', 'filename', 'generated', 'custom']
+
+/** Which name a track displays. All four are stored, so this only re-points —
+ *  it never rewrites a name, and switching back always works.
+ *
+ *  Variants with no value are disabled. Junk variants (a FIT sport string, an
+ *  "Active Log:" default, a bare date) stay selectable but are marked, because
+ *  the honest content of that variant is still worth seeing. */
+function NamePicker({ ride, disabled, onChanged }: {
+    ride: RideDetail
+    disabled?: boolean
+    onChanged: () => void
+}) {
+    const values: Record<NameVariant, string | null> = {
+        original: ride.original_name,
+        filename: ride.file_name,
+        generated: ride.generated_name,
+        custom: ride.custom_name,
+    }
+    const junk = new Set(ride.junk_variants ?? [])
+
+    return (
+        <div className="detail-section" style={{ marginTop: 8 }}>
+            <div className="detail-label">Name shown</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                {NAME_VARIANT_ORDER.map(variant => {
+                    const value = values[variant]
+                    const empty = !value || !value.trim()
+                    const isJunk = junk.has(variant)
+                    return (
+                        <label
+                            key={variant}
+                            title={empty ? 'This file carried no such name' : value!}
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'auto 5.5rem 1fr',
+                                gap: 6,
+                                alignItems: 'baseline',
+                                padding: '2px 0',
+                                cursor: empty || disabled ? 'default' : 'pointer',
+                                opacity: empty ? 0.4 : isJunk ? 0.65 : 1,
+                            }}
+                        >
+                            <input
+                                type="radio"
+                                name={`name-source-${ride.id}`}
+                                checked={ride.name_source === variant}
+                                disabled={empty || disabled}
+                                onChange={async () => {
+                                    await setRideNameSource([ride.id], variant)
+                                    onChanged()
+                                }}
+                            />
+                            <span className="detail-label" style={{ margin: 0 }}>
+                                {NAME_VARIANT_LABELS[variant]}
+                            </span>
+                            <span
+                                className="detail-value"
+                                style={{
+                                    wordBreak: 'break-word',
+                                    fontStyle: empty ? 'italic' : undefined,
+                                }}
+                            >
+                                {empty ? '—' : value}
+                                {isJunk && !empty && (
+                                    <span style={{ opacity: 0.7 }}> · not descriptive</span>
+                                )}
+                            </span>
+                        </label>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
 
 /** Folder home (filter pills): a flat select over the folder tree with
  *  depth-indented names, an Unfiled root, and a "New folder…" creator. */
@@ -699,19 +775,18 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                 </div>
             )}
 
-            {ride.original_name && ride.original_name !== ride.name && (
-                <div className="detail-section" style={{ marginTop: 8 }}>
-                    <div className="detail-label">Original track name</div>
-                    <div className="detail-value">{ride.original_name}</div>
-                </div>
-            )}
-
-            {ride.file_name && (
-                <div className="detail-section" style={{ marginTop: 8 }}>
-                    <div className="detail-label">Original file</div>
-                    <div className="detail-value" style={{ wordBreak: 'break-all' }}>{ride.file_name}</div>
-                </div>
-            )}
+            <NamePicker
+                ride={ride}
+                disabled={isUpdating}
+                onChanged={() => {
+                    queryClient.invalidateQueries({ queryKey: ['ride', ride.id] })
+                    // 'items' is what the track list renders from — without it
+                    // the list keeps showing the old name until a refetch.
+                    queryClient.invalidateQueries({ queryKey: ['items'] })
+                    queryClient.invalidateQueries({ queryKey: ['allRideMeta'] })
+                    queryClient.invalidateQueries({ queryKey: ['ridesByIds'] })
+                }}
+            />
 
             <div className="detail-section" style={{ marginTop: 8 }}>
                 <div className="detail-label">Imported</div>
