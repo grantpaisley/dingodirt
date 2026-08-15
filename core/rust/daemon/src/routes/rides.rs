@@ -441,8 +441,12 @@ async fn list_rides(
         (!pats.is_empty()).then_some(pats)
     });
     let search_clause = if search_patterns.is_some() {
+        // COALESCE per pattern verdict: a NULL column (state, region, …) makes
+        // the OR-chain NULL instead of false, and bool_and SKIPS NULL inputs —
+        // so without it a multi-word query silently degrades to OR ("Glenhaven
+        // loop" matched every loop in the library, 2026-08-15).
         "AND ($3::text[] IS NULL OR (
-            SELECT bool_and(
+            SELECT bool_and(COALESCE(
                 r.name ILIKE pat OR r.state ILIKE pat OR r.region ILIKE pat
                 OR r.source ILIKE pat
                 OR o.name ILIKE pat
@@ -450,7 +454,7 @@ async fn list_rides(
                 OR f.original_name ILIKE pat
                 OR array_to_string(r.lgas, ' ') ILIKE pat
                 OR array_to_string(r.suburbs, ' ') ILIKE pat
-            )
+            , false))
             FROM unnest($3::text[]) AS pat
         ))"
     } else {

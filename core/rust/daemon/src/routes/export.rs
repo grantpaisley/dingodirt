@@ -2271,7 +2271,23 @@ fn esri_http() -> &'static reqwest::Client {
 /// network/server trouble that should count toward the give-up streak. ESRI's
 /// tile path is `/{z}/{y}/{x}` — row before column, unlike the XYZ
 /// `/{z}/{x}/{y}` we cap by.
+/// On-disk cache for fetched ESRI tiles (CWD-relative, so it lands in the
+/// daemon's data dir). Publish time is dominated by the satellite fetch, and
+/// editing a pack's track list used to mean re-fetching every tile of the
+/// corridor on refresh — with the cache, a republish only fetches tiles the
+/// corridor gained (2026-08-15, editable-pack design). World Imagery is
+/// effectively static; delete the directory to force a re-fetch.
+fn esri_cache_path(z: u32, x: u32, y: u32) -> std::path::PathBuf {
+    std::path::PathBuf::from(format!("tilecache/esri/{z}/{x}/{y}"))
+}
+
 async fn fetch_esri_tile(z: u32, x: u32, y: u32) -> Result<Option<Vec<u8>>, ()> {
+    let cache = esri_cache_path(z, x, y);
+    if let Ok(b) = tokio::fs::read(&cache).await {
+        if b.starts_with(&[0xFF, 0xD8]) || b.starts_with(&[0x89, 0x50]) {
+            return Ok(Some(b));
+        }
+    }
     let url = format!(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     );
@@ -2279,7 +2295,14 @@ async fn fetch_esri_tile(z: u32, x: u32, y: u32) -> Result<Option<Vec<u8>>, ()> 
         Ok(resp) if resp.status().is_success() => match resp.bytes().await {
             // JPEG/PNG magic — ESRI can answer 200 with a JSON error blob.
             Ok(b) if b.starts_with(&[0xFF, 0xD8]) || b.starts_with(&[0x89, 0x50]) => {
-                Ok(Some(b.to_vec()))
+                let bytes = b.to_vec();
+                // best-effort write-through; a full disk must not fail the fetch
+                if let Some(dir) = cache.parent() {
+                    if tokio::fs::create_dir_all(dir).await.is_ok() {
+                        let _ = tokio::fs::write(&cache, &bytes).await;
+                    }
+                }
+                Ok(Some(bytes))
             }
             Ok(_) => Ok(None),
             Err(_) => Err(()),

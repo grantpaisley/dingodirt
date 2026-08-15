@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     AlertTriangle, ArrowUp, Check, ClipboardPaste, Construction, CornerUpLeft, CornerUpRight,
-    Copy, Eraser, Eye, Fence, Fuel, GripVertical, Link2, Map as MapIcon, PackagePlus, RefreshCw,
-    Tent, Trash2, Upload, UtensilsCrossed, Waves, X,
+    Copy, Eraser, Eye, Fence, Fuel, GripVertical, Link2, Map as MapIcon, PackagePlus, Plus,
+    RefreshCw, Search, Tent, Trash2, Upload, UtensilsCrossed, Waves, X,
 } from 'lucide-react'
 import {
     usePack, useRidesByIds, updatePack, deletePack, publishPack, publishPlan, useCoverageEstimate,
     usePackMarks, checkPackMarks, pastePackMarks, setMarkStatus, useDingodirtStatus,
-    usePlanFeedback,
+    usePlanFeedback, searchRides,
     type LayerCoverage, type PackMark, type PackRideEntry, type PlanItemFeedback,
 } from '../../api/hooks'
 import { useBasket, useUiState, type PackPreview } from '../../store'
@@ -141,6 +141,33 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
         if (add.length > 0) patch({ ride_ids: [...rideIds, ...add] })
     }
     const addable = basket.ids.filter(id => !rideIds.includes(id)).length
+
+    // Add-tracks picker: the basket path stays, but a pack must be editable
+    // without pre-loading a basket elsewhere (2026-08-15 — "we can't add or
+    // remove tracks from existing packs"). Type a name, tap +, it appends.
+    const [addOpen, setAddOpen] = useState(false)
+    const [addQ, setAddQ] = useState('')
+    const { data: addMatches } = useQuery({
+        queryKey: ['packAddSearch', addQ],
+        queryFn: () => searchRides(addQ),
+        enabled: addOpen && addQ.trim().length >= 2,
+        placeholderData: (prev) => prev,
+    })
+    // The API matches on name AND metadata (region, file, owner…) and orders by
+    // date — a dateless planned route sorts last and a metadata match can bury
+    // the track you typed. Rank rides whose NAME carries every term first.
+    const addResults = useMemo(() => {
+        const terms = addQ.trim().toLowerCase().split(/\s+/).filter(Boolean)
+        const nameHit = (r: { name: string | null }) => {
+            const n = (r.name ?? '').toLowerCase()
+            return terms.every(t => n.includes(t)) ? 0 : 1
+        }
+        return (addMatches ?? [])
+            .filter(r => !rideIds.includes(r.id))
+            .sort((a, b) => nameHit(a) - nameHit(b))
+            .slice(0, 12)
+    }, [addMatches, addQ, rideIds])
+    const addRide = (id: string) => patch({ ride_ids: [...rideIds, id] })
 
     // Live per-layer size estimate, debounced (same source as the export
     // dialog). Also feeds the map's coverage preview: the estimate response
@@ -589,6 +616,14 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
 
             <div className="list-count" style={{ paddingLeft: 0, paddingRight: 0 }}>
                 <span>{pack.rides.length} track{pack.rides.length === 1 ? '' : 's'} · first is DingoNav's default</span>
+                <button
+                    className="list-toggle"
+                    onClick={() => { setAddOpen(o => !o); setAddQ('') }}
+                    title="Search the library and append tracks to this pack"
+                >
+                    <Plus size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
+                    Add tracks
+                </button>
                 {addable > 0 && (
                     <button className="list-toggle" onClick={addFromBasket} title={`Append the ${addable} basket track${addable === 1 ? '' : 's'} not already here`}>
                         <PackagePlus size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
@@ -607,6 +642,38 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                     </button>
                 )}
             </div>
+            {addOpen && (
+                <div className="pack-add">
+                    <div className="pack-add-search">
+                        <Search size={13} />
+                        <input
+                            autoFocus
+                            value={addQ}
+                            onChange={e => setAddQ(e.target.value)}
+                            placeholder="Search tracks by name…"
+                        />
+                        <button className="pack-track-remove" style={{ opacity: 0.7 }} onClick={() => setAddOpen(false)} title="Close">
+                            <X size={12} />
+                        </button>
+                    </div>
+                    {addQ.trim().length >= 2 && (
+                        <div className="pack-add-results">
+                            {addResults.map(r => (
+                                <button key={r.id} className="pack-add-row" onClick={() => addRide(r.id)} title="Append to this pack">
+                                    <Plus size={12} />
+                                    <span className="pack-track-name">{r.name ?? 'unnamed'}</span>
+                                    {r.distance_m != null && <span className="pack-add-dist">{(r.distance_m / 1000).toFixed(0)} km</span>}
+                                </button>
+                            ))}
+                            {addResults.length === 0 && (
+                                <div className="empty-state" style={{ padding: 8 }}>
+                                    <p style={{ fontSize: 12 }}>No matches (tracks already in the pack are hidden).</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
             <div className="pack-tracks">
                 {pack.rides.map((r: PackRideEntry, i: number) => (
                     <div

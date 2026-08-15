@@ -1083,11 +1083,75 @@ select.export-input {
   cursor: pointer;
   padding: 2px;
   border-radius: 3px;
-  opacity: 0;
+  /* always visible — hover-only made removal impossible on touch screens
+     (2026-08-15: "we can't add or remove tracks from existing packs") */
+  opacity: 0.45;
 }
 
 .pack-track:hover .pack-track-remove {
   opacity: 0.8;
+}
+
+/* ---- pack add-tracks picker ---- */
+.pack-add {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.pack-add-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  color: var(--text-secondary);
+}
+
+.pack-add-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.pack-add-results {
+  max-height: 180px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-color);
+}
+
+.pack-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pack-add-row:last-child {
+  border-bottom: none;
+}
+
+.pack-add-row:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pack-add-dist {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 .pack-track-remove:hover {
