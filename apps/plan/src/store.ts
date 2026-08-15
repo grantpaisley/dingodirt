@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { FilterValues } from './components/Filters/FilterPanel'
-import type { PillState, RideSummary } from './api/hooks'
+import type { FacetValue, PillState, RideSummary } from './api/hooks'
 
 /** 'mode' colours rides by ride mode; 'hr' / 'speed' / 'grade' use the
  *  gradient scales (grade = absolute steepness %, ascent and descent alike) */
@@ -691,7 +691,19 @@ interface UiState {
      *  no active pills, nothing dims. Written by the list, read by the map. */
     pillMatchedIds: Set<string> | null
     setPillMatchedIds: (ids: Set<string> | null) => void
+    /** Display names for facet values the server labelled, keyed by
+     *  dimension + value. Every pill dropdown writes what it fetched, so
+     *  a pill chip can name an id-valued dimension it knows nothing about —
+     *  no per-dimension lookup, and a new dimension needs no code here.
+     *  Session-only: after a reload a persisted pill falls back to the
+     *  reference-data lookups in pillSummary until its dropdown is opened. */
+    facetLabels: Record<string, string>
+    rememberFacetLabels: (dimension: string, rows: FacetValue[]) => void
 }
+
+/** Key for `facetLabels`. NUL can't occur in a dimension id or a value. */
+export const facetLabelKey = (dimension: string, value: string): string =>
+    `${dimension}\u0000${value}`
 
 export interface MarkPreviewPoint {
     id: string
@@ -843,6 +855,21 @@ export const useUiState = create<UiState>()((set) => ({
     setStyleOverlays: (styleOverlays) => set({ styleOverlays }),
     pillMatchedIds: null,
     setPillMatchedIds: (pillMatchedIds) => set({ pillMatchedIds }),
+    facetLabels: {},
+    rememberFacetLabels: (dimension, rows) =>
+        set((s) => {
+            const next: Record<string, string> = {}
+            for (const row of rows) {
+                if (row.label === undefined || row.value === undefined) continue
+                const key = facetLabelKey(dimension, String(row.value))
+                if (s.facetLabels[key] !== row.label) next[key] = row.label
+            }
+            // Same object when nothing is new — the pill row re-renders on
+            // every facet fetch otherwise.
+            return Object.keys(next).length
+                ? { facetLabels: { ...s.facetLabels, ...next } }
+                : s
+        }),
 }))
 
 /** True when any range filter is enabled — drives toolbar badge + grey tier */
