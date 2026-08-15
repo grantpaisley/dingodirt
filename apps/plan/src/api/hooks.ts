@@ -152,6 +152,12 @@ async function fetchRides(bounds?: Bounds, tier?: number, q?: string): Promise<R
     return res.json()
 }
 
+/** Name search across the whole library (no bounds, full tier) — powers the
+ *  pack detail's add-tracks picker. */
+export async function searchRides(q: string): Promise<RideSummary[]> {
+    return fetchRides(undefined, undefined, q)
+}
+
 export async function fetchRidesByIds(ids: string[]): Promise<RideSummary[]> {
     if (ids.length === 0) return []
     // Chunked: a folder selection can be thousands of ids, and they travel in
