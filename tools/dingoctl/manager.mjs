@@ -13,9 +13,15 @@ import { fileURLToPath } from 'node:url'
 import { services } from './services.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-export const REPO_ROOT = join(HERE, '..', '..')
-const LOG_DIR = join(HERE, 'logs')
-const STATE_FILE = join(HERE, '.state.json')
+// DINGO_REPO_ROOT lets a copy of this code drive another checkout — a git
+// worktree can then run the panel against the main checkout, which is where
+// the built daemon and the installed node_modules live.
+export const REPO_ROOT = process.env.DINGO_REPO_ROOT || join(HERE, '..', '..')
+// State and logs belong to the checkout under control, not to the code that
+// runs. So a panel started from a worktree keeps the PIDs the last panel wrote.
+const STATE_DIR = join(REPO_ROOT, 'tools', 'dingoctl')
+const LOG_DIR = join(STATE_DIR, 'logs')
+const STATE_FILE = join(STATE_DIR, '.state.json')
 const WINDOWS = process.platform === 'win32'
 
 export const SERVICES = services(REPO_ROOT)

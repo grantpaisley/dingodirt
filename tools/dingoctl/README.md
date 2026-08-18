@@ -50,6 +50,11 @@ and its log.
 
 - Logs go to `tools/dingoctl/logs/<id>.log` (not in git).
 - PIDs go to `tools/dingoctl/.state.json` (not in git).
+- `DINGO_REPO_ROOT` — the checkout to control. Default: the checkout this code
+  sits in. Set it to run the panel from a git worktree against the main
+  checkout, where the built daemon and the installed `node_modules` are. Logs
+  and PIDs follow the controlled checkout, so the panel keeps the PIDs that the
+  last panel wrote.
 - `DINGO_SERVER_BIN` — the path to a built `dingo-server`. Without it the panel
   looks in `core/rust/target/release` then `core/rust/target/debug`, and falls
   back to `cargo run --release`. In a git worktree the target folder is usually
