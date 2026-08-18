@@ -36,8 +36,10 @@ The daemon will not start until the database answers on 5433.
 
 ## How it decides that a service runs
 
-The panel opens a TCP connection to the port. If the port answers, the service
-runs. This is why it also sees a daemon you started by hand in a terminal — it
+The panel opens a TCP connection to the port, on `127.0.0.1` **and** on `::1`.
+If either answers, the service runs. Both families matter: Vite binds
+`localhost` as IPv6 only, so an IPv4-only probe would call Plan "stopped" and
+then start a second copy on the next free port. This is why it also sees a daemon you started by hand in a terminal — it
 marks that one **external** (amber). You can still stop an external service:
 the panel finds the process that owns the port and stops it.
 
@@ -48,6 +50,11 @@ and its log.
 
 - Logs go to `tools/dingoctl/logs/<id>.log` (not in git).
 - PIDs go to `tools/dingoctl/.state.json` (not in git).
+- `DINGO_REPO_ROOT` — the checkout to control. Default: the checkout this code
+  sits in. Set it to run the panel from a git worktree against the main
+  checkout, where the built daemon and the installed `node_modules` are. Logs
+  and PIDs follow the controlled checkout, so the panel keeps the PIDs that the
+  last panel wrote.
 - `DINGO_SERVER_BIN` — the path to a built `dingo-server`. Without it the panel
   looks in `core/rust/target/release` then `core/rust/target/debug`, and falls
   back to `cargo run --release`. In a git worktree the target folder is usually
