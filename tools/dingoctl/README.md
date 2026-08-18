@@ -36,8 +36,10 @@ The daemon will not start until the database answers on 5433.
 
 ## How it decides that a service runs
 
-The panel opens a TCP connection to the port. If the port answers, the service
-runs. This is why it also sees a daemon you started by hand in a terminal — it
+The panel opens a TCP connection to the port, on `127.0.0.1` **and** on `::1`.
+If either answers, the service runs. Both families matter: Vite binds
+`localhost` as IPv6 only, so an IPv4-only probe would call Plan "stopped" and
+then start a second copy on the next free port. This is why it also sees a daemon you started by hand in a terminal — it
 marks that one **external** (amber). You can still stop an external service:
 the panel finds the process that owns the port and stops it.
 

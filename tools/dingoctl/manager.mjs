@@ -46,9 +46,9 @@ function alive(pid) {
 
 // ---------- ports ----------
 
-export function portOpen(port, timeout = 400) {
+function hostAnswers(host, port, timeout) {
     return new Promise((resolve) => {
-        const socket = net.connect({ port, host: '127.0.0.1' })
+        const socket = net.connect({ port, host })
         const done = (result) => {
             socket.destroy()
             resolve(result)
@@ -58,6 +58,19 @@ export function portOpen(port, timeout = 400) {
         socket.once('timeout', () => done(false))
         socket.once('error', () => done(false))
     })
+}
+
+/**
+ * Probe IPv4 and IPv6 together. A server that binds `localhost` can listen on
+ * `[::1]` only — Vite does. An IPv4-only probe misses it, reports "stopped",
+ * and the panel then starts a second copy on the next free port.
+ */
+export async function portOpen(port, timeout = 400) {
+    const answers = await Promise.all([
+        hostAnswers('127.0.0.1', port, timeout),
+        hostAnswers('::1', port, timeout),
+    ])
+    return answers.some(Boolean)
 }
 
 async function waitForPort(port, up, timeoutMs = 60000) {
@@ -72,6 +85,8 @@ async function waitForPort(port, up, timeoutMs = 60000) {
 /** The PID that listens on a port, for a process the panel did not start. */
 function pidOnPort(port) {
     return new Promise((resolve) => {
+        // lsof -i covers both address families, so an IPv6-only listener
+        // (Vite) is found here too.
         const [cmd, args] = WINDOWS
             ? ['netstat', ['-ano', '-p', 'TCP']]
             : ['lsof', ['-nP', '-tiTCP:' + port, '-sTCP:LISTEN']]
