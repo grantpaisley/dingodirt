@@ -198,8 +198,15 @@ pub fn routes() -> Router {
         .route("/locations", get(ride_locations))
         .route("/plan", axum::routing::post(create_plan))
         .route("/name-source", axum::routing::patch(set_name_source))
+        .route("/delete", axum::routing::post(delete_rides))
+        .route("/delete-preview", axum::routing::post(preview_delete))
         .route("/{id}/name", axum::routing::patch(rename_ride))
-        .route("/{id}", get(get_ride).patch(update_ride_mode))
+        .route(
+            "/{id}",
+            get(get_ride)
+                .patch(update_ride_mode)
+                .delete(delete_ride),
+        )
         .route("/{id}/points", get(get_ride_points))
 }
 
@@ -1128,4 +1135,497 @@ async fn get_ride_points(
         .collect();
 
     Ok(Json(points))
+}
+
+// ---- Delete ----
+
+/// Deleting a track is permanent: the ride row, the source file, and the GPX
+/// filed into the library tree all go. Re-importing the file is the only way
+/// back, which is why the file only goes when nothing else needs it.
+#[derive(Debug, Deserialize)]
+pub struct DeleteRidesBody {
+    pub ride_ids: Vec<Uuid>,
+}
+
+/// What a delete would cost, or what it cost. `files_removed` counts source
+/// files that lost their last reader; a file shared with a surviving ride or
+/// a POI stays, so this can be lower than `tracks`.
+#[derive(Debug, Serialize)]
+pub struct DeleteOutcome {
+    pub tracks: usize,
+    pub files_removed: usize,
+    /// Published packs holding at least one of these tracks. They go stale.
+    pub packs_affected: usize,
+    /// Names of those packs, capped, so the confirm can name them
+    pub pack_names: Vec<String>,
+}
+
+/// Files among `file_ids` that only these rides hold open. A file is free
+/// when no OTHER ride points at it and no POI does — `pois.file_id` carries
+/// no cascade rule, so deleting a file it needs would error instead.
+async fn orphaned_files(
+    pool: &PgPool,
+    file_ids: &[Uuid],
+    doomed_rides: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
+    let rows = sqlx::query(
+        r#"
+        SELECT f.id, f.stored_path
+        FROM files f
+        WHERE f.id = ANY($1)
+          AND NOT EXISTS (SELECT 1 FROM rides r
+                          WHERE r.file_id = f.id AND NOT (r.id = ANY($2)))
+          AND NOT EXISTS (SELECT 1 FROM pois p WHERE p.file_id = f.id)
+        "#,
+    )
+    .bind(file_ids)
+    .bind(doomed_rides)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.get("id"), r.get("stored_path")))
+        .collect())
+}
+
+/// Published packs holding any of these rides, newest first.
+async fn affected_packs(pool: &PgPool, ids: &[Uuid]) -> Result<Vec<String>, sqlx::Error> {
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT p.name FROM packs p
+        JOIN pack_rides pr ON pr.pack_id = p.id
+        WHERE pr.ride_id = ANY($1) AND p.published_at IS NOT NULL
+        ORDER BY p.name
+        "#,
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.get("name")).collect())
+}
+
+/// Report the cost of a delete without doing it. The confirm panel shows these
+/// numbers, so it must ask the same questions the delete itself asks.
+async fn preview_delete(
+    Extension(pool): Extension<PgPool>,
+    Json(body): Json<DeleteRidesBody>,
+) -> Result<Json<DeleteOutcome>, (axum::http::StatusCode, String)> {
+    let ids = body.ride_ids;
+    if ids.is_empty() {
+        return Ok(Json(DeleteOutcome {
+            tracks: 0,
+            files_removed: 0,
+            packs_affected: 0,
+            pack_names: Vec::new(),
+        }));
+    }
+
+    let live: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM rides WHERE id = ANY($1)")
+        .bind(&ids)
+        .fetch_all(&pool)
+        .await
+        .map_err(internal_err)?;
+
+    let file_ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT DISTINCT file_id FROM rides WHERE id = ANY($1)")
+            .bind(&live)
+            .fetch_all(&pool)
+            .await
+            .map_err(internal_err)?;
+
+    let files = orphaned_files(&pool, &file_ids, &live)
+        .await
+        .map_err(internal_err)?;
+    let packs = affected_packs(&pool, &live).await.map_err(internal_err)?;
+
+    Ok(Json(DeleteOutcome {
+        tracks: live.len(),
+        files_removed: files.len(),
+        packs_affected: packs.len(),
+        pack_names: packs,
+    }))
+}
+
+fn internal_err(e: impl std::fmt::Display) -> (axum::http::StatusCode, String) {
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        e.to_string(),
+    )
+}
+
+/// Remove a file, then every now-empty parent up to (but never including)
+/// `root`. An emptied State/Region folder is noise the library tree should
+/// not keep.
+fn remove_and_prune(path: &std::path::Path, root: &std::path::Path) {
+    if std::fs::remove_file(path).is_err() {
+        return;
+    }
+    let mut dir = path.parent();
+    while let Some(d) = dir {
+        if d == root || !d.starts_with(root) {
+            break;
+        }
+        // read_dir errors (already gone, no permission) end the walk — the
+        // library tree is best-effort cleanup, never a reason to fail a delete.
+        let empty = match std::fs::read_dir(d) {
+            Ok(mut entries) => entries.next().is_none(),
+            Err(_) => break,
+        };
+        if !empty || std::fs::remove_dir(d).is_err() {
+            break;
+        }
+        dir = d.parent();
+    }
+}
+
+/// Delete tracks for real. Database work commits as one transaction; the file
+/// work runs only after that commit, so the worst failure leaves an orphan
+/// file on disk rather than a track with no data.
+async fn delete_rides_inner(
+    pool: &PgPool,
+    ids: &[Uuid],
+) -> Result<DeleteOutcome, (axum::http::StatusCode, String)> {
+    let live: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM rides WHERE id = ANY($1)")
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+        .map_err(internal_err)?;
+    if live.is_empty() {
+        return Err((
+            axum::http::StatusCode::NOT_FOUND,
+            "no such track".into(),
+        ));
+    }
+
+    let file_ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT DISTINCT file_id FROM rides WHERE id = ANY($1)")
+            .bind(&live)
+            .fetch_all(pool)
+            .await
+            .map_err(internal_err)?;
+    let exported: Vec<String> = sqlx::query_scalar(
+        "SELECT exported_path FROM rides WHERE id = ANY($1) AND exported_path IS NOT NULL",
+    )
+    .bind(&live)
+    .fetch_all(pool)
+    .await
+    .map_err(internal_err)?;
+
+    let pack_names = affected_packs(pool, &live).await.map_err(internal_err)?;
+    let doomed_files = orphaned_files(pool, &file_ids, &live)
+        .await
+        .map_err(internal_err)?;
+
+    let mut tx = pool.begin().await.map_err(internal_err)?;
+
+    // Touch the holding packs BEFORE the rides go — pack_rides cascades, so
+    // afterwards there is no way to find them. `updated_at > published_at` is
+    // what already drives the pack's stale flag.
+    sqlx::query(
+        r#"
+        UPDATE packs SET updated_at = now()
+        WHERE id IN (SELECT pack_id FROM pack_rides WHERE ride_id = ANY($1))
+        "#,
+    )
+    .bind(&live)
+    .execute(&mut *tx)
+    .await
+    .map_err(internal_err)?;
+
+    sqlx::query("DELETE FROM rides WHERE id = ANY($1)")
+        .bind(&live)
+        .execute(&mut *tx)
+        .await
+        .map_err(internal_err)?;
+
+    let file_row_ids: Vec<Uuid> = doomed_files.iter().map(|(id, _)| *id).collect();
+    if !file_row_ids.is_empty() {
+        sqlx::query("DELETE FROM files WHERE id = ANY($1)")
+            .bind(&file_row_ids)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal_err)?;
+    }
+
+    tx.commit().await.map_err(internal_err)?;
+
+    // Past the commit the track is gone whatever happens next, so file errors
+    // are swallowed rather than reported as a failed delete.
+    if let Ok(config) = dingo_core::Config::load() {
+        for rel in &exported {
+            let path = config.library_path.join(rel);
+            remove_and_prune(&path, &config.library_path);
+        }
+    }
+    for (_, stored) in &doomed_files {
+        let _ = std::fs::remove_file(stored);
+    }
+
+    Ok(DeleteOutcome {
+        tracks: live.len(),
+        files_removed: doomed_files.len(),
+        packs_affected: pack_names.len(),
+        pack_names,
+    })
+}
+
+async fn delete_ride(
+    Extension(pool): Extension<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<DeleteOutcome>, (axum::http::StatusCode, String)> {
+    Ok(Json(delete_rides_inner(&pool, &[id]).await?))
+}
+
+/// Bulk delete. POST, not DELETE: the id list needs a body, and a DELETE with
+/// a body does not survive every proxy.
+async fn delete_rides(
+    Extension(pool): Extension<PgPool>,
+    Json(body): Json<DeleteRidesBody>,
+) -> Result<Json<DeleteOutcome>, (axum::http::StatusCode, String)> {
+    if body.ride_ids.is_empty() {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "ride_ids must not be empty".into(),
+        ));
+    }
+    Ok(Json(delete_rides_inner(&pool, &body.ride_ids).await?))
+}
+
+#[cfg(test)]
+mod delete_tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    /// These need the schema, which CI provides through DATABASE_URL. Without
+    /// one the test reports as passed-but-skipped rather than failing a
+    /// developer who has no database up.
+    async fn pool() -> Option<PgPool> {
+        let url = std::env::var("DATABASE_URL").ok()?;
+        PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&url)
+            .await
+            .ok()
+    }
+
+    /// A file row with no bytes behind it — every delete path in these tests
+    /// stops at the database, because `exported_path` stays NULL and the
+    /// stored path points nowhere.
+    async fn make_file(pool: &PgPool) -> Uuid {
+        let id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO files (id, hash, format, original_name, size_bytes, stored_path)
+             VALUES ($1, $2, 'gpx', 'test.gpx', 1, $3)",
+        )
+        .bind(id)
+        .bind(format!("test-{id}"))
+        .bind(format!("/nonexistent/{id}.gpx"))
+        .execute(pool)
+        .await
+        .unwrap();
+        id
+    }
+
+    async fn make_ride(pool: &PgPool, file_id: Uuid) -> Uuid {
+        let id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO rides (id, file_id, name, source_format) VALUES ($1, $2, 'test', 'gpx')",
+        )
+        .bind(id)
+        .bind(file_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        id
+    }
+
+    async fn exists(pool: &PgPool, table: &str, id: Uuid) -> bool {
+        let q = format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE id = $1)");
+        sqlx::query_scalar::<_, bool>(&q)
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_ride_and_its_lone_file() {
+        let Some(pool) = pool().await else { return };
+        let file = make_file(&pool).await;
+        let ride = make_ride(&pool, file).await;
+
+        let out = delete_rides_inner(&pool, &[ride]).await.unwrap();
+        assert_eq!(out.tracks, 1);
+        assert_eq!(out.files_removed, 1);
+        assert!(!exists(&pool, "rides", ride).await);
+        assert!(!exists(&pool, "files", file).await);
+    }
+
+    #[tokio::test]
+    async fn a_shared_file_waits_for_its_last_ride() {
+        let Some(pool) = pool().await else { return };
+        let file = make_file(&pool).await;
+        let first = make_ride(&pool, file).await;
+        let second = make_ride(&pool, file).await;
+
+        let out = delete_rides_inner(&pool, &[first]).await.unwrap();
+        assert_eq!(out.files_removed, 0, "the second ride still reads the file");
+        assert!(exists(&pool, "files", file).await);
+
+        let out = delete_rides_inner(&pool, &[second]).await.unwrap();
+        assert_eq!(out.files_removed, 1);
+        assert!(!exists(&pool, "files", file).await);
+    }
+
+    #[tokio::test]
+    async fn a_file_a_poi_needs_is_never_deleted() {
+        let Some(pool) = pool().await else { return };
+        let file = make_file(&pool).await;
+        let ride = make_ride(&pool, file).await;
+        let poi = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO pois (id, position, name, category, file_id)
+             VALUES ($1, ST_SetSRID(ST_MakePoint(151.0, -33.0), 4326), 'test', 'water', $2)",
+        )
+        .bind(poi)
+        .bind(file)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // The POI holds a plain reference with no cascade rule, so deleting
+        // the file would error rather than orphan it.
+        let out = delete_rides_inner(&pool, &[ride]).await.unwrap();
+        assert_eq!(out.files_removed, 0);
+        assert!(!exists(&pool, "rides", ride).await);
+        assert!(exists(&pool, "files", file).await);
+
+        sqlx::query("DELETE FROM pois WHERE id = $1")
+            .bind(poi)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM files WHERE id = $1")
+            .bind(file)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn deleting_a_member_track_makes_a_published_pack_stale() {
+        let Some(pool) = pool().await else { return };
+        let file = make_file(&pool).await;
+        let ride = make_ride(&pool, file).await;
+        let pack = Uuid::new_v4();
+        // Published after the last edit, so the pack starts fresh.
+        sqlx::query(
+            "INSERT INTO packs (id, name, created_at, updated_at, published_at)
+             VALUES ($1, 'test pack', now() - interval '2 hours',
+                     now() - interval '2 hours', now() - interval '1 hour')",
+        )
+        .bind(pack)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO pack_rides (pack_id, ride_id, position) VALUES ($1, $2, 0)")
+            .bind(pack)
+            .bind(ride)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let out = delete_rides_inner(&pool, &[ride]).await.unwrap();
+        assert_eq!(out.packs_affected, 1);
+        assert_eq!(out.pack_names, vec!["test pack".to_string()]);
+
+        let stale: bool = sqlx::query_scalar(
+            "SELECT updated_at > published_at FROM packs WHERE id = $1",
+        )
+        .bind(pack)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(stale, "the pack must read as needing a refresh");
+
+        let members: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM pack_rides WHERE pack_id = $1")
+                .bind(pack)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(members, 0, "pack_rides cascades with the ride");
+
+        sqlx::query("DELETE FROM packs WHERE id = $1")
+            .bind(pack)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_photo_outlives_its_ride_unlinked() {
+        let Some(pool) = pool().await else { return };
+        let file = make_file(&pool).await;
+        let ride = make_ride(&pool, file).await;
+        let photo = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO photos (id, sha256, ride_id) VALUES ($1, $2, $3)",
+        )
+        .bind(photo)
+        .bind(format!("test-{photo}"))
+        .bind(ride)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        delete_rides_inner(&pool, &[ride]).await.unwrap();
+        let ride_id: Option<Uuid> =
+            sqlx::query_scalar("SELECT ride_id FROM photos WHERE id = $1")
+                .bind(photo)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(ride_id.is_none(), "the photo survives with no ride");
+
+        sqlx::query("DELETE FROM photos WHERE id = $1")
+            .bind(photo)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    #[test]
+    fn pruning_stops_at_the_library_root() {
+        let root = std::env::temp_dir().join(format!("dingo-prune-{}", Uuid::new_v4()));
+        let leaf = root.join("NSW").join("Snowy Mountains").join("Jindabyne");
+        std::fs::create_dir_all(&leaf).unwrap();
+        let gpx = leaf.join("ride.gpx");
+        std::fs::write(&gpx, b"x").unwrap();
+
+        remove_and_prune(&gpx, &root);
+
+        assert!(!gpx.exists());
+        assert!(!root.join("NSW").exists(), "emptied folders go too");
+        assert!(root.exists(), "the library root itself never goes");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn pruning_keeps_folders_that_still_hold_tracks() {
+        let root = std::env::temp_dir().join(format!("dingo-prune-{}", Uuid::new_v4()));
+        let leaf = root.join("NSW").join("Snowy Mountains");
+        std::fs::create_dir_all(&leaf).unwrap();
+        let gone = leaf.join("one.gpx");
+        let kept = leaf.join("two.gpx");
+        std::fs::write(&gone, b"x").unwrap();
+        std::fs::write(&kept, b"x").unwrap();
+
+        remove_and_prune(&gone, &root);
+
+        assert!(!gone.exists());
+        assert!(kept.exists());
+        assert!(leaf.exists(), "a folder with a track left stays");
+        std::fs::remove_dir_all(&root).ok();
+    }
 }

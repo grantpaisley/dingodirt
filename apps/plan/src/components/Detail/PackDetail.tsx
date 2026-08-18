@@ -13,6 +13,7 @@ import {
 } from '../../api/hooks'
 import { useBasket, useUiState, type PackPreview } from '../../store'
 import { rectPolygon, type MaskShape } from '../Map/maskGeometry'
+import { ConfirmPanel } from '../ConfirmPanel'
 
 /** Group verdict for one planning-page item: majority among voters, `no`
  *  wins ties, `yes` beats `maybe` on a tie — same rule as the plan page. */
@@ -394,18 +395,23 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
         }
     }
 
+    // Same two-step confirm the track delete uses — a browser confirm() cannot
+    // state what else goes, and deleting a published pack kills a live link.
+    const [confirmDelete, setConfirmDelete] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+
     const handleDelete = async () => {
-        const msg = pack?.published_at
-            ? `Delete pack "${pack.name}" and its published share? The ?b= link you handed out will stop working.`
-            : `Delete pack "${pack?.name}"?`
-        if (!window.confirm(msg)) return
+        setDeleting(true)
         setError(null)
         try {
             await deletePack(packId, true)
+            setConfirmDelete(false)
             setSelectedPackId(null)
             invalidate()
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
+        } finally {
+            setDeleting(false)
         }
     }
 
@@ -456,10 +462,30 @@ export function PackDetail({ packId, onSelect, onFlyTo, onExport }: {
                     onBlur={() => { if (name.trim() && name !== pack.name) patch({ name: name.trim() }) }}
                     title="Pack name — renaming a published pack updates it on dingodirt.com (the share link keeps working)"
                 />
-                <button className="export-btn" onClick={handleDelete} title="Delete this pack (and its published share)">
+                <button
+                    className="export-btn"
+                    onClick={() => setConfirmDelete(true)}
+                    title="Delete this pack (and its published share)"
+                >
                     <Trash2 size={14} />
                 </button>
             </div>
+            {confirmDelete && (
+                <ConfirmPanel
+                    question={`Delete pack "${pack.name}"?`}
+                    detail={[
+                        pack.published_at &&
+                            'Its published share goes too — the ?b= link you handed out stops working.',
+                        pack.rides.length === 1
+                            ? 'The track inside stays in your library.'
+                            : `The ${pack.rides.length} tracks inside stay in your library.`,
+                    ]}
+                    confirmLabel="Delete pack"
+                    busy={deleting}
+                    onConfirm={handleDelete}
+                    onCancel={() => setConfirmDelete(false)}
+                />
+            )}
             <textarea
                 className="export-input pack-desc-input"
                 placeholder="Notes for whoever opens this pack — start point, water, hazards…"
