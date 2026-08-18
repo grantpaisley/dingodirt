@@ -5,6 +5,8 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:nav": "node --test apps/nav/tests/*.test.mjs",
-    "test:studio": "node --test apps/studio/tests/*.test.mjs"
+    "test:studio": "node --test apps/studio/tests/*.test.mjs",
+    "panel": "node tools/dingoctl/server.mjs --open",
+    "stack": "node tools/dingoctl/cli.mjs"
   }
 }

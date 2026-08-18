@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dingo control panel</title>
+    <style>
+        :root {
+            --bg: #f6f5f2;
+            --card: #fffefb;
+            --ink: #1c1a17;
+            --muted: #6d675e;
+            --line: #e2ddd3;
+            --up: #2f7d4f;
+            --down: #b4b0a7;
+            --warn: #b3651b;
+            --accent: #8a4b1e;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #16150f;
+                --card: #1f1e17;
+                --ink: #ece7dc;
+                --muted: #9a9285;
+                --line: #33312a;
+                --up: #6fc08d;
+                --down: #55524a;
+                --warn: #e0a05a;
+                --accent: #e0a05a;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font: 15px/1.5 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+            padding: 28px 20px 60px;
+        }
+
+        main { max-width: 780px; margin: 0 auto; }
+
+        header {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+
+        .sub { color: var(--muted); font-size: 13px; }
+
+        .bar { display: flex; gap: 8px; margin: 18px 0 14px; flex-wrap: wrap; }
+
+        button {
+            font: inherit;
+            font-size: 13px;
+            padding: 6px 13px;
+            border-radius: 7px;
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--ink);
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        button:disabled { opacity: .45; cursor: default; }
+        button.busy { opacity: .55; cursor: progress; }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            padding: 13px 15px;
+            margin-bottom: 9px;
+        }
+
+        .row { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--down);
+            flex: none;
+        }
+
+        .dot.up { background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 22%, transparent); }
+        .dot.ext { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
+
+        .name { font-weight: 600; min-width: 74px; }
+
+        .port {
+            font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--muted);
+            min-width: 44px;
+        }
+
+        .state { font-size: 12px; color: var(--muted); min-width: 78px; }
+        .state.ext { color: var(--warn); }
+
+        .spacer { flex: 1; }
+
+        a { color: var(--accent); }
+
+        .note {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 7px 0 0;
+            padding-left: 20px;
+        }
+
+        .note code {
+            font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+            word-break: break-all;
+        }
+
+        pre.log {
+            margin: 10px 0 0;
+            padding: 10px 12px;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            max-height: 280px;
+            overflow: auto;
+            font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+            white-space: pre-wrap;
+        }
+
+        .msg {
+            font-size: 12px;
+            color: var(--warn);
+            margin-top: 7px;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <header>
+            <h1>Dingo control panel</h1>
+            <span class="sub" id="clock"></span>
+        </header>
+        <p class="sub">Green = the port answers. Amber = it runs, but this panel did not start it.</p>
+        <div class="bar">
+            <button id="start-all">Start all</button>
+            <button id="stop-all">Stop all</button>
+        </div>
+        <div id="list"></div>
+    </main>
+
+    <script>
+        const list = document.getElementById('list')
+        const openLogs = new Set()
+        const busy = new Set()
+        const messages = new Map()
+
+        async function api(path, options) {
+            const response = await fetch(path, options)
+            return response.json()
+        }
+
+        function stateText(row) {
+            if (!row.up) return 'stopped'
+            if (row.external) return 'external'
+            return 'running'
+        }
+
+        function render(rows) {
+            list.replaceChildren()
+            for (const row of rows) {
+                const card = document.createElement('div')
+                card.className = 'card'
+
+                const line = document.createElement('div')
+                line.className = 'row'
+
+                const dot = document.createElement('span')
+                dot.className = 'dot' + (row.up ? (row.external ? ' ext' : ' up') : '')
+                line.append(dot)
+
+                const name = document.createElement('span')
+                name.className = 'name'
+                name.textContent = row.name
+                line.append(name)
+
+                const port = document.createElement('span')
+                port.className = 'port'
+                port.textContent = ':' + row.port
+                line.append(port)
+
+                const state = document.createElement('span')
+                state.className = 'state' + (row.external ? ' ext' : '')
+                state.textContent = stateText(row) + (row.pid ? ' · ' + row.pid : '')
+                line.append(state)
+
+                if (row.url && row.up) {
+                    const link = document.createElement('a')
+                    link.href = row.url
+                    link.target = '_blank'
+                    link.rel = 'noreferrer'
+                    link.textContent = 'open'
+                    link.style.fontSize = '12px'
+                    line.append(link)
+                }
+
+                const spacer = document.createElement('span')
+                spacer.className = 'spacer'
+                line.append(spacer)
+
+                const action = document.createElement('button')
+                const isBusy = busy.has(row.id)
+                action.textContent = isBusy ? 'working…' : row.up ? 'Stop' : 'Start'
+                action.className = isBusy ? 'busy' : ''
+                action.disabled = isBusy
+                action.onclick = () => act(row.id, row.up ? 'stop' : 'start')
+                line.append(action)
+
+                const logButton = document.createElement('button')
+                logButton.textContent = openLogs.has(row.id) ? 'Hide log' : 'Log'
+                logButton.onclick = () => {
+                    if (openLogs.has(row.id)) openLogs.delete(row.id)
+                    else openLogs.add(row.id)
+                    refresh()
+                }
+                line.append(logButton)
+                card.append(line)
+
+                const note = document.createElement('p')
+                note.className = 'note'
+                note.textContent = row.note + ' '
+                const code = document.createElement('code')
+                code.textContent = row.command
+                note.append(code)
+                card.append(note)
+
+                if (row.cwdMissing) {
+                    const warn = document.createElement('p')
+                    warn.className = 'msg'
+                    warn.textContent = 'Folder not found: ' + row.cwd
+                    card.append(warn)
+                }
+
+                const message = messages.get(row.id)
+                if (message) {
+                    const line2 = document.createElement('p')
+                    line2.className = 'msg'
+                    line2.textContent = message
+                    card.append(line2)
+                }
+
+                if (openLogs.has(row.id)) {
+                    const pre = document.createElement('pre')
+                    pre.className = 'log'
+                    pre.id = 'log-' + row.id
+                    pre.textContent = 'loading…'
+                    card.append(pre)
+                    api('/api/log?id=' + row.id).then((data) => {
+                        const target = document.getElementById('log-' + row.id)
+                        if (target) {
+                            target.textContent = data.log
+                            target.scrollTop = target.scrollHeight
+                        }
+                    })
+                }
+
+                list.append(card)
+            }
+            document.getElementById('clock').textContent = new Date().toLocaleTimeString()
+        }
+
+        async function act(id, verb) {
+            busy.add(id)
+            messages.delete(id)
+            await refresh()
+            const result = await api('/api/' + verb + '?id=' + id, { method: 'POST' })
+            busy.delete(id)
+            if (!result.ok) messages.set(id, result.message)
+            await refresh()
+        }
+
+        async function all(verb) {
+            const button = document.getElementById(verb + '-all')
+            button.disabled = true
+            button.textContent = 'working…'
+            await api('/api/' + verb + '-all', { method: 'POST' })
+            button.disabled = false
+            button.textContent = verb === 'start' ? 'Start all' : 'Stop all'
+            await refresh()
+        }
+
+        document.getElementById('start-all').onclick = () => all('start')
+        document.getElementById('stop-all').onclick = () => all('stop')
+
+        async function refresh() {
+            render(await api('/api/status'))
+        }
+
+        refresh()
+        setInterval(() => { if (!busy.size) refresh() }, 3000)
+    </script>
+</body>
+
+</html>
