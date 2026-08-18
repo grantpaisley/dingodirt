@@ -1,11 +1,68 @@
-import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, useLabels, createLabel, createLabelSet, assignLabel, setRideNameSource, NAME_VARIANT_LABELS, RIDE_MODES, SERVER_BASE, type PhotoSummary, type NameVariant, type RideDetail } from '../../api/hooks'
+import { useRide, useRidesByIds, usePhotos, updateRideMode, updateRide, useFolders, createFolder, assignToFolder, useLabels, createLabel, createLabelSet, assignLabel, setRideNameSource, renameRide, deleteRides, previewDeleteRides, NAME_VARIANT_LABELS, RIDE_MODES, SERVER_BASE, type PhotoSummary, type NameVariant, type RideDetail, type DeleteOutcome } from '../../api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { PackageMinus, PackagePlus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { PackageMinus, PackagePlus, Trash2 } from 'lucide-react'
 import { useBasket, useSettings, type RideMode } from '../../store'
 import { OwnerPicker } from '../OwnerPicker'
+import { ConfirmPanel } from '../ConfirmPanel'
 
 const NAME_VARIANT_ORDER: NameVariant[] = ['original', 'filename', 'generated', 'custom']
+
+/** The custom row of the name picker is the rename control. Saving writes the
+ *  custom variant AND points the track at it, so the radio moves on its own —
+ *  the row must not fight that.
+ *
+ *  Enter and blur save; Escape restores. A blank field on blur is a no-op,
+ *  not a way to clear the custom name. */
+function CustomNameInput({ ride, disabled, onChanged }: {
+    ride: RideDetail
+    disabled?: boolean
+    onChanged: () => void
+}) {
+    const saved = ride.custom_name ?? ''
+    const [text, setText] = useState(saved)
+    const [busy, setBusy] = useState(false)
+
+    // A different track (or a rename from elsewhere) reloads the field.
+    useEffect(() => { setText(ride.custom_name ?? '') }, [ride.id, ride.custom_name])
+
+    const save = async () => {
+        const name = text.trim()
+        if (!name || name === saved) { setText(saved); return }
+        setBusy(true)
+        try {
+            await renameRide(ride.id, name)
+            onChanged()
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    return (
+        <input
+            className="detail-value"
+            value={text}
+            disabled={disabled || busy}
+            placeholder="Type your own name"
+            title="Your own name for this track — saves on Enter or when you click away"
+            onChange={e => setText(e.target.value)}
+            onBlur={save}
+            onKeyDown={e => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Escape') { setText(saved); e.currentTarget.blur() }
+            }}
+            style={{
+                width: '100%',
+                padding: '2px 5px',
+                background: 'var(--dd-surface-2)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 3,
+                color: 'var(--text-primary)',
+                font: 'inherit',
+            }}
+        />
+    )
+}
 
 /** Which name a track displays. All four are stored, so this only re-points —
  *  it never rewrites a name, and switching back always works.
@@ -61,18 +118,26 @@ function NamePicker({ ride, disabled, onChanged }: {
                             <span className="detail-label" style={{ margin: 0 }}>
                                 {NAME_VARIANT_LABELS[variant]}
                             </span>
-                            <span
-                                className="detail-value"
-                                style={{
-                                    wordBreak: 'break-word',
-                                    fontStyle: empty ? 'italic' : undefined,
-                                }}
-                            >
-                                {empty ? '—' : value}
-                                {isJunk && !empty && (
-                                    <span style={{ opacity: 0.7 }}> · not descriptive</span>
-                                )}
-                            </span>
+                            {variant === 'custom' ? (
+                                <CustomNameInput
+                                    ride={ride}
+                                    disabled={disabled}
+                                    onChanged={onChanged}
+                                />
+                            ) : (
+                                <span
+                                    className="detail-value"
+                                    style={{
+                                        wordBreak: 'break-word',
+                                        fontStyle: empty ? 'italic' : undefined,
+                                    }}
+                                >
+                                    {empty ? '—' : value}
+                                    {isJunk && !empty && (
+                                        <span style={{ opacity: 0.7 }}> · not descriptive</span>
+                                    )}
+                                </span>
+                            )}
                         </label>
                     )
                 })}
@@ -265,6 +330,89 @@ function BasketButton({ rideId }: { rideId: string }) {
     )
 }
 
+/** Permanent delete for one track or the whole selection. The preview call
+ *  runs before the confirm opens, so the panel can state what else goes —
+ *  source files, and published packs that will read as needing a refresh. */
+function DeleteTracks({ rideIds, onDeleted }: {
+    rideIds: string[]
+    onDeleted: () => void
+}) {
+    const [cost, setCost] = useState<DeleteOutcome | null>(null)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const many = rideIds.length > 1
+
+    const open = async () => {
+        setError(null)
+        try {
+            setCost(await previewDeleteRides(rideIds))
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e))
+        }
+    }
+
+    const commit = async () => {
+        setBusy(true)
+        setError(null)
+        try {
+            await deleteRides(rideIds)
+            setCost(null)
+            onDeleted()
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const packLine = (c: DeleteOutcome) => {
+        if (c.packs_affected === 0) return null
+        const named = c.pack_names.slice(0, 3).join(', ')
+        const rest = c.packs_affected > 3 ? ` and ${c.packs_affected - 3} more` : ''
+        return `${c.packs_affected} published pack${c.packs_affected === 1 ? '' : 's'} ` +
+            `(${named}${rest}) will need a refresh.`
+    }
+
+    return (
+        <div className="detail-section" style={{ marginTop: 16 }}>
+            {!cost && (
+                <button
+                    className="export-btn"
+                    onClick={open}
+                    style={{ color: 'var(--dd-status-bad)', borderColor: 'var(--dd-status-bad)' }}
+                    title="Delete for good — the track, its source file, and its GPX in the library tree"
+                >
+                    <Trash2 size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
+                    {many ? `Delete ${rideIds.length} tracks…` : 'Delete track…'}
+                </button>
+            )}
+            {cost && (
+                <ConfirmPanel
+                    question={cost.tracks === 1 ? 'Delete this track?' : `Delete ${cost.tracks} tracks?`}
+                    detail={[
+                        cost.files_removed > 0 && (cost.files_removed === 1
+                            ? 'Its source file goes too. Import it again to get the track back.'
+                            : `${cost.files_removed} source files go too. ` +
+                              'Import them again to get the tracks back.'),
+                        cost.files_removed < cost.tracks &&
+                            'Some files stay — another track or a POI still needs them.',
+                        packLine(cost),
+                    ]}
+                    confirmLabel={many ? `Delete ${cost.tracks}` : 'Delete'}
+                    busy={busy}
+                    onConfirm={commit}
+                    onCancel={() => setCost(null)}
+                />
+            )}
+            {error && (
+                <div className="detail-label" style={{ marginTop: 6, color: 'var(--dd-status-bad)' }}>
+                    {error}
+                </div>
+            )}
+        </div>
+    )
+}
+
 interface DetailPaneProps {
     selectedIds: string[]
     /** Track under the cursor (map or list row) — previewed here without a click */
@@ -333,6 +481,19 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
         } finally {
             setIsUpdating(false)
         }
+    }
+
+    /** After a delete the tracks are gone for good, so every view that could
+     *  still be showing them has to refetch: the list and map (items), the
+     *  Places tree and pill counts (dimensions), and packs, which may have
+     *  lost members and now read as stale. */
+    const afterDelete = (gone: string[]) => {
+        onSelect(selectedIds.filter(id => !gone.includes(id)))
+        gone.forEach(id => queryClient.removeQueries({ queryKey: ['ride', id] }))
+        queryClient.invalidateQueries({ queryKey: ['items'] })
+        queryClient.invalidateQueries({ queryKey: ['rides'] })
+        queryClient.invalidateQueries({ queryKey: ['dimensions'] })
+        queryClient.invalidateQueries({ queryKey: ['packs'] })
     }
 
     /** Retyping a track into a mode that's filtered off makes it vanish from
@@ -518,6 +679,11 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
                         ))}
                     </div>
                 </div>
+
+                <DeleteTracks
+                    rideIds={selectedIds}
+                    onDeleted={() => afterDelete(selectedIds)}
+                />
             </div>
         )
     }
@@ -807,6 +973,8 @@ export function DetailPane({ selectedIds, hoveredId, onSelect }: DetailPaneProps
 
             {/* Photos taken on this ride */}
             <PhotoStrip photos={photos?.filter(p => p.ride_id === ride.id) || []} />
+
+            <DeleteTracks rideIds={[ride.id]} onDeleted={() => afterDelete([ride.id])} />
         </div>
     )
 }

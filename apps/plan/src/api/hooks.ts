@@ -591,6 +591,40 @@ export async function renameRide(id: string, name: string): Promise<{ id: string
     return res.json()
 }
 
+/** What a delete costs. `files_removed` counts source files that lost their
+ *  last reader — a file shared with a surviving track, or held by a POI,
+ *  stays, so this can be lower than `tracks`. */
+export interface DeleteOutcome {
+    tracks: number
+    files_removed: number
+    packs_affected: number
+    pack_names: string[]
+}
+
+/** Ask what a delete would cost, without doing it. */
+export async function previewDeleteRides(rideIds: string[]): Promise<DeleteOutcome> {
+    const res = await fetch(`${API_BASE}/rides/delete-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ ride_ids: rideIds }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+/** Delete tracks for good: the ride, its source file, and the GPX filed into
+ *  the library tree. Importing the file again is the only way back. POST, not
+ *  DELETE — the id list needs a body. */
+export async function deleteRides(rideIds: string[]): Promise<DeleteOutcome> {
+    const res = await fetch(`${API_BASE}/rides/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ ride_ids: rideIds }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
 export async function createFolder(name: string, parentId?: string | null): Promise<{ id: string }> {
     const res = await fetch(`${API_BASE}/folders`, {
         method: 'POST',
