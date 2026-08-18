@@ -58,9 +58,15 @@ orphan file on disk, never a missing track.
 ### Packs
 
 Before the delete, count the published packs holding any doomed track, and
-return that count. After the delete, bump each affected pack's revision
-(`server/migrations/20260717000001_pack_revision.sql`) so the pack reads as
-needing a refresh.
+return their names. Also before the delete — `pack_rides` cascades, so
+afterwards those packs cannot be found — touch each holding pack's
+`updated_at`.
+
+Built differently from the first draft, which said to bump `revision`.
+Packs already report a `stale` flag driven by `updated_at > published_at`
+(`core/rust/daemon/src/routes/packs.rs:245`), and `revision` means "which
+version a rider is on", so it must not move without a publish. Touching
+`updated_at` lights the existing stale banner and needs no new column.
 
 ### Routes
 
@@ -102,6 +108,10 @@ commits. The panel closes on Escape and on an outside click.
 
 After the delete the pane clears the selection and invalidates the ride, item,
 folder and pack queries.
+
+Escape closes the panel from the capture phase and stops there. App.tsx
+clears the whole selection on Escape, which must not happen just for backing
+out of a confirm — the same guard MapView already uses while drawing.
 
 ### Packs
 
