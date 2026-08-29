@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { packByToken, currentVersionOf } from "@/lib/packs";
+import { outageJson, reportOutage } from "@/lib/alert";
 
 // Capability endpoint: metadata for pack pages and the apps.
 export async function GET(
@@ -7,7 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const pack = await packByToken(token).catch(() => null);
+  let pack;
+  try {
+    pack = await packByToken(token);
+  } catch (err) {
+    await reportOutage(`/api/packs/${token}`, err);
+    return outageJson({ "Access-Control-Allow-Origin": "*" });
+  }
   if (!pack || pack.visibility === "private") {
     return NextResponse.json(
       { ok: false, error: "This pack is no longer shared." },

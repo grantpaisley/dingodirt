@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { packByToken, currentVersionOf, countDownload } from "@/lib/packs";
+import { outageJson, reportOutage } from "@/lib/alert";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,13 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const pack = await packByToken(token).catch(() => null);
+  let pack;
+  try {
+    pack = await packByToken(token);
+  } catch (err) {
+    await reportOutage(`/api/packs/${token}/download`, err);
+    return outageJson({ "Access-Control-Allow-Origin": "*" });
+  }
   if (!pack || pack.visibility === "private") {
     return NextResponse.json(
       { ok: false, error: "This pack is no longer shared." },

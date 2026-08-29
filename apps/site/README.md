@@ -40,6 +40,22 @@ The app degrades gracefully. With no `DATABASE_URL`, writes get friendly
 captcha is skipped (dev only). With no `BLOB_READ_WRITE_TOKEN`, uploads say
 that storage is not configured.
 
+## Outages
+
+A database that cannot be reached is never reported as a missing pack. Pages
+show "Service unavailable", API routes answer `503`, and `lib/alert.ts` mails
+the operator. `GET /api/health` runs `select 1`; point an uptime monitor at
+it, because it answers `503` even when nobody is browsing the site.
+
+| Variable | Effect |
+| --- | --- |
+| `RESEND_API_KEY` | Turns alert mail on. Unset (dev, previews) = log only. |
+| `ALERT_TO` | Recipient. Default `grant@angrykoala.com.au`. |
+| `ALERT_FROM` | Sender. Default `onboarding@resend.dev`, which Resend lets you mail only to your own account address. To mail anywhere, verify a domain in Resend and set this to an address on it. |
+
+Mail is held to one message per 30 minutes per server instance, so an outage
+cannot become a mail storm.
+
 ## Database
 
 ```bash

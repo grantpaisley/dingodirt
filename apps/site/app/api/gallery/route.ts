@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { packs } from "@/db/schema";
+import { reportOutage } from "@/lib/alert";
 
 export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
@@ -31,7 +32,15 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(packs.updatedAt))
       .limit(100);
     return NextResponse.json({ ok: true, packs: rows });
-  } catch {
-    return NextResponse.json({ ok: true, packs: [] });
+  } catch (err) {
+    // "ok: true, packs: []" would tell every caller the gallery is empty.
+    await reportOutage("/api/gallery", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Gallery is unavailable right now — try again soon.",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
