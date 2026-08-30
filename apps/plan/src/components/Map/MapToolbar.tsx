@@ -8,7 +8,7 @@ import {
     Repeat, MoveRight,
     MousePointer2, Navigation, Route,
     Footprints, Satellite, TreePine, Map as MapIcon, Mountain, MountainSnow, SquareDashed,
-    PencilLine, Locate, TriangleAlert,
+    PencilLine, Locate, TriangleAlert, Ruler,
 } from 'lucide-react'
 import { useSettings, useUiState, effectiveLayerState, hasActiveRangeFilters, MODE_COLORS, ALL_POI_CATEGORIES, type RideMode, type TrackClass, type TrackShape, type ArrowMode, type BaseStyle, type DetailLevel, type GradeKey } from '../../store'
 import { useStyleManifest } from '../../mapStyles'
@@ -22,9 +22,12 @@ import { SettingsPaneContent } from '../Settings/SettingsPanel'
 interface MapToolbarProps {
     lassoActive: boolean
     onToggleLasso: () => void
-    /** Route drawer mode (draw a plan by clicking vertices) */
+    /** Route mode (lay legs that follow your existing tracks) */
     drawActive: boolean
     onToggleDraw: () => void
+    /** Measure mode (distance and time between clicks; nothing saved) */
+    measureActive: boolean
+    onToggleMeasure: () => void
     shouldLoadGradients: boolean
     filterDefaults: {
         hrMin: number
@@ -110,7 +113,7 @@ const ARROW_META: Array<[ArrowMode, string, string, typeof Compass]> = [
  * (track types, layers, colour, view, filters, settings) or acts directly
  * (lasso). Only one pane is open at a time.
  */
-export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDraw, shouldLoadGradients, filterDefaults, onZoomTo }: MapToolbarProps) {
+export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDraw, measureActive, onToggleMeasure, shouldLoadGradients, filterDefaults, onZoomTo }: MapToolbarProps) {
     const [openPane, setOpenPane] = useState<string | null>(null)
     const settings = useSettings()
     // Planned-route collections (tiny payload, cached — the section lists them
@@ -709,9 +712,16 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
 
             <ToolButton
                 icon={<PencilLine size={ICON_SIZE} />}
-                title="Draw a route — click to lay points (pan/zoom stay live), Backspace to undo, Enter to save as a plan"
+                title="Route — click to lay legs that follow your existing tracks (pan/zoom stay live), Backspace undoes a leg, Enter saves it as a plan"
                 active={drawActive}
                 onClick={() => { setOpenPane(null); onToggleDraw() }}
+            />
+
+            <ToolButton
+                icon={<Ruler size={ICON_SIZE} />}
+                title="Measure — click two points for the distance and the time to ride it. Follow uses your tracks; Direct is the straight line. Nothing is saved."
+                active={measureActive}
+                onClick={() => { setOpenPane(null); onToggleMeasure() }}
             />
 
             <ToolButton

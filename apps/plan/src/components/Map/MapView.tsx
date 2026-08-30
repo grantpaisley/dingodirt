@@ -14,6 +14,48 @@ import { useSettings, useBasket, useUiState, rideMatchesFilters, rideMatchesSear
 import { inverseMask } from './maskGeometry'
 import { MAPTILER_KEY, BUILTIN_STYLE_URLS, resolveBaseStyle, styleOverlaysFor } from '../../mapStyles'
 import { setMapInstance } from './mapRegistry'
+import { useTrackGraph, formatDuration, type RoutedLeg, type GraphStatus } from './useTrackGraph'
+import { directKm, DEFAULT_SPEED_KMH } from '../../../../../core/track-graph/graph.js'
+
+/** The points of a chain of legs, joints de-duplicated. Before the first
+ *  leg lands there is only the anchor the first click set. */
+function legPoints(legs: RoutedLeg[], anchor: [number, number] | null): [number, number][] {
+    if (!legs.length) return anchor ? [anchor] : []
+    const out: [number, number][] = [legs[0].path[0]]
+    for (const l of legs) for (let i = 1; i < l.path.length; i++) out.push(l.path[i])
+    return out
+}
+
+/** The clicked corners of a chain — the handles, not the hundreds of
+ *  vertices a followed leg splices in between them. */
+function legJoints(legs: RoutedLeg[], anchor: [number, number] | null): [number, number][] {
+    if (!legs.length) return anchor ? [anchor] : []
+    return [legs[0].path[0], ...legs.map(l => l.path[l.path.length - 1])]
+}
+
+/** What the graph knows right now. Worth showing while the junction
+ *  thresholds are still being tuned: `corridors` counts the close approaches
+ *  judged parallel trails rather than junctions — a fire trail and the
+ *  singletrack beside it. */
+function GraphBadge({ status, show }: { status: GraphStatus, show: boolean }) {
+    if (!show) return null
+    if (status.state === 'building') return <span style={{ color: '#999' }}>reading tracks…</span>
+    if (status.state !== 'ready') return null
+    return (
+        <span
+            style={{ color: '#777' }}
+            title={`${status.trackCount} tracks, ${status.nodeCount.toLocaleString()} points, ${status.corridorRuns.toLocaleString()} parallel corridors kept separate — built in ${status.ms} ms${status.dropped ? `. ${status.dropped} tracks further from the centre were left out to stay inside the vertex budget — zoom in to include them.` : ''}`}
+        >
+            {status.dropped ? `${status.trackCount} of ${status.trackCount + status.dropped}` : status.trackCount} tracks
+        </span>
+    )
+}
+
+const legTotals = (legs: RoutedLeg[]) => ({
+    km: legs.reduce((n, l) => n + l.km, 0),
+    seconds: legs.reduce((n, l) => n + l.seconds, 0),
+    straight: legs.filter(l => l.straight).length,
+})
 
 /** Mark-kind dot colours — the DingoNav picker palette. `remove` overrides
  *  (a removal edit is about the spot, not the kind). */
@@ -298,24 +340,45 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     ])
     const [bounds, setBounds] = useState<{ minLon: number, minLat: number, maxLon: number, maxLat: number } | undefined>()
     const queryClient = useQueryClient()
-    // Route drawer: click to add vertices, Backspace undo, Enter/Finish saves
-    // as a plan-class ride. Pan/zoom stay live while drawing (unlike the
-    // lasso) — long routes need mid-draw navigation.
+    // Route mode: each click lays a LEG that follows your existing tracks,
+    // routed over the time-weighted track graph (core/track-graph/graph.js,
+    // docs/plans/2026-08-30-track-graph-and-phone-plan-design.md). Backspace
+    // undoes a leg, Enter/Finish saves the chain as a plan-class ride.
+    // Pan/zoom stay live while drawing (unlike the lasso) — long routes need
+    // mid-draw navigation.
     const [drawMode, setDrawMode] = useState(false)
-    const [drawPath, setDrawPath] = useState<[number, number][]>([])
+    const [drawLegs, setDrawLegs] = useState<RoutedLeg[]>([])
+    const [drawAnchor, setDrawAnchor] = useState<[number, number] | null>(null)
     const drawModeRef = useRef(false)
     drawModeRef.current = drawMode
-    // Snap drawing to existing tracks (magnet toggle); when consecutive
-    // vertices snap to the SAME ride, the drawn route follows that ride's
-    // intermediate points ("follow my track").
-    const [snapDraw, setSnapDraw] = useState(true)
-    const snapDrawRef = useRef(true)
-    snapDrawRef.current = snapDraw
-    // Store the snapped POSITION (not just an index): ride geometry is
-    // refetched at a different simplification tier across zoom 11/15, so a
-    // stored index would point into a differently-sized array. The follow
-    // splice re-resolves the previous point against the CURRENT path.
-    const lastSnapRef = useRef<{ rideId: string, pt: [number, number] } | null>(null)
+    // Follow (the magnet that used to be called Snap). Off lays plain
+    // straight vertices, for sketching a line that has no track under it.
+    const [followTracks, setFollowTracks] = useState(true)
+    const followRef = useRef(true)
+    followRef.current = followTracks
+    // Measure mode: the same engine, nothing saved. Follow answers "what
+    // would I really ride"; Direct answers "how far is that peak from camp".
+    const [measureMode, setMeasureMode] = useState(false)
+    const [measureLegs, setMeasureLegs] = useState<RoutedLeg[]>([])
+    const [measureAnchor, setMeasureAnchor] = useState<[number, number] | null>(null)
+    const [measureDirect, setMeasureDirect] = useState(false)
+    const [measureSpeed, setMeasureSpeed] = useState(DEFAULT_SPEED_KMH)
+    const measureModeRef = useRef(false)
+    measureModeRef.current = measureMode
+    const measureDirectRef = useRef(false)
+    measureDirectRef.current = measureDirect
+    const measureSpeedRef = useRef(DEFAULT_SPEED_KMH)
+    measureSpeedRef.current = measureSpeed
+    // The click handler is registered once, so it reads the live chains by ref.
+    const drawLegsRef = useRef<RoutedLeg[]>([])
+    drawLegsRef.current = drawLegs
+    const drawAnchorRef = useRef<[number, number] | null>(null)
+    drawAnchorRef.current = drawAnchor
+    const measureLegsRef = useRef<RoutedLeg[]>([])
+    measureLegsRef.current = measureLegs
+    const measureAnchorRef = useRef<[number, number] | null>(null)
+    measureAnchorRef.current = measureAnchor
+    const drawPath = useMemo(() => legPoints(drawLegs, drawAnchor), [drawLegs, drawAnchor])
     const [savePlanOpen, setSavePlanOpen] = useState(false)
     const [planName, setPlanName] = useState('')
     const [planMode, setPlanMode] = useState('adv')
@@ -441,6 +504,26 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         }
         return { hiddenIds: hidden, greyIds: grey }
     }, [rides, enabledModes, shapeClasses, gradeFilter, requireHr, requireSpeed, dateFrom, dateTo, plannedCollectionsOff, filters, hasActiveFilters, focusMode, selectedIds, packPreview, trackClasses])
+
+    // ---- track graph: the engine behind route mode and measure mode ----
+    // Built in a Web Worker over the tracks ON SCREEN (the map has already
+    // fetched them at this zoom tier), and only while a tool needs it.
+    const graphActive = drawMode || measureMode
+    const graphTracks = useMemo(() => (
+        graphActive
+            ? ridesData
+                .filter(d => !hiddenIds.has(d.id) && d.path.length >= 2)
+                .map(d => ({
+                    id: d.id,
+                    path: d.path as [number, number][],
+                    speedKmh: d.avgSpeed,
+                    mode: d.mode,
+                }))
+            : []
+    ), [graphActive, ridesData, hiddenIds])
+    const { status: graphStatus, requestLeg } = useTrackGraph(graphTracks, graphActive)
+    const requestLegRef = useRef(requestLeg)
+    requestLegRef.current = requestLeg
 
     // Dim-highlight context: while one is active, every non-highlighted track
     // drops to the user's dimmed opacity so the highlighted set pops. Priority:
@@ -1021,32 +1104,69 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
             }))
         }
 
-        // Route being drawn: accent line + white vertex handles
-        if (drawPath.length > 0) {
-            layers.push(new PathLayer({
-                id: 'draw-path-layer',
-                data: [{ path: drawPath }],
-                getPath: (d: { path: [number, number][] }) => d.path,
-                getColor: [79, 124, 255, 235],
-                getWidth: 3.5,
-                widthUnits: 'pixels',
-                capRounded: true,
-                jointRounded: true,
-                updateTriggers: { getPath: [drawPath] },
-            }))
+        // Route mode and measure mode draw the same way: one line per leg,
+        // handles at the clicked corners only (a followed leg splices in
+        // hundreds of vertices, and dotting every one of them is noise), and
+        // a straight leg — one with no track between its ends — rendered
+        // washed out so it never passes for a real line.
+        for (const chain of [
+            { key: 'draw', legs: drawLegs, anchor: drawAnchor, on: drawMode, colour: [79, 124, 255] as [number, number, number] },
+            { key: 'measure', legs: measureLegs, anchor: measureAnchor, on: measureMode, colour: [217, 111, 50] as [number, number, number] },
+        ]) {
+            if (!chain.on) continue
+            const joints = legJoints(chain.legs, chain.anchor)
+            if (!joints.length) continue
+            const [r, g, b] = chain.colour
+            if (chain.legs.length) {
+                layers.push(new PathLayer({
+                    id: `${chain.key}-path-layer`,
+                    data: chain.legs,
+                    getPath: (d: RoutedLeg) => d.path,
+                    getColor: (d: RoutedLeg) => (d.straight ? [r, g, b, 110] : [r, g, b, 235]),
+                    getWidth: (d: RoutedLeg) => (d.straight ? 2 : 3.5),
+                    widthUnits: 'pixels',
+                    capRounded: true,
+                    jointRounded: true,
+                    updateTriggers: { getPath: [chain.legs], getColor: [chain.legs], getWidth: [chain.legs] },
+                }))
+            }
             layers.push(new ScatterplotLayer({
-                id: 'draw-vertices-layer',
-                data: drawPath.map((p, i) => ({ position: p, i })),
+                id: `${chain.key}-vertices-layer`,
+                data: joints.map((p, i) => ({ position: p, i })),
                 radiusUnits: 'pixels',
                 getPosition: (d: { position: [number, number] }) => d.position,
-                getRadius: (d: { i: number }) => (d.i === 0 || d.i === drawPath.length - 1 ? 6 : 4),
+                getRadius: (d: { i: number }) => (d.i === 0 || d.i === joints.length - 1 ? 6 : 4),
                 getFillColor: [255, 255, 255, 245],
-                getLineColor: [79, 124, 255, 255],
+                getLineColor: [r, g, b, 255],
                 getLineWidth: 2,
                 lineWidthUnits: 'pixels',
                 stroked: true,
-                updateTriggers: { getPosition: [drawPath], getRadius: [drawPath] },
+                updateTriggers: { getPosition: [joints], getRadius: [joints] },
             }))
+            // Measure mode labels each leg where it sits, so a chain of legs
+            // reads without counting back to the bar.
+            if (chain.key === 'measure' && chain.legs.length) {
+                layers.push(new TextLayer({
+                    id: 'measure-labels-layer',
+                    data: chain.legs.map(l => ({
+                        position: l.path[Math.floor(l.path.length / 2)],
+                        text: `${l.km.toFixed(1)} km · ${formatDuration(l.seconds)}`,
+                    })),
+                    getPosition: (d: { position: [number, number] }) => d.position,
+                    getText: (d: { text: string }) => d.text,
+                    getSize: 12,
+                    sizeUnits: 'pixels',
+                    getColor: [236, 228, 210, 255],
+                    outlineColor: [20, 17, 9, 255],
+                    outlineWidth: 3,
+                    fontSettings: { sdf: true },
+                    getPixelOffset: [0, -14],
+                    background: true,
+                    getBackgroundColor: [20, 17, 9, 200],
+                    backgroundPadding: [5, 3],
+                    updateTriggers: { getPosition: [chain.legs], getText: [chain.legs] },
+                }))
+            }
         }
 
         // Road closures: above the tracks (a closure must beat line clutter),
@@ -1128,7 +1248,8 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         return layers
     }, [ridesData, selectedIds, hoveredId, gradientSegments, hiddenIds, greyIds, colorMode,
         showPhotos, photoGroups, showRides, rideChevrons, highlightIds, dimAlpha, graphCursor,
-        showAreas, areas, showClosures, closures, drawPath, coveragePreview, markPreview, packPreview,
+        showAreas, areas, showClosures, closures, coveragePreview, markPreview, packPreview,
+        drawLegs, drawAnchor, drawMode, measureLegs, measureAnchor, measureMode,
         showHeatmap, heatPaths, heatIntensity, heatWidth, heatZoomScaling, heatZoomQ,
         showPlannedHeat, plannedHeatPaths, heatColorOwn, heatColorPlanned,
         poisEnabled, poiAtlas, visiblePois])
@@ -1621,77 +1742,37 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         const handleClick = (e: maplibregl.MapMouseEvent) => {
             if (!deck.current) return
 
-            // Route drawer: clicks lay vertices instead of selecting
-            if (drawModeRef.current) {
-                let next: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-                if (snapDrawRef.current && map.current) {
-                    // Nearest visible track vertex within ~14 px. A cheap
-                    // geo-bbox precheck culls almost every vertex before the
-                    // per-vertex screen projection.
-                    const m = map.current
-                    const metersPerPixel = 156543.03392
-                        * Math.cos(e.lngLat.lat * Math.PI / 180) / Math.pow(2, m.getZoom())
-                    const tolDeg = (14 * metersPerPixel) / 111320 * 1.5
-                    let best: { pt: [number, number], rideId: string, idx: number } | null = null
-                    let bestD = 14 * 14
-                    // Sticky ride: repeated rides overlap the same trail, so
-                    // the plain nearest vertex hops between copies and the
-                    // follow-splice never triggers. If the PREVIOUS snap's
-                    // ride has a vertex in tolerance, prefer it.
-                    let bestPrev: { pt: [number, number], rideId: string, idx: number } | null = null
-                    let bestPrevD = 14 * 14
-                    for (const d of ridesDataRef.current) {
-                        const path = d.path as [number, number][]
-                        for (let i = 0; i < path.length; i++) {
-                            const [lon, lat] = path[i]
-                            if (Math.abs(lon - e.lngLat.lng) > tolDeg
-                                || Math.abs(lat - e.lngLat.lat) > tolDeg) continue
-                            const px = m.project(path[i])
-                            const dx = px.x - e.point.x
-                            const dy = px.y - e.point.y
-                            const d2 = dx * dx + dy * dy
-                            if (d2 < bestD) {
-                                bestD = d2
-                                best = { pt: path[i], rideId: d.id, idx: i }
-                            }
-                            if (d.id === lastSnapRef.current?.rideId && d2 < bestPrevD) {
-                                bestPrevD = d2
-                                bestPrev = { pt: path[i], rideId: d.id, idx: i }
-                            }
-                        }
-                    }
-                    if (bestPrev) best = bestPrev
-                    if (best) {
-                        const prev = lastSnapRef.current
-                        const path = ridesDataRef.current
-                            .find(d => d.id === best!.rideId)?.path as [number, number][] | undefined
-                        // Re-resolve the previous snap against the CURRENT path
-                        // (its index may be stale after a tier refetch). Skip the
-                        // follow-splice if it no longer exists at this tier.
-                        const prevIdx = prev && prev.rideId === best.rideId && path
-                            ? path.findIndex(p => p[0] === prev.pt[0] && p[1] === prev.pt[1])
-                            : -1
-                        if (path && prevIdx >= 0 && prevIdx !== best.idx) {
-                            // Both ends on the same ride: splice its vertices in
-                            // between so the plan follows the ridden line
-                            const step = prevIdx < best.idx ? 1 : -1
-                            const between: [number, number][] = []
-                            for (let i = prevIdx + step; i !== best.idx && i >= 0 && i < path.length; i += step) {
-                                between.push(path[i])
-                            }
-                            lastSnapRef.current = { rideId: best.rideId, pt: best.pt }
-                            setDrawPath(p => [...p, ...between, path[best!.idx]])
-                            return
-                        }
-                        next = best.pt
-                        lastSnapRef.current = { rideId: best.rideId, pt: best.pt }
-                    } else {
-                        lastSnapRef.current = null
-                    }
-                } else {
-                    lastSnapRef.current = null
+            // Route and measure modes: a click lays a LEG, not a vertex.
+            // The first click only sets the anchor; every one after it routes
+            // from the chain's current end to where you clicked.
+            if (drawModeRef.current || measureModeRef.current) {
+                const measuring = measureModeRef.current
+                const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+                const legs = measuring ? measureLegsRef.current : drawLegsRef.current
+                const anchor = measuring ? measureAnchorRef.current : drawAnchorRef.current
+                const from = legs.length
+                    ? legs[legs.length - 1].path[legs[legs.length - 1].path.length - 1]
+                    : anchor
+                if (!from) {
+                    if (measuring) setMeasureAnchor(pt)
+                    else setDrawAnchor(pt)
+                    return
                 }
-                setDrawPath(p => [...p, next])
+                const addLeg = (leg: RoutedLeg) => {
+                    if (measuring) setMeasureLegs(l => [...l, leg])
+                    else setDrawLegs(l => [...l, leg])
+                }
+                // Direct, or Follow turned off: the straight line. A click
+                // while the graph is still building is held by the hook, not
+                // answered with a line the user did not ask for.
+                const direct = measuring ? measureDirectRef.current : !followRef.current
+                if (direct) {
+                    const km = directKm(from, pt)
+                    const kmh = measuring ? measureSpeedRef.current : DEFAULT_SPEED_KMH
+                    addLeg({ path: [from, pt], km, seconds: (km / Math.max(1, kmh)) * 3600, straight: true })
+                    return
+                }
+                requestLegRef.current(from, pt).then(leg => { if (leg) addLeg(leg) })
                 return
             }
 
@@ -1873,60 +1954,75 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         }
     }
 
-    // --- Route drawer ---
-    const drawDistanceKm = useMemo(() => {
-        let m = 0
-        for (let i = 1; i < drawPath.length; i++) {
-            const [lon1, lat1] = drawPath[i - 1]
-            const [lon2, lat2] = drawPath[i]
-            const dx = (lon2 - lon1) * 111320 * Math.cos(lat1 * Math.PI / 180)
-            const dy = (lat2 - lat1) * 110540
-            m += Math.hypot(dx, dy)
-        }
-        return m / 1000
-    }, [drawPath])
+    // --- Route mode / measure mode ---
+    const drawTotals = useMemo(() => legTotals(drawLegs), [drawLegs])
+    const measureTotals = useMemo(() => legTotals(measureLegs), [measureLegs])
 
     const cancelDraw = useCallback(() => {
         setDrawMode(false)
-        setDrawPath([])
-        lastSnapRef.current = null
+        setDrawLegs([])
+        setDrawAnchor(null)
         setSavePlanOpen(false)
         setPlanError(null)
     }, [])
 
-    // Draw-mode keys: Backspace undoes the last vertex, Enter opens save,
-    // Escape cancels (registered only while drawing, and never over inputs)
+    const cancelMeasure = useCallback(() => {
+        setMeasureMode(false)
+        setMeasureLegs([])
+        setMeasureAnchor(null)
+    }, [])
+
+    /** Hand a measured line to route mode, where Enter saves it. Cheap, and
+     *  it stops the same line being laid out twice. */
+    const measureToRoute = useCallback(() => {
+        setMeasureMode(false)
+        setDrawLegs(measureLegs)
+        setDrawAnchor(measureAnchor)
+        setMeasureLegs([])
+        setMeasureAnchor(null)
+        setDrawMode(true)
+    }, [measureLegs, measureAnchor])
+
+    // Keys for both tools: Backspace undoes the last LEG (a followed leg may
+    // hold several hundred vertices, so undoing them one at a time is
+    // useless), Enter opens save in route mode, Escape cancels. Registered
+    // only while a tool is on, and never over inputs.
     useEffect(() => {
-        if (!drawMode) return
+        if (!drawMode && !measureMode) return
+        const measuring = measureMode
         const onKey = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement)?.tagName
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
             if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.preventDefault()
-                lastSnapRef.current = null // undo breaks follow-continuity
-                setDrawPath(p => p.slice(0, -1))
-            } else if (e.key === 'Enter') {
-                setDrawPath(p => {
-                    if (p.length >= 2) setSavePlanOpen(true)
-                    return p
-                })
+                // Pop a leg if there is one; the last undo clears the anchor.
+                if (measuring) {
+                    if (measureLegsRef.current.length) setMeasureLegs(l => l.slice(0, -1))
+                    else setMeasureAnchor(null)
+                } else {
+                    if (drawLegsRef.current.length) setDrawLegs(l => l.slice(0, -1))
+                    else setDrawAnchor(null)
+                }
+            } else if (e.key === 'Enter' && !measuring) {
+                if (drawLegsRef.current.length >= 1) setSavePlanOpen(true)
             } else if (e.key === 'Escape') {
                 e.stopPropagation()
-                cancelDraw()
+                if (measuring) cancelMeasure()
+                else cancelDraw()
             }
         }
         // Capture phase so App's Escape-clears-selection doesn't also fire
         window.addEventListener('keydown', onKey, true)
         return () => window.removeEventListener('keydown', onKey, true)
-    }, [drawMode, cancelDraw])
+    }, [drawMode, measureMode, cancelDraw, cancelMeasure])
 
-    // Crosshair cursor while laying vertices
+    // Crosshair cursor while laying legs
     useEffect(() => {
         const canvas = map.current?.getCanvas()
         if (!canvas) return
-        canvas.style.cursor = drawMode ? 'crosshair' : ''
+        canvas.style.cursor = drawMode || measureMode ? 'crosshair' : ''
         return () => { canvas.style.cursor = '' }
-    }, [drawMode])
+    }, [drawMode, measureMode])
 
     const handleSavePlan = async () => {
         setPlanSaving(true)
@@ -2252,7 +2348,17 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                 lassoActive={lassoActive}
                 onToggleLasso={() => setLassoActive(a => !a)}
                 drawActive={drawMode}
-                onToggleDraw={() => (drawMode ? cancelDraw() : setDrawMode(true))}
+                onToggleDraw={() => {
+                    if (drawMode) return cancelDraw()
+                    cancelMeasure()
+                    setDrawMode(true)
+                }}
+                measureActive={measureMode}
+                onToggleMeasure={() => {
+                    if (measureMode) return cancelMeasure()
+                    cancelDraw()
+                    setMeasureMode(true)
+                }}
                 shouldLoadGradients={shouldLoadGradients}
                 filterDefaults={dataRanges}
                 onZoomTo={(bbox) => {
@@ -2284,30 +2390,111 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                     zIndex: 3,
                     color: 'white',
                     fontSize: 12,
+                    // One line, always. Squeezed, the flex children wrap
+                    // their text and the bar grows into a block that covers
+                    // the map and swallows clicks meant for a track.
+                    whiteSpace: 'nowrap',
+                    maxWidth: 'calc(100% - 32px)',
                 }}>
                     <span style={{ fontWeight: 600 }}>
-                        {drawPath.length === 0
-                            ? 'Click the map to start a route'
-                            : `${drawPath.length} points · ${drawDistanceKm.toFixed(1)} km`}
+                        {drawLegs.length === 0
+                            ? (drawAnchor ? 'Click again to lay the first leg' : 'Click the map to start a route')
+                            : `${drawLegs.length} leg${drawLegs.length === 1 ? '' : 's'} · ${drawTotals.km.toFixed(1)} km · ${formatDuration(drawTotals.seconds)}`}
                     </span>
-                    <span style={{ color: '#999' }}>Backspace = undo · Enter = finish</span>
+                    {drawTotals.straight > 0 && (
+                        <span style={{ color: '#e0a458' }} title="No track connects those points, so the leg is the direct line">
+                            {drawTotals.straight} straight
+                        </span>
+                    )}
+                    <span style={{ color: '#999' }}>⌫ undo · ⏎ finish</span>
                     <button
-                        className={`list-toggle ${snapDraw ? 'active' : ''}`}
-                        onClick={() => setSnapDraw(v => !v)}
-                        title="Snap to your tracks — consecutive points on the same ride follow it exactly"
+                        className={`list-toggle ${followTracks ? 'active' : ''}`}
+                        onClick={() => setFollowTracks(v => !v)}
+                        title="Follow your existing tracks between clicks, routed by time. Off lays plain straight vertices."
                         style={{ padding: '4px 8px' }}
                     >
                         <Magnet size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
-                        Snap
+                        Follow
                     </button>
+                    <GraphBadge status={graphStatus} show={followTracks} />
                     <button
                         className="export-btn primary"
-                        disabled={drawPath.length < 2}
+                        disabled={drawLegs.length < 1}
                         onClick={() => setSavePlanOpen(true)}
                     >
                         Finish
                     </button>
                     <button className="export-btn" onClick={cancelDraw}>Cancel</button>
+                </div>
+            )}
+
+            {/* Measure control panel — the same engine, nothing saved */}
+            {measureMode && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: 24,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    background: 'rgba(0,0,0,0.85)',
+                    border: '1px solid #555',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    zIndex: 3,
+                    color: 'white',
+                    fontSize: 12,
+                    // One line, always. Squeezed, the flex children wrap
+                    // their text and the bar grows into a block that covers
+                    // the map and swallows clicks meant for a track.
+                    whiteSpace: 'nowrap',
+                    maxWidth: 'calc(100% - 32px)',
+                }}>
+                    <span style={{ fontWeight: 600 }}>
+                        {measureLegs.length === 0
+                            ? (measureAnchor ? 'Click again to measure' : 'Click two points to measure')
+                            : `${measureTotals.km.toFixed(1)} km · ${formatDuration(measureTotals.seconds)}`}
+                    </span>
+                    <div className="list-toggles" style={{ display: 'flex', gap: 4 }}>
+                        <button
+                            className={`list-toggle ${!measureDirect ? 'active' : ''}`}
+                            onClick={() => setMeasureDirect(false)}
+                            title="Follow your tracks — the time comes from the speeds you actually rode, so gradient, surface and gates are already inside it"
+                            style={{ padding: '4px 8px' }}
+                        >Follow</button>
+                        <button
+                            className={`list-toggle ${measureDirect ? 'active' : ''}`}
+                            onClick={() => setMeasureDirect(true)}
+                            title="Straight line — how far is that peak from camp"
+                            style={{ padding: '4px 8px' }}
+                        >Direct</button>
+                    </div>
+                    {measureDirect && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#999' }}>
+                            at
+                            <input
+                                type="number"
+                                min={1}
+                                max={80}
+                                value={measureSpeed}
+                                onChange={e => setMeasureSpeed(Math.max(1, Number(e.target.value) || 1))}
+                                style={{ width: 46, padding: '2px 4px', background: '#222', color: 'white', border: '1px solid #555', borderRadius: 4 }}
+                            />
+                            km/h
+                        </label>
+                    )}
+                    {!measureDirect && <GraphBadge status={graphStatus} show />}
+                    <span style={{ color: '#999' }}>⌫ undo</span>
+                    <button
+                        className="export-btn"
+                        disabled={measureLegs.length < 1}
+                        onClick={measureToRoute}
+                        title="Hand this line to route mode, where Enter saves it as a plan"
+                    >
+                        Keep as route
+                    </button>
+                    <button className="export-btn" onClick={cancelMeasure}>Done</button>
                 </div>
             )}
 
@@ -2337,8 +2524,9 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                                 <option value="other">Other</option>
                             </select>
                             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                                {drawPath.length} points · {drawDistanceKm.toFixed(1)} km — saved as a
-                                plan (blue), ready for the basket, exports and DingoNav.
+                                {drawLegs.length} leg{drawLegs.length === 1 ? '' : 's'} · {drawTotals.km.toFixed(1)} km
+                                · {formatDuration(drawTotals.seconds)} — saved as a plan (blue),
+                                ready for the basket, exports and DingoNav.
                             </div>
                             {planError && <div className="export-error">{planError}</div>}
                             <div className="export-actions">
