@@ -59,17 +59,22 @@ export default async function PackPage({
           .catch(() => null)
       : null;
     return (
-      <div className="flex min-h-screen flex-col">
+      // h-screen, not min-h-screen: PlanView sizes itself from the space
+      // this column has left, so the map ends at the viewport and the page
+      // itself never scrolls. On a phone the title bar stays one line.
+      <div className="flex h-screen flex-col overflow-hidden">
         <Header />
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
-          <span className="font-display text-xs font-medium uppercase tracking-[0.25em] text-gum">
+        {/* A landscape phone has ~390 px of height to spend; the title bar
+            would take a quarter of it. The name lives in the Trip tab. */}
+        <div className="flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 [@media(max-height:600px)]:hidden">
+          <span className="hidden font-display text-xs font-medium uppercase tracking-[0.25em] text-gum sm:inline">
             Trip plan
             {pack.visibility === "private" && " — private (only you see this)"}
           </span>
-          <h1 className="font-display text-2xl font-black uppercase leading-none">
+          <h1 className="min-w-0 truncate font-display text-2xl font-black uppercase leading-none">
             {pack.name}
           </h1>
-          <span className="text-sm text-bone-dim">
+          <span className="hidden text-sm text-bone-dim sm:inline">
             by {pack.authorName} · v{pack.currentVersion}
             {pack.description ? ` · ${pack.description}` : ""}
           </span>
