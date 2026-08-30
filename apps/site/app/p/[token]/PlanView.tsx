@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import type * as maplibreNs from "maplibre-gl";
 // One canonical copy in core/ui (turbopack.root spans the monorepo so
@@ -175,6 +176,31 @@ const DETAIL_LABELS: Record<DetailLevel, string> = {
   outback: "Outback",
 };
 
+// ---- phone shell (docs/plans/2026-08-30-track-graph-and-phone-plan-design.md)
+// Below md the page is a full map plus a four-tab bar. Level 2 is the shared
+// .dd-sheet (core/ui/chrome.css docks it bottom in portrait, left in
+// landscape); level 3 is a page pushed inside that same sheet, so the sheet
+// never grows. Desktop keeps the two-pane layout untouched.
+type Shell = "desktop" | "portrait" | "landscape";
+type TabId = "tracks" | "map" | "trip" | "me";
+type SheetPage =
+  | { kind: "track"; id: string }
+  | { kind: "option"; which: "basemap" | "detail" | "colours" }
+  | { kind: "group"; which: "liked" | "undecided" | "vetoed" };
+
+const TAB_KEY = "dingo-plan-tab";
+const TABS: { id: TabId; label: string; d: string }[] = [
+  { id: "tracks", label: "Tracks", d: "M3 5h14M3 10h14M3 15h9" },
+  { id: "map", label: "Map", d: "M10 3 3 6.5 10 10l7-3.5L10 3M3 13.5 10 17l7-3.5" },
+  { id: "trip", label: "Trip", d: "M5 16a2 2 0 1 0 0-4h10a2 2 0 1 0 0-4M5 16h10" },
+  { id: "me", label: "Me", d: "M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M4 17a6 6 0 0 1 12 0" },
+];
+const GROUP_LABELS: Record<"liked" | "undecided" | "vetoed", string> = {
+  liked: "Liked",
+  undecided: "Undecided",
+  vetoed: "Vetoed",
+};
+
 // MapLibre paint needs literals; these mirror core/ui/tokens.css —
 // TRACK_COLOR is --dd-accent (the clay fallback for tracks without an
 // original colour), VERDICT_COLORS are the muted --dd-status-* triad.
@@ -270,6 +296,12 @@ export default function PlanView({
   const [nameDraft, setNameDraft] = useState("");
   const [postError, setPostError] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>("wanted");
+  // Phone shell. The first render is always 'desktop' so the server HTML and
+  // the first client render agree; an effect corrects it.
+  const [shell, setShell] = useState<Shell>("desktop");
+  const [tab, setTab] = useState<TabId | null>(null);
+  const [pages, setPages] = useState<SheetPage[]>([]);
+  const [copied, setCopied] = useState(false);
   // Stable row order: recomputed only when the sort mode changes or votes
   // first arrive — never on a vote, so rows don't jump under the cursor.
   const [order, setOrder] = useState<string[]>(() =>
@@ -283,7 +315,40 @@ export default function PlanView({
 
   useEffect(() => {
     setMe(localStorage.getItem(NAME_KEY));
+    const saved = localStorage.getItem(TAB_KEY) as TabId | null;
+    if (saved && TABS.some((t) => t.id === saved)) setTab(saved);
   }, []);
+
+  // The shell follows the viewport's SHORT edge, not its width: a phone in
+  // landscape is ~844 px wide, so a plain max-width query would call it a
+  // desktop. The long-edge cap keeps a short, wide desktop window out.
+  // The sheet's own docking follows orientation in CSS; this only decides
+  // bar-versus-rail and which tree renders.
+  useEffect(() => {
+    const sync = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isPhone = Math.min(w, h) <= 599 && Math.max(w, h) <= 1180;
+      setShell(!isPhone ? "desktop" : w > h ? "landscape" : "portrait");
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (tab) localStorage.setItem(TAB_KEY, tab);
+  }, [tab]);
+
+  // Any shell or sheet change resizes the map's container.
+  useEffect(() => {
+    const id = window.setTimeout(() => mapRef.current?.resize(), 60);
+    return () => window.clearTimeout(id);
+  }, [shell, tab]);
 
   const fb = useCallback(
     (type: "track" | "mark", id: string) => feedback[`${type}:${id}`],
@@ -515,6 +580,19 @@ export default function PlanView({
     if (map && map.getLayer("track-active")) applySelection(map, ids);
   };
 
+  const zoomToTrack = (t: PlanTrack) => {
+    const map = mapRef.current;
+    const ml = window.maplibregl;
+    if (!map || !ml) return;
+    const cs = coordsOf(t.geometry);
+    if (!cs.length) return;
+    const bounds = cs.reduce(
+      (b, c) => b.extend(c as [number, number]),
+      new ml.LngLatBounds(cs[0], cs[0]),
+    );
+    map.fitBounds(bounds, { padding: 60, maxZoom: 11 });
+  };
+
   /** Toggle a track in the selection. Selecting (from the list or the map)
    *  also zooms to it and scrolls its row into view; unselecting does not. */
   const toggleTrack = (t: PlanTrack, zoom: boolean) => {
@@ -527,18 +605,12 @@ export default function PlanView({
     document
       .getElementById(`plan-track-${t.id}`)
       ?.scrollIntoView({ block: "nearest" });
-    if (!zoom) return;
-    const map = mapRef.current;
-    const ml = window.maplibregl;
-    if (!map || !ml) return;
-    const cs = coordsOf(t.geometry);
-    if (!cs.length) return;
-    const bounds = cs.reduce(
-      (b, c) => b.extend(c as [number, number]),
-      new ml.LngLatBounds(cs[0], cs[0]),
-    );
-    map.fitBounds(bounds, { padding: 60, maxZoom: 11 });
+    if (zoom) zoomToTrack(t);
   };
+
+  /** A map tap on a phone opens that track's level-3 page. The map's click
+   *  handler is registered once, so it reaches the current shell by ref. */
+  const openTrackPage = useRef<(t: PlanTrack) => void>(() => {});
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -801,7 +873,10 @@ export default function PlanView({
         );
         if (trackHit) {
           const t = doc.tracks.find((x) => x.id === trackHit.properties.id);
-          if (t) toggleTrack(t, false);
+          if (t) {
+            toggleTrack(t, false);
+            openTrackPage.current(t);
+          }
         }
       });
       const pointerLayers = ["tracks", "track-active", "pois-icons", "closures-line", "closures-point"];
@@ -955,209 +1030,545 @@ export default function PlanView({
   const mapW = () => mapDiv.current?.clientWidth || 800;
   const mapH = () => mapDiv.current?.clientHeight || 600;
 
+  // ---- phone shell ----
+  const phone = shell !== "desktop";
+  const landscape = shell === "landscape";
+  const page = pages.length ? pages[pages.length - 1] : null;
+  const pushPage = (p: SheetPage) => setPages((s) => [...s, p]);
+  const closeSheet = () => {
+    setTab(null);
+    setPages([]);
+  };
+
+  useEffect(() => {
+    openTrackPage.current = (t: PlanTrack) => {
+      if (!phone) return;
+      setTab("tracks");
+      setPages([{ kind: "track", id: t.id }]);
+    };
+  }, [phone]);
+
+  const verdictOf = (id: string) => verdict(fb("track", id));
+  const groupTracks = (which: "liked" | "undecided" | "vetoed") =>
+    tracksInOrder.filter((t) => {
+      const v = verdictOf(t.id);
+      return which === "liked" ? v === "yes"
+        : which === "vetoed" ? v === "no"
+        : v !== "yes" && v !== "no";
+    });
+
+  /** The legend, shared by the desktop map corner and the phone Map tab. */
+  const legendBody =
+    colorBy === "votes" ? (
+      <>
+        <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.yes }} />liked</span>
+        <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.maybe }} />maybe</span>
+        <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded opacity-50" style={{ background: VERDICT_COLORS.no }} />vetoed</span>
+        <span><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.none }} />unvoted</span>
+      </>
+    ) : collections.length ? (
+      collections.slice(0, 8).map((c) => (
+        <span key={c.name} className="mr-3 whitespace-nowrap">
+          <i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: c.color }} />
+          {c.name}
+        </span>
+      ))
+    ) : (
+      <span>
+        <i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: TRACK_COLOR }} />
+        tracks
+      </span>
+    );
+
+  const sortSelect = (
+    <select
+      value={sort}
+      onChange={(e) => pickSort(e.target.value as SortMode)}
+      className="rounded border border-line bg-ink px-1.5 py-0.5 text-xs text-bone"
+    >
+      <option value="wanted">most wanted</option>
+      <option value="name">name</option>
+      <option value="km">distance</option>
+      <option value="unvoted">needs my vote</option>
+    </select>
+  );
+
+  const nameButton = me ? (
+    <button
+      className="text-bone-dim underline hover:text-bone"
+      onClick={() => {
+        setNameDraft(me);
+        setAskName(true);
+      }}
+      title="Change the name your votes are recorded under"
+    >
+      voting as {me}
+    </button>
+  ) : (
+    <button className="text-clay-hot underline" onClick={() => setAskName(true)}>
+      set your name to vote
+    </button>
+  );
+
+  const trackMeta = (t: PlanTrack) =>
+    `${t.km ? `${t.km} km` : ""}${t.region || t.state ? ` · ${t.region || t.state}` : ""}${t.grade ? ` · ${t.grade}` : ""}`;
+
+  /** One track row. onPick decides what a tap does: the desktop list toggles
+   *  the selection, the phone list opens the track's level-3 page. */
+  const trackRow = (t: PlanTrack, onPick: () => void, expandable: boolean) => {
+    const active = selectedIds.includes(t.id);
+    const f = fb("track", t.id);
+    const swatch = cssColor(t.color);
+    return (
+      <div
+        key={t.id}
+        id={`plan-track-${t.id}`}
+        onClick={onPick}
+        className={`cursor-pointer border-b border-line px-4 py-3 transition-colors hover:bg-ink-2/60 ${
+          active ? "bg-ink-2 shadow-[inset_3px_0_0_var(--dd-accent)]" : ""
+        }`}
+      >
+        <div className="flex items-center gap-2 text-sm font-semibold text-bone">
+          {swatch && (
+            <i
+              className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+              style={{ background: swatch }}
+              title={t.collection ?? undefined}
+            />
+          )}
+          {t.name}
+        </div>
+        <div className="mt-0.5 text-xs text-bone-dim">{trackMeta(t)}</div>
+        <div className="mt-2 flex items-center gap-2">
+          {voteButtons("track", t.id)}
+          <span className="ml-auto whitespace-nowrap text-xs text-bone-dim">
+            {tallyLabel(f)}
+          </span>
+        </div>
+        {t.description && (
+          <p
+            className={`mt-1.5 text-xs text-bone-dim/90 ${
+              expandable && active ? "whitespace-pre-line" : "line-clamp-2"
+            }`}
+          >
+            {t.description}
+          </p>
+        )}
+        {comments(f)}
+        {expandable && active && commentBox("track", t.id)}
+      </div>
+    );
+  };
+
+  const markRows = (doc.marks?.length ?? 0) > 0 && (
+    <>
+      <div className="border-b border-line px-4 py-2 text-xs uppercase tracking-wider text-bone-dim">
+        Stops &amp; accommodation
+      </div>
+      {doc.marks!.map((m) => {
+        const f = fb("mark", m.id);
+        return (
+          <div
+            key={m.id}
+            id={`plan-mark-${m.id}`}
+            onClick={() => {
+              mapRef.current?.flyTo({ center: [m.lon, m.lat], zoom: 9 });
+              if (phone) closeSheet();
+            }}
+            className="cursor-pointer border-b border-line px-4 py-2.5 transition-colors hover:bg-ink-2/60"
+          >
+            <div className="flex items-center gap-2 text-sm text-bone">
+              <PinBadge category={markCategory(m.kind, m.name)} />
+              {m.name}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              {voteButtons("mark", m.id)}
+              <span className="ml-auto whitespace-nowrap text-xs text-bone-dim">
+                {tallyLabel(f)}
+              </span>
+            </div>
+            {comments(f)}
+          </div>
+        );
+      })}
+    </>
+  );
+
+  // ---- sheet rows (level 2) ----
+  const sheetRow = (label: string, right: ReactNode, onClick?: () => void) => (
+    <button
+      key={label}
+      onClick={onClick}
+      className="flex w-full items-center justify-between border-b border-line px-4 py-3 text-left text-sm text-bone"
+    >
+      <span>{label}</span>
+      <span className="flex items-center gap-1.5 text-xs text-bone-dim">{right}</span>
+    </button>
+  );
+
+  const chevron = <span aria-hidden="true">›</span>;
+
+  const switchRow = (label: string, on: boolean, onToggle: () => void) =>
+    sheetRow(
+      label,
+      <span
+        className={`inline-block h-4 w-7 rounded-full transition-colors ${
+          on ? "bg-[var(--dd-accent)]" : "bg-line"
+        }`}
+      >
+        <span
+          className={`mt-0.5 block h-3 w-3 rounded-full bg-ink transition-transform ${
+            on ? "translate-x-3.5" : "translate-x-0.5"
+          }`}
+        />
+      </span>,
+      onToggle,
+    );
+
+  const optionList = <T extends string>(
+    entries: [T, string][],
+    active: T,
+    pick: (v: T) => void,
+  ) => (
+    <>
+      {entries.map(([key, label]) =>
+        sheetRow(label, active === key ? <span aria-hidden="true">✓</span> : null, () => {
+          pick(key);
+          setPages((s) => s.slice(0, -1));
+        }),
+      )}
+    </>
+  );
+
+  const myVotes = me
+    ? Object.values(feedback).filter((f) => f.votes?.[me]).length
+    : 0;
+  const shareUrl = typeof window === "undefined" ? "" : window.location.href;
+
+  const sheetBody = (() => {
+    if (page?.kind === "track") {
+      const t = doc.tracks.find((x) => x.id === page.id);
+      if (!t) return null;
+      const f = fb("track", t.id);
+      return (
+        <div className="px-4 py-3">
+          <div className="text-xs text-bone-dim">{trackMeta(t)}</div>
+          <div className="mt-3 flex items-center gap-2">
+            {voteButtons("track", t.id)}
+            <span className="ml-auto whitespace-nowrap text-xs text-bone-dim">
+              {tallyLabel(f)}
+            </span>
+          </div>
+          {t.description && (
+            <p className="mt-3 whitespace-pre-line text-xs text-bone-dim/90">
+              {t.description}
+            </p>
+          )}
+          <div className="mt-3">{comments(f)}</div>
+          {commentBox("track", t.id)}
+          <button
+            onClick={() => {
+              zoomToTrack(t);
+              closeSheet();
+            }}
+            className="mt-3 w-full rounded border border-line px-3 py-2 text-xs uppercase tracking-wider text-bone"
+          >
+            Show on map
+          </button>
+        </div>
+      );
+    }
+    if (page?.kind === "option") {
+      if (page.which === "basemap")
+        return optionList(
+          (Object.keys(BASEMAP_LABELS) as BasemapId[]).map(
+            (k) => [k, BASEMAP_LABELS[k]] as [BasemapId, string],
+          ),
+          basemap,
+          setBasemap,
+        );
+      if (page.which === "detail")
+        return optionList(
+          (Object.keys(DETAIL_LABELS) as DetailLevel[]).map(
+            (k) => [k, DETAIL_LABELS[k]] as [DetailLevel, string],
+          ),
+          detail,
+          setDetail,
+        );
+      return optionList(
+        [
+          ["original", "Original colours"],
+          ["votes", "Votes"],
+        ] as [ColorBy, string][],
+        colorBy,
+        setColorBy,
+      );
+    }
+    if (page?.kind === "group") {
+      const list = groupTracks(page.which);
+      if (!list.length)
+        return <p className="px-4 py-4 text-sm text-bone-dim">Nothing here yet.</p>;
+      return (
+        <>
+          {list.map((t) =>
+            trackRow(t, () => setPages([{ kind: "track", id: t.id }]), false),
+          )}
+        </>
+      );
+    }
+    if (tab === "tracks")
+      return (
+        <>
+          <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-xs text-bone-dim">
+            sort {sortSelect}
+          </div>
+          {tracksInOrder.map((t) =>
+            trackRow(t, () => pushPage({ kind: "track", id: t.id }), false),
+          )}
+          {markRows}
+        </>
+      );
+    if (tab === "map")
+      return (
+        <>
+          {sheetRow("Base map", <>{BASEMAP_LABELS[basemap]} {chevron}</>, () =>
+            pushPage({ kind: "option", which: "basemap" }),
+          )}
+          {basemap === "dingo" &&
+            sheetRow("Detail", <>{DETAIL_LABELS[detail]} {chevron}</>, () =>
+              pushPage({ kind: "option", which: "detail" }),
+            )}
+          {sheetRow(
+            "Colours",
+            <>{colorBy === "votes" ? "Votes" : "Original"} {chevron}</>,
+            () => pushPage({ kind: "option", which: "colours" }),
+          )}
+          {(doc.pois?.length ?? 0) > 0 &&
+            switchRow("POIs", showPois, () => setShowPois((v) => !v))}
+          {switchRow("Closures", showClosures, () => setShowClosures((v) => !v))}
+          <div className="px-4 py-3 text-xs text-bone-dim">{legendBody}</div>
+        </>
+      );
+    if (tab === "trip")
+      return (
+        <>
+          {/* The page's title bar is hidden on a short screen, so the trip's
+              own name belongs here. */}
+          <div className="border-b border-line px-4 py-3 text-sm font-semibold text-bone">
+            {doc.name}
+          </div>
+          {sheetRow(
+            "Liked",
+            <>
+              <span className="text-[var(--dd-status-ok)]">{rollup.liked}</span>
+              {rollup.liked ? ` · ${rollup.likedKm.toLocaleString()} km` : ""} {chevron}
+            </>,
+            () => pushPage({ kind: "group", which: "liked" }),
+          )}
+          {sheetRow("Undecided", <>{rollup.undecided} {chevron}</>, () =>
+            pushPage({ kind: "group", which: "undecided" }),
+          )}
+          {sheetRow(
+            "Vetoed",
+            <>
+              <span className="text-[#c96a5a]">{rollup.vetoed}</span> {chevron}
+            </>,
+            () => pushPage({ kind: "group", which: "vetoed" }),
+          )}
+          <div className="px-4 py-3 text-xs text-bone-dim">
+            {doc.tracks.length} tracks in this trip.
+          </div>
+        </>
+      );
+    return (
+      <>
+        {sheetRow("Your name", me ?? "not set", () => {
+          setNameDraft(me ?? "");
+          setAskName(true);
+        })}
+        {sheetRow("Your votes", `${myVotes}`)}
+        {sheetRow(copied ? "Link copied" : "Copy share link", null, () => {
+          navigator.clipboard?.writeText(shareUrl).then(
+            () => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            },
+            () => setCopied(false),
+          );
+        })}
+        {selectedIds.length > 0 &&
+          sheetRow(`Clear ${selectedIds.length} selected`, null, () =>
+            setSelection([]),
+          )}
+        <p className="px-4 py-3 text-xs text-bone-dim">
+          Your name is remembered on this device only. Anyone with the link can
+          vote.
+        </p>
+      </>
+    );
+  })();
+
+  const sheetTitle =
+    page?.kind === "track"
+      ? (doc.tracks.find((x) => x.id === page.id)?.name ?? "Track")
+      : page?.kind === "option"
+        ? page.which === "basemap"
+          ? "Base map"
+          : page.which === "detail"
+            ? "Detail"
+            : "Colours"
+        : page?.kind === "group"
+          ? GROUP_LABELS[page.which]
+          : (TABS.find((t) => t.id === tab)?.label ?? "");
+
+  const navEl = (
+    <nav
+      aria-label="Plan sections"
+      className={`flex shrink-0 bg-ink ${
+        landscape
+          ? "w-14 flex-col border-r border-line"
+          : "h-14 border-t border-line"
+      }`}
+      style={{ paddingBottom: landscape ? 0 : "env(safe-area-inset-bottom)" }}
+    >
+      {TABS.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => {
+            setPages([]);
+            setTab(tab === t.id ? null : t.id);
+          }}
+          aria-pressed={tab === t.id}
+          className={`flex flex-1 flex-col items-center justify-center gap-1 text-[10px] uppercase tracking-wider transition-colors ${
+            tab === t.id ? "text-clay-hot" : "text-bone-dim"
+          }`}
+        >
+          <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" aria-hidden="true">
+            <path
+              d={t.d}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {t.label}
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
     // --dd-font: the site loads Barlow through next/font under a hashed
     // family name, so core/ui's literal 'Barlow' would miss it.
     <div
-      className="flex h-[calc(100vh-4rem)] min-h-[480px] flex-col md:flex-row"
+      className={`flex min-h-0 flex-1 ${
+        phone ? (landscape ? "flex-row" : "flex-col") : "flex-col md:flex-row"
+      }`}
       style={{ "--dd-font": "var(--font-body), sans-serif" } as CSSProperties}
     >
-      <div className="order-2 h-1/2 w-full overflow-y-auto border-t border-line md:order-1 md:h-full md:w-[400px] md:border-r md:border-t-0">
-        <div className="border-b border-line px-4 py-3 text-sm text-bone-dim">
-          <div>
-            <span className="text-[var(--dd-status-ok)]">{rollup.liked} liked</span>
-            {rollup.liked ? ` (${rollup.likedKm.toLocaleString()} km)` : ""} ·{" "}
-            <span className="text-[#c96a5a]">{rollup.vetoed} vetoed</span> ·{" "}
-            {rollup.undecided} undecided
-          </div>
-          <div className="mt-2 flex items-center gap-2 text-xs">
-            sort
-            <select
-              value={sort}
-              onChange={(e) => pickSort(e.target.value as SortMode)}
-              className="rounded border border-line bg-ink px-1.5 py-0.5 text-xs text-bone"
-            >
-              <option value="wanted">most wanted</option>
-              <option value="name">name</option>
-              <option value="km">distance</option>
-              <option value="unvoted">needs my vote</option>
-            </select>
-            <span className="ml-auto">
-              {me ? (
-                <button
-                  className="text-bone-dim underline hover:text-bone"
-                  onClick={() => {
-                    setNameDraft(me);
-                    setAskName(true);
-                  }}
-                  title="Change the name your votes are recorded under"
-                >
-                  voting as {me}
-                </button>
-              ) : (
-                <button
-                  className="text-clay-hot underline"
-                  onClick={() => setAskName(true)}
-                >
-                  set your name to vote
-                </button>
-              )}
-            </span>
-          </div>
-          {selectedIds.length > 0 && (
+      {phone && landscape && navEl}
+      {!phone && (
+        <div className="order-2 h-1/2 w-full overflow-y-auto border-t border-line md:order-1 md:h-full md:w-[400px] md:border-r md:border-t-0">
+          <div className="border-b border-line px-4 py-3 text-sm text-bone-dim">
+            <div>
+              <span className="text-[var(--dd-status-ok)]">{rollup.liked} liked</span>
+              {rollup.liked ? ` (${rollup.likedKm.toLocaleString()} km)` : ""} ·{" "}
+              <span className="text-[#c96a5a]">{rollup.vetoed} vetoed</span> ·{" "}
+              {rollup.undecided} undecided
+            </div>
             <div className="mt-2 flex items-center gap-2 text-xs">
-              <span>
-                {selectedIds.length} selected — click a selected track to
-                unselect it
-              </span>
-              <button
-                className="ml-auto text-bone-dim underline hover:text-bone"
-                onClick={() => setSelection([])}
-                title="Clear the selection (Esc)"
-              >
-                clear
-              </button>
+              sort
+              {sortSelect}
+              <span className="ml-auto">{nameButton}</span>
             </div>
-          )}
-          {postError && (
-            <div className="mt-2 text-xs text-[var(--dd-alert-bad)]">{postError}</div>
-          )}
-        </div>
-        {tracksInOrder.map((t) => {
-          const active = selectedIds.includes(t.id);
-          const f = fb("track", t.id);
-          const swatch = cssColor(t.color);
-          return (
-            <div
-              key={t.id}
-              id={`plan-track-${t.id}`}
-              onClick={() => toggleTrack(t, true)}
-              className={`cursor-pointer border-b border-line px-4 py-3 transition-colors hover:bg-ink-2/60 ${
-                active ? "bg-ink-2 shadow-[inset_3px_0_0_var(--dd-accent)]" : ""
-              }`}
-            >
-              <div className="flex items-center gap-2 text-sm font-semibold text-bone">
-                {swatch && (
-                  <i
-                    className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                    style={{ background: swatch }}
-                    title={t.collection ?? undefined}
-                  />
-                )}
-                {t.name}
-              </div>
-              <div className="mt-0.5 text-xs text-bone-dim">
-                {t.km ? `${t.km} km` : ""}
-                {t.region || t.state ? ` · ${t.region || t.state}` : ""}
-                {t.grade ? ` · ${t.grade}` : ""}
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                {voteButtons("track", t.id)}
-                <span className="ml-auto whitespace-nowrap text-xs text-bone-dim">
-                  {tallyLabel(f)}
+            {selectedIds.length > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span>
+                  {selectedIds.length} selected — click a selected track to
+                  unselect it
                 </span>
+                <button
+                  className="ml-auto text-bone-dim underline hover:text-bone"
+                  onClick={() => setSelection([])}
+                  title="Clear the selection (Esc)"
+                >
+                  clear
+                </button>
               </div>
-              {t.description && (
-                <p
-                  className={`mt-1.5 text-xs text-bone-dim/90 ${
-                    active ? "whitespace-pre-line" : "line-clamp-2"
-                  }`}
-                >
-                  {t.description}
-                </p>
-              )}
-              {comments(f)}
-              {active && commentBox("track", t.id)}
-            </div>
-          );
-        })}
-        {(doc.marks?.length ?? 0) > 0 && (
-          <>
-            <div className="border-b border-line px-4 py-2 text-xs uppercase tracking-wider text-bone-dim">
-              Stops & accommodation
-            </div>
-            {doc.marks!.map((m) => {
-              const f = fb("mark", m.id);
-              return (
-                <div
-                  key={m.id}
-                  id={`plan-mark-${m.id}`}
-                  onClick={() =>
-                    mapRef.current?.flyTo({ center: [m.lon, m.lat], zoom: 9 })
-                  }
-                  className="cursor-pointer border-b border-line px-4 py-2.5 transition-colors hover:bg-ink-2/60"
-                >
-                  <div className="flex items-center gap-2 text-sm text-bone">
-                    <PinBadge category={markCategory(m.kind, m.name)} />
-                    {m.name}
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    {voteButtons("mark", m.id)}
-                    <span className="ml-auto whitespace-nowrap text-xs text-bone-dim">
-                      {tallyLabel(f)}
-                    </span>
-                  </div>
-                  {comments(f)}
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-      <div className="relative order-1 h-1/2 flex-1 md:order-2 md:h-full">
+            )}
+            {postError && (
+              <div className="mt-2 text-xs text-[var(--dd-alert-bad)]">{postError}</div>
+            )}
+          </div>
+          {tracksInOrder.map((t) => trackRow(t, () => toggleTrack(t, true), true))}
+          {markRows}
+        </div>
+      )}
+      <div
+        className={
+          phone
+            ? // The zoom buttons sit in the same corner as the rollup and,
+              // in landscape, behind the sheet. Pinch does the job here.
+              "relative min-h-0 flex-1 [&_.maplibregl-ctrl-top-left]:hidden"
+            : "relative order-1 h-1/2 flex-1 md:order-2 md:h-full"
+        }
+      >
         {/* maplibre-gl.css loads at runtime after the app styles and its
             .maplibregl-map { position: relative } outranks Tailwind's
             .absolute by order, collapsing the container to height 0 —
             the inline style keeps the map filling its parent. */}
         <div ref={mapDiv} className="absolute inset-0" style={{ position: "absolute" }} />
-        <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
-          {controlRow(
-            (Object.keys(BASEMAP_LABELS) as BasemapId[]).map((k) => [k, BASEMAP_LABELS[k]] as [BasemapId, string]),
-            basemap,
-            setBasemap,
-          )}
-          {basemap === "dingo" &&
-            controlRow(
-              (Object.keys(DETAIL_LABELS) as DetailLevel[]).map((k) => [k, DETAIL_LABELS[k]] as [DetailLevel, string]),
-              detail,
-              setDetail,
-            )}
-          {controlRow(
-            [
-              ["original", "Colours"],
-              ["votes", "Votes"],
-            ] as [ColorBy, string][],
-            colorBy,
-            setColorBy,
-          )}
-          <div className="flex gap-2">
-            {(doc.pois?.length ?? 0) > 0 &&
-              toggleChip("POIs", showPois, () => setShowPois((v) => !v))}
-            {toggleChip("Closures", showClosures, () => setShowClosures((v) => !v))}
+
+        {/* The rollup is the one number always wanted, so on a phone it stays
+            on the map rather than hiding in the Trip tab. */}
+        {phone && (
+          <div className="absolute right-3 top-3 z-10 rounded border border-line bg-ink/85 px-2.5 py-1.5 text-[11px] text-bone-dim">
+            <span className="text-[var(--dd-status-ok)]">{rollup.liked} liked</span> ·{" "}
+            <span className="text-[#c96a5a]">{rollup.vetoed} vetoed</span> ·{" "}
+            {rollup.undecided} undecided
           </div>
-        </div>
-        <div className="absolute bottom-6 left-3 z-10 max-w-[60%] rounded border border-line bg-ink/90 px-3 py-1.5 text-xs text-bone-dim">
-          {colorBy === "votes" ? (
-            <>
-              <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.yes }} />liked</span>
-              <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.maybe }} />maybe</span>
-              <span className="mr-3"><i className="mr-1 inline-block h-1 w-4 rounded opacity-50" style={{ background: VERDICT_COLORS.no }} />vetoed</span>
-              <span><i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: VERDICT_COLORS.none }} />unvoted</span>
-            </>
-          ) : collections.length ? (
-            collections.slice(0, 8).map((c) => (
-              <span key={c.name} className="mr-3 whitespace-nowrap">
-                <i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: c.color }} />
-                {c.name}
-              </span>
-            ))
-          ) : (
-            <span>
-              <i className="mr-1 inline-block h-1 w-4 rounded" style={{ background: TRACK_COLOR }} />
-              tracks
-            </span>
-          )}
-        </div>
+        )}
+        {phone && postError && (
+          <div className="absolute left-3 right-3 top-12 z-10 rounded border border-line bg-ink/90 px-2.5 py-1.5 text-xs text-[var(--dd-alert-bad)]">
+            {postError}
+          </div>
+        )}
+
+        {!phone && (
+          <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
+            {controlRow(
+              (Object.keys(BASEMAP_LABELS) as BasemapId[]).map((k) => [k, BASEMAP_LABELS[k]] as [BasemapId, string]),
+              basemap,
+              setBasemap,
+            )}
+            {basemap === "dingo" &&
+              controlRow(
+                (Object.keys(DETAIL_LABELS) as DetailLevel[]).map((k) => [k, DETAIL_LABELS[k]] as [DetailLevel, string]),
+                detail,
+                setDetail,
+              )}
+            {controlRow(
+              [
+                ["original", "Colours"],
+                ["votes", "Votes"],
+              ] as [ColorBy, string][],
+              colorBy,
+              setColorBy,
+            )}
+            <div className="flex gap-2">
+              {(doc.pois?.length ?? 0) > 0 &&
+                toggleChip("POIs", showPois, () => setShowPois((v) => !v))}
+              {toggleChip("Closures", showClosures, () => setShowClosures((v) => !v))}
+            </div>
+          </div>
+        )}
+        {!phone && (
+          <div className="absolute bottom-6 left-3 z-10 max-w-[60%] rounded border border-line bg-ink/90 px-3 py-1.5 text-xs text-bone-dim">
+            {legendBody}
+          </div>
+        )}
 
         {closureCard && (() => {
           const cardW = 300;
@@ -1251,7 +1662,34 @@ export default function PlanView({
             </div>
           );
         })()}
+
+        {/* Level 2 and 3 both live in the shared .dd-sheet, which docks
+            bottom in portrait and left in landscape (core/ui/chrome.css). */}
+        {phone && tab && (
+          <div className="dd-sheet z-30" data-testid="plan-sheet">
+            <div className="dd-sheet-handle" />
+            <header>
+              <span className="flex min-w-0 items-center gap-2">
+                {pages.length > 0 && (
+                  <button
+                    onClick={() => setPages((s) => s.slice(0, -1))}
+                    aria-label="Back"
+                    className="text-bone-dim"
+                  >
+                    ‹
+                  </button>
+                )}
+                <span className="truncate">{sheetTitle}</span>
+              </span>
+              <button onClick={closeSheet} aria-label="Close" className="text-bone-dim">
+                ×
+              </button>
+            </header>
+            <div className="dd-sheet-body">{sheetBody}</div>
+          </div>
+        )}
       </div>
+      {phone && !landscape && navEl}
 
       {askName && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70">
