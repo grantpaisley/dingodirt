@@ -1,0 +1,6 @@
+{
+  "name": "@dingodirt/track-graph",
+  "private": true,
+  "type": "module",
+  "description": "Canonical time-weighted track graph — routing and measuring over recorded tracks. Scoped here rather than at the repo root for the same reason as @dingodirt/appliers: apps/nav/serve.js is CommonJS and a root-level type:module would break it."
+}
