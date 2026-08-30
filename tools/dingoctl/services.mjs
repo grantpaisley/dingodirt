@@ -1,18 +1,28 @@
 // The Dingo local stack, in start order. Each entry is one process the panel
 // can start, stop and watch. Status comes from a TCP probe on `port`, so a
 // service you started by hand in a terminal shows as running here too.
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-/** Prefer a built binary; fall back to `cargo run` (slow first time). */
-function daemonCommand(repoRoot) {
-    const built = [
-        process.env.DINGO_SERVER_BIN,
-        join(repoRoot, 'core/rust/target/release/dingo-server'),
-        join(repoRoot, 'core/rust/target/debug/dingo-server'),
-    ].filter(Boolean).find((p) => existsSync(p))
-    if (built) return { command: built, args: [] }
+/**
+ * Prefer a built binary; fall back to `cargo run` (slow first time).
+ * Release used to win outright, even when stale: a release build from before
+ * a migration landed beat the current debug build beside it, and the daemon
+ * died at boot with `VersionMissing` because its embedded migrations did not
+ * hold a version the database already had. The newest build wins instead —
+ * the one you made last is the one you meant.
+ * DINGO_SERVER_BIN still overrides both.
+ */
+export function daemonCommand(repoRoot) {
+    const override = process.env.DINGO_SERVER_BIN
+    if (override && existsSync(override)) return { command: override, args: [] }
+    const [built] = ['release', 'debug']
+        .map((profile) => join(repoRoot, `core/rust/target/${profile}/dingo-server`))
+        .filter((p) => existsSync(p))
+        .map((path) => ({ path, mtime: statSync(path).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime)
+    if (built) return { command: built.path, args: [] }
     return {
         command: 'cargo',
         args: ['run', '--release', '--manifest-path', join(repoRoot, 'core/rust/Cargo.toml'), '-p', 'dingo_daemon'],
