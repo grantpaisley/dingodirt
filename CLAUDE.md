@@ -35,8 +35,7 @@ Land:
 Ask first. Stop and ask before you:
 
 - push anything the owner has not seen to this repo — it is public, design and scoping docs included;
-- graft full history into this repo, run a deploy cutover, or change a domain or DNS record;
-- merge a PR the owner has not approved.
+- graft full history into this repo, run a deploy cutover, or change a domain or DNS record.
 
 Parallel sessions each take their own branch. PRs merge one at a time and are reconciled onto `origin/main`.
 
