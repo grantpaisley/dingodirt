@@ -532,6 +532,7 @@
   .trk .nm{flex:1; min-width:0; font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .trk .len{font-size:13px; color:var(--dim); flex:none}
   .trk .del{flex:none; color:var(--dim); font-size:20px; padding:4px 8px}
+  .trk .gm{flex:none; color:var(--dim); font-size:20px; padding:4px 8px}
   .packHdr{display:flex; align-items:center; gap:8px; padding:12px 10px 4px; border-top:1px solid #232d38; margin-top:6px}
   .packHdr:first-child{border-top:none; margin-top:0}
   .packHdr .nm{flex:1; min-width:0; font-size:13px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
@@ -1056,6 +1057,7 @@
     <div id="trackList"></div>
     <div class="btnRow">
       <button class="btn primary" id="loadBtn">Load files…</button>
+      <button class="btn" id="gmapsBtn" title="Paste a shared Google Maps directions link — the route becomes a track"><svg class="ic"><use href="#i-navigation"/></svg> Google Maps link…</button>
       <button class="btn danger" id="clearBtn">Clear all data</button>
     </div>
     <div class="hint">Load .gpx tracks and a heatmap .geojson (exported from <b>Dingo</b>). Everything is stored on this device and works fully offline.</div>
@@ -1156,6 +1158,7 @@
 <script src="vendor/pmtiles.js"></script>
 <script src="vendor/fflate.js"></script>
 <script src="corridor.js"></script>
+<script src="gmaps-link.js"></script>
 <script type="module">
 /* The canonical appliers (core/appliers, reached through the ./appliers
    symlink; deploys dereference it). One copy for every map — the inline
@@ -5463,6 +5466,68 @@ async function handleFiles(files) {
 }
 document.getElementById('fileInput').addEventListener('change', e => { handleFiles([...e.target.files]); e.target.value = ''; });
 document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
+
+/* A shared Google Maps directions link → a track. The link carries only the
+   stops; dingodirt.com routes them through the Google Routes API and hands
+   back a GPX (design: docs/plans/nav-2026-09-06-gmaps-link-import-design.md).
+   Online at import time only — the track then lives on the device like any
+   other. boot=true skips the list/map refresh the boot sequence does itself. */
+async function importGmapsLink(link, boot) {
+  if (!navigator.onLine) { toast('Importing a Google Maps link needs signal'); return false; }
+  toast('Fetching the route from Google…');
+  let resp;
+  try {
+    resp = await fetch(`${SHARE_SITE}/api/routes/gmaps`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link }),
+    });
+  } catch (e) { toast('Could not reach dingodirt.com — are you online?'); return false; }
+  if (!resp.ok) {
+    let msg = 'HTTP ' + resp.status;
+    try { const j = await resp.json(); if (j && j.error) msg = j.error; } catch (e) {}
+    toast('Google Maps import failed: ' + msg);
+    return false;
+  }
+  try {
+    await addFile('google-maps-route.gpx', await resp.text());
+    // a shared route is the one you're about to ride — unlike a file load, select it
+    const i = S.tracks.length - 1;
+    if (boot) S.sel = i;
+    else { selectTrack(i); refreshTrackList(); refreshEmpty(); refreshMapData(); updateBottomBar(); fitSelected(); }
+    toast(`Loaded “${S.tracks[i].name}” from Google Maps`);
+    return true;
+  } catch (e) {
+    console.warn('gmaps import failed', e);
+    toast('Google Maps import failed: ' + e.message);
+    return false;
+  }
+}
+document.getElementById('gmapsBtn').onclick = async () => {
+  let txt = '';
+  try { txt = await navigator.clipboard.readText(); } catch (e) {}
+  let link = DingoGmaps.findLink(txt);
+  if (!link) {
+    const typed = prompt('Paste a Google Maps directions link (Google Maps → Share → Copy link)');
+    if (typed === null) return;
+    link = DingoGmaps.findLink(typed);
+    if (!link) { toast('That was not a Google Maps link'); return; }
+  }
+  await importGmapsLink(link);
+};
+
+/* Directions along the track in the Google Maps app: origin, destination and
+   up to 9 stops where the track bends most (gmaps-link.js). Google routes
+   between them on its own roads — the road bits get turn-by-turn, the
+   singletrack gets Google's best guess. Opened through a real anchor click
+   inside the tap handler, so standalone-PWA popup rules allow it and the OS
+   hands the URL to the Maps app. */
+function openInGoogleMaps(t) {
+  let url;
+  try { url = DingoGmaps.directionsUrl(DingoGmaps.pickStops(t.coordsLL)); }
+  catch (e) { toast('Could not build a Google Maps link for this track'); return; }
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
 const NSW_AERIAL = 'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Imagery/MapServer/tile/{z}/{y}/{x}';
 document.getElementById('aerialUrl').value = S.set.aerialUrl || '';
 document.getElementById('aerialUrl').onchange = e => {
@@ -5540,7 +5605,8 @@ function trackRow(i) {
   const row = document.createElement('div');
   row.className = 'trk' + (i === S.sel ? ' sel' : '');
   row.innerHTML = `<span class="dot" style="background:${i === S.sel ? 'var(--accent)' : '#5a6a78'}"></span>
-    <span class="nm">${t.name}</span><span class="len">${(t.lengthM / 1000).toFixed(1)} km</span><span class="del"><svg class="ic"><use href="#i-x"/></svg></span>`;
+    <span class="nm">${escHtml(t.name)}</span><span class="len">${(t.lengthM / 1000).toFixed(1)} km</span><span class="gm" title="Open in Google Maps"><svg class="ic"><use href="#i-navigation"/></svg></span><span class="del"><svg class="ic"><use href="#i-x"/></svg></span>`;
+  row.querySelector('.gm').onclick = ev => { ev.stopPropagation(); openInGoogleMaps(t); };
   row.querySelector('.del').onclick = async ev => {
     ev.stopPropagation();
     await idb.del(t.id);
@@ -8345,6 +8411,17 @@ async function boot() {
         ? 'This pack was removed (or the link is stale) — anything loaded earlier is still on the device'
         : 'Could not load the shared link — are you online?');
     }
+  }
+  // ?share=<text> / ?url=<link> — the Android share sheet → the installed PWA
+  // (manifest share_target). Google Maps shares the route link inside the
+  // text. The param is stripped FIRST so a reload never re-spends a Routes
+  // API call; a failed import just needs another share.
+  const shareText = params.get('share') || params.get('url');
+  if (shareText) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    const link = DingoGmaps.findLink(shareText);
+    if (link) { bootPhase('share'); await importGmapsLink(link, true); }
+    else toast('The shared text had no Google Maps link in it');
   }
   // No tile reload needed on this path: the import above is fully awaited
   // before initMap() below, which reads basemap/strava/sat tiles from IDB.
