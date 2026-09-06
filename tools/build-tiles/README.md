@@ -1,8 +1,13 @@
 # build-tiles — the shared AU basemap archive
 
-`basemap-au.pmtiles` is the one map every Dingo app draws: Nav, Plan, Studio
-and the site all render it through the same layer files in `core/basemap/`.
-It lives at `https://tiles.dingodirt.com/basemap-au.pmtiles`.
+`basemap-au.pmtiles` is the map Nav, Plan and the site all draw, through the
+same layer files in `core/basemap/`. It lives at
+`https://tiles.dingodirt.com/basemap-au.pmtiles`, in the R2 bucket
+`dingodirt-tiles`.
+
+Studio is the exception: it renders its own committed
+`apps/studio/basemap/central-coast.pmtiles` and never fetches this archive,
+so a re-tile cannot affect it.
 
 Until now it was cut straight out of the Protomaps daily planet build with
 `pmtiles extract`. That costs no compute and it kept the schema honest, but
@@ -122,13 +127,28 @@ if it does not bury the cities: check what Sydney's z8 count did.
 Publishing replaces the map in every app, and packs already on riders' phones
 pull from the same place. Keep the old one:
 
+The manifest records each file's size and sha256, so it moves with the
+archive or it lies:
+
 ```bash
-# keep a rollback beside it, then swap
-rclone copy r2:tiles/basemap-au.pmtiles r2:tiles/basemap-au.previous.pmtiles
-rclone copy build/basemap-au.pmtiles r2:tiles/
+# 1. keep a rollback beside the live pair
+rclone copyto r2:dingodirt-tiles/basemap-au.pmtiles r2:dingodirt-tiles/basemap-au.previous.pmtiles
+rclone copyto r2:dingodirt-tiles/manifest.json     r2:dingodirt-tiles/manifest.previous.json
+
+# 2. swap. --progress prints a rate and an ETA within ten seconds; the
+#    bigger chunks matter on a file this size
+rclone copyto --progress --s3-chunk-size 64M --s3-upload-concurrency 8 \
+  build/basemap-au.pmtiles r2:dingodirt-tiles/basemap-au.pmtiles
+rclone copyto build/manifest.json r2:dingodirt-tiles/manifest.json
+
+# 3. verify what is actually being served
+node probe-places.mjs https://tiles.dingodirt.com/basemap-au.pmtiles
 ```
 
-Rollback is a rename. `localStorage['dtiles-base']` overrides the base URL in
+The upload is not atomic, but it is safe: the live archive stays whole
+until the last part lands, so a rider is never served half a file.
+
+Rollback is copying the two `.previous.` names back over the live ones. `localStorage['dtiles-base']` overrides the base URL in
 every app, so a single device can be pointed at a candidate archive before
 anything is swapped (see `apps/plan/src/dingoBasemap.ts`).
 
