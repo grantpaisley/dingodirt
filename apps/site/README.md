@@ -42,10 +42,21 @@ that storage is not configured.
 
 ## Outages
 
-A database that cannot be reached is never reported as a missing pack. Pages
-show "Service unavailable", API routes answer `503`, and `lib/alert.ts` mails
-the operator. `GET /api/health` runs `select 1`; point an uptime monitor at
-it, because it answers `503` even when nobody is browsing the site.
+A database that cannot be reached is never reported as a missing pack, an
+empty gallery, or a signed-out visitor. Pages show "Service unavailable", API
+routes answer `503`, and `lib/alert.ts` mails the operator. `GET /api/health`
+runs `select 1`; point an uptime monitor at it, because it answers `503` even
+when nobody is browsing the site.
+
+Roles get the same treatment in `lib/membership.ts`. `currentUser()` throws
+`MembershipUnavailableError` rather than fall back to role `user`, because a
+quietly demoted member has their public pack pushed into the review queue and
+a quietly demoted admin is told they may not moderate. Auth.js catches a
+failed session read and reports "signed out", so a session cookie that
+resolves to no session triggers one `select 1` to tell a stale cookie from an
+outage. Use `viewerIdentity()` where only an id or a name is needed, and
+`displayUser()` for chrome such as the header, which renders on the outage
+page itself and so must never throw.
 
 | Variable | Effect |
 | --- | --- |

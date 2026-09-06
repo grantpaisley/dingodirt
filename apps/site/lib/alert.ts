@@ -7,6 +7,7 @@
 // dev, previews) the alert is logged and nothing is sent.
 
 import { NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 
 const THROTTLE_MS = 30 * 60_000;
 const SEND_TIMEOUT_MS = 5_000;
@@ -40,6 +41,12 @@ function describe(err: unknown): string {
  * worse than no alert.
  */
 export async function reportOutage(where: string, err: unknown): Promise<void> {
+  // redirect(), notFound() and the request-time APIs signal Next.js by
+  // throwing. Every caller runs this at the top of a catch block, so this is
+  // where those signals must be let back out — swallowing one would, for
+  // example, render a static outage page in place of a real redirect.
+  unstable_rethrow(err);
+
   const detail = describe(err);
   console.error(`[outage] ${where}: ${detail}`, err);
 

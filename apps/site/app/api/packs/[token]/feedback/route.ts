@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { packFeedback } from "@/db/schema";
 import { packByToken, currentVersionOf } from "@/lib/packs";
 import { outageJson, reportOutage } from "@/lib/alert";
-import { currentUser } from "@/lib/membership";
+import { viewerIdentity } from "@/lib/membership";
 
 export const runtime = "nodejs";
 
@@ -72,7 +72,7 @@ async function visiblePlan(token: string) {
   const pack = await packByToken(token);
   if (!pack || pack.type !== "plan") return null;
   if (pack.visibility === "private") {
-    const user = await currentUser();
+    const user = await viewerIdentity();
     if (!user || user.id !== pack.ownerId) return null;
   }
   return pack;

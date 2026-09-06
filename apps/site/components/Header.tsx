@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { signOut } from "@/auth";
-import { currentUser, isAdmin } from "@/lib/membership";
+import { displayUser } from "@/lib/membership";
 
 const GITHUB_ORG_URL = "https://github.com/dingodirt";
 
 export default async function Header() {
-  const user = await currentUser();
+  // displayUser, not currentUser: the header renders on the outage page, so
+  // it must never be the thing that takes the page down.
+  const user = await displayUser();
 
   return (
     <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
@@ -36,7 +38,7 @@ export default async function Header() {
             My packs
           </Link>
         )}
-        {isAdmin(user) && (
+        {user?.role === "admin" && (
           <Link
             href="/admin"
             className="text-gum transition-colors hover:text-clay-hot"
