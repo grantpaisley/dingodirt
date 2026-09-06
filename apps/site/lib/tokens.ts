@@ -1,8 +1,10 @@
 import { and, eq, isNull } from "drizzle-orm";
+import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { apiTokens, users, allowlist } from "@/db/schema";
 import { currentUser, type Role, type SessionUser } from "@/lib/membership";
 import { TOKEN_PREFIX, hashToken, newTokenSecret } from "@/lib/token-crypto";
+import { outageJson, reportOutage } from "@/lib/alert";
 
 export { TOKEN_PREFIX, hashToken, newTokenSecret };
 
@@ -52,6 +54,22 @@ export async function requestUser(req: {
     return userForToken(auth.slice(7)).catch(() => null);
   }
   return currentUser();
+}
+
+/**
+ * requestUser() for API routes: an unreadable role becomes the shared 503
+ * response, which the caller returns as-is, and the operator is mailed.
+ */
+export async function requestUserOr503(
+  req: { headers: { get(name: string): string | null } },
+  where: string,
+): Promise<SessionUser | null | NextResponse> {
+  try {
+    return await requestUser(req);
+  } catch (err) {
+    await reportOutage(where, err);
+    return outageJson();
+  }
 }
 
 export async function userForToken(

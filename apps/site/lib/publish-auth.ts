@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser, type SessionUser } from "@/lib/membership";
+import { outageJson, reportOutage } from "@/lib/alert";
 import { userForToken } from "@/lib/tokens";
 
 // Best-effort per-user upload rate limit (per instance), shared by every
@@ -21,9 +22,17 @@ export async function requirePublisher(
   opts: { spend?: boolean } = {},
 ): Promise<SessionUser | NextResponse> {
   const bearer = req.headers.get("authorization");
-  const user = bearer?.startsWith("Bearer ")
-    ? await userForToken(bearer.slice(7)).catch(() => null)
-    : await currentUser();
+  // The publisher's role decides whether a public pack skips the review
+  // queue, so a role we could not read must stop the publish, not guess it.
+  let user: SessionUser | null;
+  try {
+    user = bearer?.startsWith("Bearer ")
+      ? await userForToken(bearer.slice(7)).catch(() => null)
+      : await currentUser();
+  } catch (err) {
+    await reportOutage("publish", err);
+    return outageJson();
+  }
   if (!user) {
     return NextResponse.json(
       bearer

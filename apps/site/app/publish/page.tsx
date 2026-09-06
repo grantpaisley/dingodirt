@@ -2,12 +2,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import PublishForm from "@/components/PublishForm";
+import ServiceDown from "@/components/ServiceDown";
 import { currentUser } from "@/lib/membership";
+import { reportOutage } from "@/lib/alert";
 
 export const metadata = { title: "Publish a pack — dingodirt" };
 
 export default async function PublishPage() {
-  const user = await currentUser();
+  // A signed-in user must not be sent to the sign-in page over an outage.
+  let user;
+  try {
+    user = await currentUser();
+  } catch (err) {
+    await reportOutage("/publish", err);
+    return <ServiceDown retry="/publish" />;
+  }
   if (!user) redirect("/signin");
 
   return (

@@ -3,7 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { packFeedback } from "@/db/schema";
 import { packByToken, currentVersionOf } from "@/lib/packs";
-import { currentUser } from "@/lib/membership";
+import { outageJson, reportOutage } from "@/lib/alert";
+import { viewerIdentity } from "@/lib/membership";
 
 export const runtime = "nodejs";
 
@@ -65,12 +66,13 @@ function limited(req: NextRequest): boolean {
   return ++entry.count > MAX_PER_WINDOW;
 }
 
-/** The plan pack behind a token, if the caller may see it. */
+/** The plan pack behind a token, if the caller may see it. Throws when the
+ *  database is unreachable, so callers answer 503 rather than "not shared". */
 async function visiblePlan(token: string) {
-  const pack = await packByToken(token).catch(() => null);
+  const pack = await packByToken(token);
   if (!pack || pack.type !== "plan") return null;
   if (pack.visibility === "private") {
-    const user = await currentUser();
+    const user = await viewerIdentity();
     if (!user || user.id !== pack.ownerId) return null;
   }
   return pack;
@@ -134,7 +136,13 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const pack = await visiblePlan(token);
+  let pack;
+  try {
+    pack = await visiblePlan(token);
+  } catch (err) {
+    await reportOutage(`/api/packs/${token}/feedback`, err);
+    return outageJson();
+  }
   if (!pack) {
     return NextResponse.json(
       { ok: false, error: "This plan is no longer shared." },
@@ -156,7 +164,13 @@ export async function POST(
     );
   }
   const { token } = await params;
-  const pack = await visiblePlan(token);
+  let pack;
+  try {
+    pack = await visiblePlan(token);
+  } catch (err) {
+    await reportOutage(`/api/packs/${token}/feedback`, err);
+    return outageJson();
+  }
   if (!pack) {
     return NextResponse.json(
       { ok: false, error: "This plan is no longer shared." },

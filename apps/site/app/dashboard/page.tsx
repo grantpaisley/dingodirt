@@ -5,15 +5,23 @@ import Header from "@/components/Header";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import PackRow from "@/components/PackRow";
 import ApiTokensCard from "@/components/ApiTokensCard";
+import ServiceDown from "@/components/ServiceDown";
 import { db } from "@/db";
 import { packs, folders } from "@/db/schema";
 import { currentUser } from "@/lib/membership";
+import { reportOutage } from "@/lib/alert";
 
 export const metadata = { title: "My packs — dingodirt" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const user = await currentUser();
+  let user;
+  try {
+    user = await currentUser();
+  } catch (err) {
+    await reportOutage("/dashboard", err);
+    return <ServiceDown retry="/dashboard" />;
+  }
   if (!user) redirect("/signin");
 
   let rows: (typeof packs.$inferSelect)[] = [];

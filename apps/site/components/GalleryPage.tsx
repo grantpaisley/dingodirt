@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import { db } from "@/db";
 import { packs, packVersions } from "@/db/schema";
+import { reportOutage } from "@/lib/alert";
 
 // Shared server component behind /rides and /schemes.
 export default async function GalleryPage({
@@ -19,6 +20,7 @@ export default async function GalleryPage({
     version: number;
     id: string;
   }[] = [];
+  let down = false;
   try {
     rows = await db
       .select({
@@ -39,8 +41,11 @@ export default async function GalleryPage({
       )
       .orderBy(desc(packs.updatedAt))
       .limit(100);
-  } catch {
-    // DB not configured — render the empty state.
+  } catch (err) {
+    // An unreachable database is not an empty gallery — never claim there is
+    // nothing public when we simply could not look.
+    await reportOutage(`/${type === "ride" ? "rides" : "schemes"}`, err);
+    down = true;
   }
 
   const previews = new Map<string, string>();
@@ -78,7 +83,18 @@ export default async function GalleryPage({
             : "Community map schemes — ride with them or remix them in Studio."}
         </p>
 
-        {rows.length === 0 ? (
+        {down ? (
+          <div className="mt-12 rounded-lg border border-clay/50 bg-ink-2/60 p-10 text-center">
+            <p className="font-display text-2xl font-bold uppercase text-clay-hot">
+              Can&apos;t load the gallery
+            </p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-bone-dim">
+              dingodirt can&apos;t reach its database right now, so this list is
+              empty for the wrong reason. Try again in a few minutes — the crew
+              has been told.
+            </p>
+          </div>
+        ) : rows.length === 0 ? (
           <div className="mt-12 rounded-lg border border-line bg-ink-2/60 p-10 text-center">
             <p className="font-display text-2xl font-bold uppercase text-bone-dim">
               Nothing public yet

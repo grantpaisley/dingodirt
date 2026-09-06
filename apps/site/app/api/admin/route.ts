@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { allowlist, packs, reports } from "@/db/schema";
-import { currentUser, isAdmin } from "@/lib/membership";
+import { currentUserOr503, isAdmin } from "@/lib/membership";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Single admin endpoint: GET = overview, POST = { action, ... }.
 export async function GET() {
-  const user = await currentUser();
+  // 403 says "you may not"; an unreadable role means "we don't know yet".
+  const user = await currentUserOr503("/api/admin");
+  if (user instanceof NextResponse) return user;
   if (!isAdmin(user)) return NextResponse.json({ ok: false }, { status: 403 });
   const [pending, openReports, roles, allPacks] = await Promise.all([
     db
@@ -34,7 +36,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await currentUser();
+  // 403 says "you may not"; an unreadable role means "we don't know yet".
+  const user = await currentUserOr503("/api/admin");
+  if (user instanceof NextResponse) return user;
   if (!isAdmin(user)) return NextResponse.json({ ok: false }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

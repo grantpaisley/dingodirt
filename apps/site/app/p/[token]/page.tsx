@@ -3,8 +3,10 @@ import Header from "@/components/Header";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import ReportButton from "@/components/ReportButton";
+import ServiceDown from "@/components/ServiceDown";
+import { reportOutage } from "@/lib/alert";
 import { packByToken, currentVersionOf } from "@/lib/packs";
-import { currentUser } from "@/lib/membership";
+import { viewerIdentity } from "@/lib/membership";
 import PlanView from "./PlanView";
 
 export const metadata = { title: "Pack — dingodirt" };
@@ -15,8 +17,18 @@ export default async function PackPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const pack = await packByToken(token).catch(() => null);
-  const user = await currentUser();
+
+  // A database failure is not a retracted link. Say so, and tell the crew,
+  // instead of turning an outage into "No longer shared".
+  let pack;
+  try {
+    pack = await packByToken(token);
+  } catch (err) {
+    await reportOutage(`/p/${token}`, err);
+    return <ServiceDown retry={`/p/${token}`} />;
+  }
+
+  const user = await viewerIdentity();
   const isOwner = !!pack && !!user && pack.ownerId === user.id;
 
   // Private packs are visible only to their owner.

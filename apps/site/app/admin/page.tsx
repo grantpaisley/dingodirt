@@ -2,13 +2,23 @@ import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import TopoBackdrop from "@/components/TopoBackdrop";
 import AdminPanel from "@/components/AdminPanel";
+import ServiceDown from "@/components/ServiceDown";
+import { reportOutage } from "@/lib/alert";
 import { currentUser, isAdmin } from "@/lib/membership";
 
 export const metadata = { title: "Admin — dingodirt" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const user = await currentUser();
+  // Bouncing an admin to the home page because the role read failed would
+  // look like a permission decision. Say the site is down instead.
+  let user;
+  try {
+    user = await currentUser();
+  } catch (err) {
+    await reportOutage("/admin", err);
+    return <ServiceDown retry="/admin" />;
+  }
   if (!isAdmin(user)) redirect("/");
 
   return (

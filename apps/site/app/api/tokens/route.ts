@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@/lib/membership";
+import { currentUserOr503 } from "@/lib/membership";
 import {
   createApiToken,
   listApiTokens,
@@ -12,7 +12,8 @@ export const runtime = "nodejs";
 // token must never be able to mint or revoke tokens.
 
 export async function GET() {
-  const user = await currentUser();
+  const user = await currentUserOr503("/api/tokens");
+  if (user instanceof NextResponse) return user;
   if (!user) {
     return NextResponse.json({ ok: false, error: "Sign in." }, { status: 403 });
   }
@@ -21,7 +22,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await currentUser();
+  const user = await currentUserOr503("/api/tokens");
+  if (user instanceof NextResponse) return user;
   if (!user) {
     return NextResponse.json({ ok: false, error: "Sign in." }, { status: 403 });
   }
@@ -49,7 +51,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const user = await currentUser();
+  const user = await currentUserOr503("/api/tokens");
+  if (user instanceof NextResponse) return user;
   if (!user) {
     return NextResponse.json({ ok: false, error: "Sign in." }, { status: 403 });
   }

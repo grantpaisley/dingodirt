@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { packByToken } from "@/lib/packs";
+import { outageJson, reportOutage } from "@/lib/alert";
 
 // Best-effort per-IP rate limit (per instance), alongside Turnstile.
 const hits = new Map<string, { count: number; reset: number }>();
@@ -62,7 +63,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const pack = await packByToken(token).catch(() => null);
+  let pack;
+  try {
+    pack = await packByToken(token);
+  } catch (err) {
+    await reportOutage("/api/report", err);
+    return outageJson();
+  }
   if (!pack) {
     return NextResponse.json(
       { ok: false, error: "Pack not found." },
