@@ -10,7 +10,8 @@ import { spawn } from 'node:child_process'
 import { statusAll, start, stop, startAll, stopAll, readLog } from './manager.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const PORT = parseInt(process.argv[2] || process.env.DINGOCTL_PORT || '8100', 10)
+const portArg = process.argv.slice(2).find((arg) => !arg.startsWith('--'))
+const PORT = parseInt(portArg || process.env.DINGOCTL_PORT || '8100', 10)
 
 function json(res, body, code = 200) {
     const text = JSON.stringify(body)
@@ -51,6 +52,9 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('Dingo control panel on ' + address)
     if (process.argv.includes('--open')) {
         const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
-        spawn(opener, [address], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref()
+        const child = spawn(opener, [address], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' })
+        // No browser to open in a headless environment: don't let that take the panel down.
+        child.on('error', () => {})
+        child.unref()
     }
 })
