@@ -403,6 +403,11 @@ struct DingoNavTrack {
     /// rider's cue edits) on this instead of a content hash when present.
     #[serde(rename = "rideId")]
     ride_id: Uuid,
+    /// Ride mode (`adv` / `enduro` / `mtb` / `other`): Nav picks the handling
+    /// profile from it — an ADV track locks the rider to the line, Google-Maps
+    /// style; an enduro track keeps the raw fix. Design:
+    /// docs/plans/2026-09-06-nav-track-lock-design.md
+    mode: String,
 }
 
 /// Corridor build knobs. The true corridor is a 1.5 km ST_Buffer around the
@@ -1395,25 +1400,29 @@ async fn dingonav_tracks(
     let mut tracks = Vec::new();
     let mut skipped: Vec<String> = Vec::new();
     let rows =
-        sqlx::query("SELECT id, name FROM rides WHERE id = ANY($1) AND superseded_by IS NULL")
+        sqlx::query("SELECT id, name, mode::text AS mode FROM rides WHERE id = ANY($1) AND superseded_by IS NULL")
             .bind(ride_ids)
             .fetch_all(pool)
             .await
             .map_err(internal)?;
     // name is nullable — a web-imported ride whose naming failed has NULL;
     // reading it as String would panic and drop the request (audit M4).
-    let names: std::collections::HashMap<Uuid, String> = rows
+    let names: std::collections::HashMap<Uuid, (String, String)> = rows
         .into_iter()
         .map(|r| {
             let name = r
                 .get::<Option<String>, _>("name")
                 .unwrap_or_else(|| "Unnamed ride".to_string());
-            (r.get::<Uuid, _>("id"), name)
+            // mode is NOT NULL DEFAULT 'other' in the schema; read defensively anyway
+            let mode = r
+                .get::<Option<String>, _>("mode")
+                .unwrap_or_else(|| "other".to_string());
+            (r.get::<Uuid, _>("id"), (name, mode))
         })
         .collect();
     let mut taken = std::collections::HashSet::new();
     for id in ride_ids {
-        let Some(nm) = names.get(id) else {
+        let Some((nm, mode)) = names.get(id) else {
             skipped.push(id.to_string());
             continue;
         };
@@ -1425,7 +1434,12 @@ async fn dingonav_tracks(
                     file = format!("{} ({n})", sanitize_filename(nm));
                     n += 1;
                 }
-                tracks.push(DingoNavTrack { name: format!("{file}.gpx"), gpx, ride_id: *id });
+                tracks.push(DingoNavTrack {
+                    name: format!("{file}.gpx"),
+                    gpx,
+                    ride_id: *id,
+                    mode: mode.clone(),
+                });
             }
             dingo_export::RideGpx::NoGeometry | dingo_export::RideGpx::FullyPrivate => {
                 skipped.push(nm.clone())

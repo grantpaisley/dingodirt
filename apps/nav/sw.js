@@ -1,10 +1,10 @@
 // DingoNav service worker — cache-first so the app works fully offline.
 // Bump CACHE when shipping a new version.
-const CACHE = 'dingonav-v70';
+const CACHE = 'dingonav-v71';
 const SHELL = [
   './', './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './vendor/pmtiles.js', './vendor/fflate.js',
-  './corridor.js', './gmaps-link.js',
+  './corridor.js', './tracklock.js', './gmaps-link.js',
   // canonical appliers (core/appliers via the ./appliers symlink) — the map
   // cannot style itself offline without them
   './appliers/applier-nav.js', './appliers/scheme.js', './appliers/detail.js',

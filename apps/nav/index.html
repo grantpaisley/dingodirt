@@ -1158,6 +1158,7 @@
 <script src="vendor/pmtiles.js"></script>
 <script src="vendor/fflate.js"></script>
 <script src="corridor.js"></script>
+<script src="tracklock.js"></script>
 <script src="gmaps-link.js"></script>
 <script type="module">
 /* The canonical appliers (core/appliers, reached through the ./appliers
@@ -1376,13 +1377,26 @@ if (!S.set._v5) {
   }
   saveSet();
 }
+// v6 migration (2026-09-06 track-lock design): the off-track thresholds became
+// per-vehicle. A rider's old GLOBAL override carries into every vehicle so the
+// growl fires where it always did; ADV's new 50/30 defaults only apply untouched.
+if (!S.set._v6) {
+  S.set._v6 = 1;
+  for (const k of ['offM', 'onM']) {
+    const v = S.set.adv[k]; delete S.set.adv[k];
+    if (v == null) continue;
+    const veh = S.set.adv.veh = S.set.adv.veh || {};
+    for (const n of ['walk', 'mtb', 'enduro', 'adventure']) { veh[n] = veh[n] || {}; if (veh[n][k] == null) veh[n][k] = v; }
+  }
+  saveSet();
+}
 
 /* advanced tuning knobs: hand-tuned constants promoted to sliders while the feel is dialled in.
    ADV(k) reads the override or the shipping default; the Adv tab writes S.set.adv. */
 const ADV_D = {
   headDamp: 0.12, headDead: 2, rotHz: 4, easeMs: 900, zoomThresh: 15,
   pitch: 55, // compass-mode tilt (deg): the map leans away like a windscreen view; 0 = flat
-  apprMul: 1.5, apprFloor: 250, offM: 60, onM: 40, beepVol: 0.5, cdDist: 300,
+  apprMul: 1.5, apprFloor: 250, beepVol: 0.5, cdDist: 300, // offM/onM moved into VEHICLES (track lock, 2026-09-06)
   deepHz: 460, highHz: 990, // pitch = phase: deep approaching, high at the turn
   apprUnit: 's', apprS: 15, apprM: 250, departUnit: 'm', departM: 30, departS: 4,
   btnOp: 0.4, trailGap: 20,
@@ -2842,7 +2856,10 @@ function circlePoly(lat, lon, radiusM) {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] } };
 }
 function refreshMapData() {
-  if (!mapReady) return;
+  // A style swap (reStyle, setMapStyle) drops the overlay sources and re-adds
+  // them async — addOverlays() refreshes again once they're back, so a call
+  // that lands mid-swap (a boot-time cue analysis finishing, say) just skips.
+  if (!mapReady || !map.getSource('heat')) return;
   const heat = S.heat ? S.heat.geojson : EMPTY;
   // archived local rides join the bundle heat as 'own' class — ridden trails accumulate on-device
   map.getSource('heat').setData(!S.rides.length ? heat : { type: 'FeatureCollection',
@@ -3020,12 +3037,15 @@ function applyRouteVis() {
 }
 function refreshPosLayers() {
   if (!mapReady || !S.pos) return;
-  const [la, lo] = toLL(S.pos.x, S.pos.y);
+  const dp = dispPos(), [la, lo] = toLL(dp.x, dp.y);
   map.getSource('pos').setData({ type: 'Feature',
-    // smoothed course bearing; frozen at its last value when stopped (same rule as course-up)
-    properties: { heading: S.courseBearing != null ? S.courseBearing : (S.pos.heading || 0) },
+    // locked to a track: on the line, pointing along it. Otherwise the smoothed course
+    // bearing, frozen at its last value when stopped (same rule as course-up)
+    properties: { heading: dispHeading() },
     geometry: { type: 'Point', coordinates: [lo, la] } });
-  map.getSource('posAcc').setData(S.pos.acc > 15 ? circlePoly(la, lo, S.pos.acc) : EMPTY);
+  // the accuracy circle stays on the RAW fix, so the rider can see how far the lock pulls
+  const [ra, ro] = toLL(S.pos.x, S.pos.y);
+  map.getSource('posAcc').setData(S.pos.acc > 15 ? circlePoly(ra, ro, S.pos.acc) : EMPTY);
 }
 // Stable per-rider colour from the name, so "the orange dot is Dave" holds all ride.
 function friendColor(name) {
@@ -3067,9 +3087,10 @@ function spanForZoom(zoom, lat) {
    as metres of visible map height (screen-size independent); unset presets fall back to the
    vehicle span curve's endpoints (midpoint for med). */
 function presetSpan(k) {
-  const p = S.set.zoomPresets[S.set.vehicle] || {};
+  const veh = effVehicle(); // the track's profile, not necessarily the setting
+  const p = S.set.zoomPresets[veh] || {};
   if (p[k]) return p[k];
-  const spans = (VEHICLES[S.set.vehicle] || VEHICLES.enduro).spans;
+  const spans = (VEHICLES[veh] || VEHICLES.enduro).spans;
   const mn = spans[0][1], mx = spans[spans.length - 1][1];
   return k === 'min' ? mn : k === 'max' ? mx : Math.round(Math.sqrt(mn * mx));
 }
@@ -3100,7 +3121,7 @@ function camTargetOff() {
   const o = effOrient();
   if (o === 'north') {
     if (S.courseBearing == null || !S.pos || S.pos.speed < 1.5) return [camOffX, camOffY]; // hold last
-    const R = Math.min(innerWidth, innerHeight) * 0.18, r = S.courseBearing * Math.PI / 180;
+    const R = Math.min(innerWidth, innerHeight) * 0.18, r = dispHeading() * Math.PI / 180;
     return [-Math.sin(r) * R + bias, Math.cos(r) * R];
   }
   return [bias, Math.round(innerHeight * 0.15)];
@@ -3111,17 +3132,23 @@ function followCamera() {
   if (TRAIN.active && TRAIN.holdD != null) return; // lesson pause: stationary — don't fight the learner's gestures with re-eases
   const now = Date.now(); if (now - lastEase < 800) return;
   lastEase = now;
-  const [la, lo] = toLL(S.pos.x, S.pos.y);
+  const dp = dispPos(), [la, lo] = toLL(dp.x, dp.y); // the drawn position — on the track while locked
   const [tx, ty] = camTargetOff();
   camOffX += (tx - camOffX) * 0.18; camOffY += (ty - camOffY) * 0.18; // slow migration, not a jump
   const opts = { center: [lo, la], duration: ADV('easeMs'), easing: t => t,
     offset: [Math.round(camOffX), Math.round(camOffY)] };
   if (S.snapZoom) { // snap zoom: compass-up to the heading, tight zoom held while following
     opts.zoom = S.snapZoom.zoom;
-    if (S.courseBearing != null) opts.bearing = S.courseBearing;
+    if (S.courseBearing != null) opts.bearing = dispHeading();
   } else {
-    // off track: freeze the zoom (keep centring) until back on track — no lurching auto-zoom while lost
-    if (S.set.autoZoom && !(S.navState && S.navState.off)) { const z = cruiseZoom(la); if (z != null) opts.zoom = z; }
+    const ns = S.navState;
+    if (S.set.autoZoom && ns && ns.off) {
+      // off track: settle ONCE at the cruise span (a missed turn happens in approach zoom,
+      // and holding that tight frame while lost is what read as "zooms in when off"), then
+      // hold — no lurching auto-zoom, and never tighter, until back on track
+      if (!ns.offZoomed && S.zoomHold == null) { const z = zoomForSpan(presetSpan('max'), la); if (z != null) opts.zoom = z; }
+      ns.offZoomed = true;
+    } else if (S.set.autoZoom) { const z = cruiseZoom(la); if (z != null) opts.zoom = z; }
     if (effOrient() === 'oriented' && S.deviceHeading != null) opts.bearing = S.deviceHeading;
   }
   map.easeTo(opts);
@@ -3151,7 +3178,7 @@ const PRESET_LABEL = { min: 'turn', med: 'med', max: 'riding' };
 function centerLat() { return mapReady ? map.getCenter().lat : -33; }
 function refreshPresets() {
   for (const b of document.querySelectorAll('.ctl.preset')) {
-    const k = b.dataset.p, p = S.set.zoomPresets[S.set.vehicle] || {};
+    const k = b.dataset.p, p = S.set.zoomPresets[effVehicle()] || {};
     b.textContent = p[k] ? 'L' + Math.round(zoomForSpan(p[k], centerLat())) : PRESET_LABEL[k];
     b.classList.toggle('set', !!p[k]);
   }
@@ -3255,10 +3282,11 @@ function presetSet(k) {
   if (zoomTipGate()) return;
   if (!mapReady) return;
   const z = map.getZoom();
-  const zp = S.set.zoomPresets[S.set.vehicle] = S.set.zoomPresets[S.set.vehicle] || {};
+  const veh = effVehicle(); // saved against the profile actually riding — an ADV track tunes adventure
+  const zp = S.set.zoomPresets[veh] = S.set.zoomPresets[veh] || {};
   zp[k] = Math.round(spanForZoom(z, centerLat()));
   saveSet(); vib([40]); refreshPresets();
-  toast((k === 'min' ? 'Turn' : 'Riding') + ' zoom saved — L' + z.toFixed(1) + ' (' + S.set.vehicle + ')');
+  toast((k === 'min' ? 'Turn' : 'Riding') + ' zoom saved — L' + z.toFixed(1) + ' (' + veh + ')');
   trainEvent('preset');
 }
 /* − / + : tap steps the zoom; hold saves the favourite (+ → turn/close, − → riding/wide) */
@@ -3561,22 +3589,37 @@ function fitSelected() {
 /* ---------------- navigation ---------------- */
 // warning lead is time-based (~15 s far / ~5 s near from rolling speed), clamped per vehicle.
 // spans = auto-zoom curve: [speed m/s, metres of visible map height] points, lerped + end-clamped
+/* lock / offM / onM — track lock (docs/plans/2026-09-06-nav-track-lock-design.md):
+   offM = off-track beyond, onM = back on within. Adventure LOCKS the dot, arrow and
+   camera to the track while on it, Google-Maps style, with an accuracy guard on the
+   way off; the others draw the raw fix and trip on a single fix past offM, as always. */
 const VEHICLES = {
-  walk:      { farMin: 25,  farMax: 60,  nearMin: 10, nearMax: 30,  defSpd: 1.4,
+  walk:      { farMin: 25,  farMax: 60,  nearMin: 10, nearMax: 30,  defSpd: 1.4, lock: false, offM: 60, onM: 40,
                spans: [[0, 150], [1.4, 250], [2.2, 400]] },
-  mtb:       { farMin: 40,  farMax: 150, nearMin: 15, nearMax: 50,  defSpd: 4,
+  mtb:       { farMin: 40,  farMax: 150, nearMin: 15, nearMax: 50,  defSpd: 4,   lock: false, offM: 60, onM: 40,
                spans: [[0, 250], [4.2, 500], [9.7, 900]] },
-  enduro:    { farMin: 60,  farMax: 250, nearMin: 25, nearMax: 70,  defSpd: 8,
+  enduro:    { farMin: 60,  farMax: 250, nearMin: 25, nearMax: 70,  defSpd: 8,   lock: false, offM: 60, onM: 40,
                spans: [[0, 300], [8.3, 900], [19.4, 2500]] },
-  adventure: { farMin: 120, farMax: 400, nearMin: 40, nearMax: 100, defSpd: 14,
+  adventure: { farMin: 120, farMax: 400, nearMin: 40, nearMax: 100, defSpd: 14,  lock: true,  offM: 50, onM: 30,
                spans: [[0, 400], [13.9, 2000], [27.8, 7000]] },
 };
-// per-vehicle value with any advanced-tab override for the current vehicle applied
-function vehVal(k) {
-  const o = S.set.adv.veh && S.set.adv.veh[S.set.vehicle];
-  if (o && o[k] != null) return o[k];
-  return (VEHICLES[S.set.vehicle] || VEHICLES.enduro)[k];
+/* the handling profile in force. The navigated track's ride mode picks the vehicle
+   (adv → adventure, enduro → enduro, mtb → mtb — rides.mode on the server, carried
+   per track in the pack); a track with no mode, a loose GPX and explore mode fall
+   back to the vehicle SETTING. Cue windows, zoom spans, track lock and the off-track
+   thresholds all follow it. */
+function effVehicle() {
+  const trk = navMode() === 'explore' ? null : S.tracks[S.sel];
+  const v = DingoTrackLock.vehicleFor(trk && trk.mode, S.set.vehicle);
+  return VEHICLES[v] ? v : VEHICLES[S.set.vehicle] ? S.set.vehicle : 'enduro';
 }
+// per-vehicle value with any advanced-tab override for that vehicle applied
+function vehValFor(veh, k) {
+  const o = S.set.adv.veh && S.set.adv.veh[veh];
+  if (o && o[k] != null) return o[k];
+  return (VEHICLES[veh] || VEHICLES.enduro)[k];
+}
+function vehVal(k) { return vehValFor(effVehicle(), k); }
 /* approach chime by seconds (speed-scaled, clamped to the vehicle's far window)
    or a fixed distance; departure chime likewise (2026-07-17 design) */
 function warnDists(ns) {
@@ -3629,7 +3672,7 @@ function applyRouteChrome(trk) {
   } else prog.classList.toggle('expanded', !!(S.set.profile && trk.hasEle));
 }
 function freshNavState(rev) {
-  return { idx: -1, dir: rev ? -1 : 1, dirVotes: rev ? -4 : 0, off: false, lastOffBeep: 0,
+  return { idx: -1, dir: rev ? -1 : 1, dirVotes: rev ? -4 : 0, off: false, beyondSince: null, lastOffBeep: 0,
     alertStates: new Map(), movingS: 0, avgSpd: null, lastFixT: 0 };
 }
 /* bearing of the track itself at a point — used to tell "running along me" from
@@ -3644,7 +3687,7 @@ function snapUpdate(x, y, hdg) {
   if (S.snapT && t - S.snapT < SNAP_HOLD_MS) return;
   const cur = S.tracks[S.sel];
   if (cur) { // latched: let go once we're properly clear, not at the first wobble
-    if (nearestOnTrack(cur, x, y, S.navState ? S.navState.idx : -1).d > ADV('offM')) snapUnlatch(false);
+    if (nearestOnTrack(cur, x, y, S.navState ? S.navState.idx : -1).d > vehVal('offM')) snapUnlatch(false);
     return;
   }
   // unlatched: score every track we're sitting on. A track crossing us is a worse
@@ -3652,11 +3695,11 @@ function snapUpdate(x, y, hdg) {
   let best = null;
   for (let i = 0; i < S.tracks.length; i++) {
     const n = nearestOnTrack(S.tracks[i], x, y);
-    if (n.d >= ADV('onM')) continue;
+    if (n.d >= vehVal('onM')) continue;
     let pen = 0;
     if (hdg != null && !isNaN(hdg)) {
       const off = Math.abs(angDiff(hdg, trackBearingAt(S.tracks[i], n.idx)));
-      pen = Math.min(off, 180 - off) / 90 * ADV('onM'); // 0 along us → a full on-radius across us
+      pen = Math.min(off, 180 - off) / 90 * vehVal('onM'); // 0 along us → a full on-radius across us
     }
     const score = n.d + pen;
     if (!best || score < best.score) best = { i, idx: n.idx, score };
@@ -3786,7 +3829,9 @@ function openBrief() {
     rows.push(['Records', 'breadcrumb, speed, compass']);
     rows.push(['Cues', 'none']);
   }
-  rows.push(['Vehicle', { walk: 'Walk', mtb: 'MTB', enduro: 'Enduro', adventure: 'ADV' }[S.set.vehicle] || S.set.vehicle]);
+  const veh = effVehicle(), vehName = { walk: 'Walk', mtb: 'MTB', enduro: 'Enduro', adventure: 'ADV' };
+  rows.push(['Profile', (vehName[veh] || veh) + (trk && trk.mode && DingoTrackLock.MODE_VEHICLE[trk.mode] ? ' · from track type' : ' · setting')]);
+  if (vehVal('lock')) rows.push(['Track lock', 'on · off beyond ' + vehVal('offM') + ' m']);
   document.getElementById('briefRows').innerHTML = rows.map(r =>
     '<span class="bl">' + escHtml(r[0]) + '</span><span class="bv' + (r[2] ? ' warn' : '') + '">'
     + escHtml(String(r[1])) + '</span>').join('');
@@ -3842,8 +3887,22 @@ function onFix(lat, lon, acc, speed, heading) {
   // course bearing: only trust headings above ~7 km/h, low-pass; held frozen when slower
   if (hdg != null && !isNaN(hdg) && (spd || 0) > 2)
     S.courseBearing = S.courseBearing == null ? hdg : S.courseBearing + angDiff(S.courseBearing, hdg) * 0.4;
+  S.disp = null; // display pose: set by navFix while locked to a track, else the raw fix draws
   renderMain(); applyMoveGestures();
-  refreshPosLayers(); followCamera();
+  // the nav step runs BEFORE the dot and camera draw, so a locked profile can put
+  // them on the track (track lock, 2026-09-06). finally: a thrown cue must not freeze the dot.
+  try { navFix(x, y, t, spd, hdg); }
+  finally { refreshPosLayers(); followCamera(); }
+}
+/* where the rider is DRAWN: the projected point + track bearing while locked, the raw
+   fix otherwise. Consumers: the dot/arrow, the follow camera, the north-up drift. */
+function dispPos() { return S.disp || S.pos; }
+function dispHeading() {
+  if (S.disp && S.disp.locked) return S.disp.heading;
+  return S.courseBearing != null ? S.courseBearing : (S.pos && S.pos.heading) || 0;
+}
+function navFix(x, y, t, spd, hdg) {
+  const ns = S.navState;
   if (!S.nav || !ns) return;
   // breadcrumb drops for EVERY ride — off-track, free-ride, exploring. It used to sit below
   // the no-track return, so a trackless ride recorded nothing; Explore is exactly that ride.
@@ -3853,7 +3912,14 @@ function onFix(lat, lon, acc, speed, heading) {
 
   const trk = S.tracks[S.sel];
   const near = nearestOnTrack(trk, x, y, ns.idx);
-  if (ns.idx >= 0 && near.d < ADV('offM')) {
+  // track lock: the foot of the perpendicular (not the nearest vertex), and the
+  // off-track decision with the profile's guard. Enduro: one fix past offM, as ever.
+  const lock = !!vehVal('lock');
+  const proj = DingoTrackLock.projectOnTrack(trk.xy, trk.n, near.idx, x, y);
+  const dec = DingoTrackLock.offDecision(ns, { d: proj.d, acc: S.pos.acc, t, offM: vehVal('offM'), onM: vehVal('onM'), lock });
+  S.disp = DingoTrackLock.displayPose({ lock, off: ns.off, raw: { x, y, heading: S.courseBearing != null ? S.courseBearing : hdg },
+    proj, course: (S.pos.speed || 0) > 2 ? S.courseBearing : null, dir: ns.dir });
+  if (ns.idx >= 0 && near.d < vehVal('offM')) {
     const delta = near.idx - ns.idx;
     if (delta !== 0) ns.dirVotes = Math.max(-8, Math.min(8, ns.dirVotes + Math.sign(delta)));
     const newDir = ns.dirVotes <= -4 ? -1 : ns.dirVotes >= 4 ? 1 : ns.dir;
@@ -3864,17 +3930,20 @@ function onFix(lat, lon, acc, speed, heading) {
   }
   ns.idx = near.idx;
 
-  if (near.d > ADV('offM') && !ns.off) {
-    ns.off = true; trainEvent('offtrack');
+  if (dec.wentOff) {
+    trainEvent('offtrack');
+    // off track never zooms IN: drop any approach framing and let followCamera settle
+    // once at the cruise span, then hold there until back on (design: camera when off track)
+    ns.approach = false; ns.apprArmed = false; ns.offZoomed = false;
     // Leaving the route while sitting on another track you've loaded is a different event
     // from being lost — offer the swap instead of only sounding the alarm.
     // follow only: snap does this switch by itself, so the dialog would be asking a
     // question the mode has already answered
     if (navMode() === 'follow' && !TRAIN.active
-        && S.tracks.some((t, i) => i !== S.sel && nearestOnTrack(t, x, y).d < ADV('onM')))
+        && S.tracks.some((t, i) => i !== S.sel && nearestOnTrack(t, x, y).d < vehVal('onM')))
       openTrackPicker('off', S.sel);
   }
-  if (near.d < ADV('onM') && ns.off) { ns.off = false; BEEP.back(); document.getElementById('banner').classList.remove('on'); prog.classList.remove('offtrack'); trainEvent('backontrack'); }
+  if (dec.cameBack) { BEEP.back(); document.getElementById('banner').classList.remove('on'); prog.classList.remove('offtrack'); trainEvent('backontrack'); }
   if (ns.off) {
     const bn = document.getElementById('banner');
     bn.textContent = 'Off track · ' + Math.round(near.d) + ' m'; bn.classList.add('on');
@@ -4264,7 +4333,7 @@ function enterSnapZoom() {
   // ease without a zoom would freeze the interrupted entry animation mid-flight
   S.snapZoom = { prevZoom: map.getZoom(), zoom: Math.max(16.5, zoomForSpan(presetSpan('min'), la)) };
   setFollow(true); S.dotFit = false; // snapping in centres you on the junction
-  const brg = S.courseBearing != null ? S.courseBearing : (S.pos.heading || 0);
+  const brg = dispHeading();
   map.easeTo({ center: [lo, la], zoom: S.snapZoom.zoom,
     bearing: brg, offset: [0, Math.round(innerHeight * 0.18)], duration: 450 });
   setHold(null); vib([40]);
@@ -5194,7 +5263,7 @@ async function addFile(name, text, ctx) {
       let nT = 0, errs = 0;
       if (obj.heatmap) await addFile(obj.heatmapName || 'heatmap.geojson', JSON.stringify(obj.heatmap), slug ? { pack: slug } : undefined);
       for (const t of obj.tracks) {
-        try { await addFile(t.name, t.gpx, slug ? { pack: slug, rideId: t.rideId } : undefined); nT++; }
+        try { await addFile(t.name, t.gpx, { pack: slug || '', rideId: slug ? t.rideId : null, mode: t.mode || null }); nT++; }
         catch (e) { errs++; console.warn('bundle track failed', t.name, e); }
       }
       // pack-carried turn edits: replay other riders' contributions on this download
@@ -5251,8 +5320,9 @@ async function addFile(name, text, ctx) {
   if (existing >= 0) S.tracks.splice(existing, 1);
   const trk = processTrack(id, trkName, pts);
   trk.geomHash = h; trk.pack = (ctx && ctx.pack) || '';
+  trk.mode = (ctx && ctx.mode) || null; // ride mode from the pack (adv/enduro/mtb) — picks the handling profile
   S.tracks.push(trk);
-  await idb.put({ id, name: trkName, kind: 'gpx', pack: trk.pack, text });
+  await idb.put({ id, name: trkName, kind: 'gpx', pack: trk.pack, mode: trk.mode, text });
   return 'gpx';
 }
 /* Remove a pack's tracks + heatmap from memory and IDB. Cue-edit overlays are
@@ -5712,7 +5782,7 @@ function tpCandidates() { // every track, with how far it is from the rider righ
   const rows = S.tracks.map((t, i) => {
     let d = null;
     if (S.pos) { const n = nearestOnTrack(t, S.pos.x, S.pos.y); d = n.d; }
-    return { i, t, d, on: d != null && d < ADV('onM') };
+    return { i, t, d, on: d != null && d < vehVal('onM') };
   });
   // nearest first when we know where we are — the ones you could actually be riding
   if (S.pos) rows.sort((a, b) => (a.d ?? 1e12) - (b.d ?? 1e12));
@@ -7375,7 +7445,7 @@ const SETTINGS = [
   { sec: 'nav', k: 'sound', t: 'toggle', l: 'Turn beeps', id: 'setSound', put: v => setSound(v) }, // setSound persists + syncs every mute face
   { sec: 'nav', k: 'confirm', t: 'toggle', l: 'Departure chime (turn done)', id: 'setConfirm' },
   { sec: 'nav', k: 'startBrief', t: 'toggle', l: 'Ride briefing before START', id: 'setStartBrief' },
-  { sec: 'nav', k: 'vehicle', t: 'seg', l: 'Vehicle (alerts + zoom)', segId: 'vehSeg',
+  { sec: 'nav', k: 'vehicle', t: 'seg', l: 'Vehicle (a track\'s own type overrides)', segId: 'vehSeg',
     opts: [['walk', 'Walk'], ['mtb', 'MTB'], ['enduro', 'Enduro'], ['adventure', 'ADV']],
     apply: () => { refreshPresets(); renderSettings('adv'); } }, // presets + adv overrides are per-vehicle
   { sec: 'nav', k: 'autoZoom', t: 'toggle', l: 'Auto-zoom', id: 'setAutoZoom' },
@@ -7415,15 +7485,16 @@ const SETTINGS = [
   { k: 'easeMs', t: 'range', adv: 1, l: 'Follow ease (ms)', min: 200, max: 2000, step: 50 },
   { k: 'zoomThresh', t: 'range', adv: 1, l: 'Compass zoom threshold', min: 10, max: 18, step: 0.5 },
   { k: 'pitch', t: 'range', adv: 1, l: 'Compass tilt (deg, 0 flat)', min: 0, max: 60, step: 5 },
-  { h: 'Alerts & cues (current vehicle)' },
+  { h: 'Alerts, cues & track lock (current vehicle)' },
   { k: 'farMin', t: 'range', veh: 1, l: 'Far warn min (m)', min: 10, max: 300, step: 5 },
   { k: 'farMax', t: 'range', veh: 1, l: 'Far warn max (m)', min: 40, max: 800, step: 10 },
   { k: 'nearMin', t: 'range', veh: 1, l: 'Near warn min (m)', min: 5, max: 150, step: 5 },
   { k: 'nearMax', t: 'range', veh: 1, l: 'Near warn max (m)', min: 15, max: 300, step: 5 },
   { k: 'apprMul', t: 'range', adv: 1, l: 'Approach window ×far', min: 1, max: 4, step: 0.1 },
   { k: 'apprFloor', t: 'range', adv: 1, l: 'Approach floor (m)', min: 100, max: 600, step: 25 },
-  { k: 'offM', t: 'range', adv: 1, l: 'Off-track beyond (m)', min: 20, max: 200, step: 5 },
-  { k: 'onM', t: 'range', adv: 1, l: 'Back on within (m)', min: 10, max: 150, step: 5 },
+  { k: 'lock', t: 'toggle', veh: 1, l: 'Lock position to track (Google-Maps style)' },
+  { k: 'offM', t: 'range', veh: 1, l: 'Off-track beyond (m)', min: 20, max: 200, step: 5 },
+  { k: 'onM', t: 'range', veh: 1, l: 'Back on within (m)', min: 10, max: 150, step: 5 },
   { k: 'beepVol', t: 'range', adv: 1, l: 'Beep volume', min: 0, max: 1, step: 0.05 },
   { k: 'deepHz', t: 'range', adv: 1, l: 'Approach tone (Hz)', min: 200, max: 800, step: 10 },
   { k: 'highHz', t: 'range', adv: 1, l: 'Turn tone (Hz)', min: 600, max: 1600, step: 10 },
@@ -7466,7 +7537,7 @@ const SETTINGS = [
   { k: 'trailProm', t: 'range', adv: 1, l: 'Basemap trail width ×', min: 0.3, max: 3, step: 0.1 },
   { k: 'gpsAcc', t: 'range', adv: 1, l: 'GPS accuracy floor (m, 0 = off)', min: 0, max: 100, step: 5 },
 ];
-function advGet(r) { return r.veh ? vehVal(r.k) : ADV(r.k); }
+function advGet(r) { return r.veh ? vehValFor(S.set.vehicle, r.k) : ADV(r.k); } // the tab edits the SETTING vehicle
 function advSet(r, v) {
   if (r.veh) ((S.set.adv.veh = S.set.adv.veh || {})[S.set.vehicle] = S.set.adv.veh[S.set.vehicle] || {})[r.k] = v;
   else S.set.adv[r.k] = v;
@@ -7762,8 +7833,12 @@ function applyBehaviorSettings(bh) {
   if (num('camera.approachSecs') != null) { a.apprS = num('camera.approachSecs'); a.apprUnit = 's'; }
   put('apprMul', num('camera.approachMul'));
   put('apprFloor', num('camera.approachFloorM'));
-  put('offM', num('offroute.detectM'));
-  put('onM', num('offroute.rejoinM'));
+  // off-track thresholds and track lock are per-vehicle: the preset tunes the vehicle
+  // that is set when it is applied (position.snapToRoute gained its home 2026-09-06)
+  const vput = (k, v) => { if (v != null) ((a.veh = a.veh || {})[S.set.vehicle] = a.veh[S.set.vehicle] || {})[k] = v; };
+  vput('offM', num('offroute.detectM'));
+  vput('onM', num('offroute.rejoinM'));
+  if (typeof p['position.snapToRoute'] === 'boolean') vput('lock', p['position.snapToRoute']);
   put('trailGap', num('position.breadcrumbSpacingM'));
   if (typeof p['position.breadcrumb'] === 'boolean') S.set.trail = p['position.breadcrumb'];
   if (p['voice.mode']) S.set.sound = p['voice.mode'] !== 'silent';
@@ -8325,7 +8400,7 @@ async function boot() {
       } else {
         const { name, pts } = parseGPX(r.text, r.name);
         const trk = processTrack(r.id, name, pts);
-        trk.geomHash = textHash(r.text); trk.pack = r.pack || '';
+        trk.geomHash = textHash(r.text); trk.pack = r.pack || ''; trk.mode = r.mode || null;
         S.tracks.push(trk);
       }
     } catch (e) { console.warn('restore failed', r.name, e); }
