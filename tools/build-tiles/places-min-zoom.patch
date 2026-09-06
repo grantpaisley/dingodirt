@@ -1,0 +1,47 @@
+diff --git a/tiles/src/main/java/com/protomaps/basemap/layers/Places.java b/tiles/src/main/java/com/protomaps/basemap/layers/Places.java
+index 382a77b..a5dad46 100644
+--- a/tiles/src/main/java/com/protomaps/basemap/layers/Places.java
++++ b/tiles/src/main/java/com/protomaps/basemap/layers/Places.java
+@@ -90,7 +90,13 @@ public class Places implements ForwardingProfile.LayerPostProcessor {
+     rule(with("place", "village"), without("population"), use("pm:populationFallback", 2000)),
+     rule(with("place", "locality"), use("pm:kind", "locality")),
+     rule(with("place", "locality"), without("population"), use("pm:populationFallback", 1000)),
+-    rule(with("place", "hamlet"), use("pm:kind", "locality")),
++    // dingodirt: upstream sets pm:kindDetail only for city/town/village, so
++    // its own "hamlet" zoom rules below are unreachable and a hamlet falls
++    // through to the generic locality zooms. Setting it here makes those
++    // rules fire, which is plainly what they were written for. It changes no
++    // output attribute: kind_detail is emitted from the raw place tag
++    // (setAttr("kind_detail", sf.getString("place"))).
++    rule(with("place", "hamlet"), use("pm:kind", "locality"), use("pm:kindDetail", fromTag("place"))),
+     rule(with("place", "hamlet"), without("population"), use("pm:populationFallback", 200)),
+     rule(with("place", "isolated_dwelling"), use("pm:kind", "locality")),
+     rule(with("place", "isolated_dwelling"), without("population"), use("pm:populationFallback", 100)),
+@@ -132,14 +138,22 @@ public class Places implements ForwardingProfile.LayerPostProcessor {
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "city"), with("pm:populationFallback"),
+       use("pm:minzoom", 8)),
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "town"), use("pm:kindRank", 2), use("pm:minzoom", 7)),
++    // dingodirt: out bush a village or a hamlet IS the town, and it may hold
++    // the only fuel for 200 km, so the SETTLEMENT kinds come forward to z8.
++    //
++    // place=locality does NOT move, and neither do isolated_dwelling, farm
++    // and allotments. In OSM place=locality means a named place with NO
++    // population — a parish name, an old siding, a bend in the river. A
++    // first attempt moved them too: one z8 tile over the Flinders went from
++    // 2 places to 44, and 30 of the 44 were these. They are not towns.
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "town"), with("pm:populationFallback"),
+-      use("pm:minzoom", 9)),
+-    rule(with("pm:kind", "locality"), with("pm:kindDetail", "village"), use("pm:kindRank", 3), use("pm:minzoom", 10)),
++      use("pm:minzoom", 8)),
++    rule(with("pm:kind", "locality"), with("pm:kindDetail", "village"), use("pm:kindRank", 3), use("pm:minzoom", 8)),
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "village"), atLeast("pm:population", 2000),
+-      use("pm:minzoom", 11)),
+-    rule(with("pm:kind", "locality"), with("pm:kindDetail", "hamlet"), use("pm:kindRank", 5), use("pm:minzoom", 11)),
++      use("pm:minzoom", 8)),
++    rule(with("pm:kind", "locality"), with("pm:kindDetail", "hamlet"), use("pm:kindRank", 5), use("pm:minzoom", 8)),
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "hamlet"), atLeast("pm:population", 200),
+-      use("pm:minzoom", 12)),
++      use("pm:minzoom", 8)),
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "isolated_dwelling"), use("pm:kindRank", 6),
+       use("pm:minzoom", 13)),
+     rule(with("pm:kind", "locality"), with("pm:kindDetail", "isolated_dwelling"), atLeast("pm:population", 100),
