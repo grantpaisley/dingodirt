@@ -88,6 +88,7 @@ database and server-side auth.
    | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | step 4 |
    | `COOKIE_DOMAIN` | `.dingodirt.com` |
    | `BLOB_READ_WRITE_TOKEN` | injected by step 3 |
+   | `GOOGLE_MAPS_API_KEY` | Google Cloud → API key with the **Routes API** enabled, API restriction set to Routes API only. Powers nav's Google Maps link import (`/api/routes/gmaps`); until set, that route answers 422 with this hint. |
 
    `COOKIE_DOMAIN` is the value that lets a later `plan.` subdomain share a
    session with `dingodirt.com`. Do not set it locally.

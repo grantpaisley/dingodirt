@@ -3,11 +3,10 @@ import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { packByToken } from "@/lib/packs";
 import { outageJson, reportOutage } from "@/lib/alert";
+import { clientIp, createRateLimiter } from "@/lib/ratelimit";
 
 // Best-effort per-IP rate limit (per instance), alongside Turnstile.
-const hits = new Map<string, { count: number; reset: number }>();
-const WINDOW_MS = 60 * 60 * 1000;
-const MAX_PER_WINDOW = 5;
+const limiter = createRateLimiter(5, 60 * 60 * 1000);
 
 async function verifyTurnstile(
   token: string | null,
@@ -30,13 +29,8 @@ async function verifyTurnstile(
 }
 
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const now = Date.now();
-  const entry = hits.get(ip);
-  if (!entry || now > entry.reset) {
-    hits.set(ip, { count: 1, reset: now + WINDOW_MS });
-  } else if (++entry.count > MAX_PER_WINDOW) {
+  const ip = clientIp(req);
+  if (limiter.hit(ip)) {
     return NextResponse.json(
       { ok: false, error: "Too many reports — try again later." },
       { status: 429 },
