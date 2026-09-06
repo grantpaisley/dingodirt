@@ -93,7 +93,7 @@ Rollout steps 1–2a landed the same day. A fourth facet, which the review surfa
 | `cues.far*/near*` | `VEH.farMin/farMax/nearMin/nearMax` + `aSpd * APPR_S` / `aSpd * 5` in `onFix` |
 | `cues.dangerFarM/NearM` | `DANGER_FAR/NEAR` (cues.js:278) |
 | `cues.confirmAfterM` | `DEPART_M` |
-| `offroute.detectM/rejoinM` | `OFF_M`/`ON_M` |
+| `offroute.detectM/rejoinM` | `VEHICLES[v].offM/onM` (per-vehicle since 2026-09-06; was `OFF_M`/`ON_M`) |
 | `offroute.repeatSecs` | `30e3` in the off-beep throttle |
 | `camera.followMode` | `opts.orient` ('north'/'course') |
 | `camera.lookAhead` | `vh * 0.15` in `_followCamera` |
@@ -102,7 +102,7 @@ Rollout steps 1–2a landed the same day. A fourth facet, which the review surfa
 | `hud.nextTurnPanel` | `_setHud` visibility logic |
 | `voice.mode` | `BEEP` grammar / `SOUND.on` |
 
-Some params are not implemented anywhere yet. The schema is forward-looking. Per the ignore-unknown contract, old apps just skip them: `reroute.*` (needs a routing engine), `guidance.laneGuidance`, `position.snapToRoute`, `camera.pitch/overviewWindowMin`, `hud.speedLimit/speedAlert` (needs limit data), `voice.tts`.
+Some params are not implemented anywhere yet. The schema is forward-looking. Per the ignore-unknown contract, old apps just skip them: `reroute.*` (needs a routing engine), `guidance.laneGuidance`, `camera.overviewWindowMin`, `hud.speedLimit/speedAlert` (needs limit data), `voice.tts`. (`position.snapToRoute` gained a Nav home on 2026-09-06 as the per-vehicle track lock — `docs/plans/2026-09-06-nav-track-lock-design.md`; `camera.pitch` on 2026-08-15.)
 
 ## Rollout (mirrors the scheme rollout)
 
@@ -133,7 +133,7 @@ step-4 adoption:
 - **Behaviour params with Nav homes today**: `camera.followMode/autoZoom/
   easeMs/approachSecs/approachMul/approachFloorM/zoomCurve` (the curve span ends →
   Nav's min/max zoom presets), `offroute.detectM/rejoinM`, `position.
-  breadcrumb/breadcrumbSpacingM`, `voice.mode` (silent → sound off). Nav skips the rest
+  snapToRoute` (per-vehicle track lock), `position.breadcrumb/breadcrumbSpacingM`, `voice.mode` (silent → sound off). Nav skips the rest
   (`reroute.*`, `pitch`, lane guidance, TTS, the `chrome.*` ui tokens),
   per the ignore-unknown contract. Nav's chrome does not read the ui facet yet.
 - **Vendoring direction**: Nav's copy is a *translation*, not a verbatim

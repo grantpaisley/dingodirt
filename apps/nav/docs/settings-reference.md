@@ -31,7 +31,7 @@ There are three tiers:
 | Show advanced tab | General | toggle | off | global |
 | Turn beeps | Nav | toggle | on | global |
 | Departure chime (turn done) | Nav | toggle | on | global |
-| **Vehicle (alerts + zoom)** | Nav | Walk · MTB · Enduro · ADV | Enduro | **Is** the ride mode — see §4 |
+| **Vehicle (a track's own type overrides)** | Nav | Walk · MTB · Enduro · ADV | Enduro | The **fallback** ride mode. A pack track carries its own type (adv / enduro / mtb) and that picks the profile while it is being navigated; loose GPX, typeless tracks and Explore use this setting — see §4 |
 | Auto-zoom | Nav | toggle | on | zoom presets stored per vehicle |
 | Compass when zoomed in | Nav | Turns · Zoom · Off | Turns | global |
 | Countdown units | Nav | Metres · Seconds | Metres | global |
@@ -96,7 +96,7 @@ There are three tiers:
 | Departure chime by | Metres | Metres · Seconds | global |
 | Departure metres / seconds past turn | 30 m / 4 s | 10–200 / 1–20 | global |
 
-### Alerts & cues — **per-vehicle** (edits apply to the selected vehicle)
+### Alerts, cues & track lock — **per-vehicle** (edits apply to the selected vehicle)
 
 | Setting | Default (Enduro) | Range | Context |
 |---|---|---|---|
@@ -104,8 +104,9 @@ There are three tiers:
 | Near warn min / max (m) | 25 / 70 | 5–150 / 15–300 | **per vehicle** |
 | Approach window ×far | 1.5 | 1–4 | global (camera framing) |
 | Approach floor (m) | 250 | 100–600 | global |
-| Off-track beyond (m) | 60 | 20–200 | global |
-| Back on within (m) | 40 | 10–150 | global |
+| Lock position to track | off (ADV: **on**) | toggle | **per vehicle** — Google-Maps style: the dot, arrow and camera sit on the track while on it; the breadcrumb and accuracy circle stay on the raw fix. Design: `docs/plans/2026-09-06-nav-track-lock-design.md` |
+| Off-track beyond (m) | 60 (ADV: 50) | 20–200 | **per vehicle**. With lock on, a fix past this only counts if its accuracy circle cannot reach the track, or it has stayed past for 2 s |
+| Back on within (m) | 40 (ADV: 30) | 10–150 | **per vehicle** — no guard on the way back |
 
 ### Compass & camera
 
@@ -160,12 +161,20 @@ There are three tiers:
 | Far warn min–max (m) | 25–60 | 40–150 | 60–250 | 120–400 |
 | Near warn min–max (m) | 10–30 | 15–50 | 25–70 | 40–100 |
 | Default speed (m/s) | 1.4 | 4 | 8 | 14 |
+| Lock position to track | off | off | off | **on** |
+| Off-track beyond / back on within (m) | 60 / 40 | 60 / 40 | 60 / 40 | 50 / 30 |
 | Auto-zoom spans (m at speed steps) | 150→400 | 250→900 | 300→2500 | 400→7000 |
 | Zoom presets (min/med/max) | per vehicle, hold-to-set | ” | ” | ” |
 | Advanced far/near overrides | stored per vehicle | ” | ” | ” |
 
 The approach chime in **Seconds** mode = speed × seconds, clamped into the
 far min–max window of the vehicle. **Metres** mode ignores the vehicle.
+
+Which column applies is decided per ride: a pack track's own type (`adv` →
+ADV, `enduro` → Enduro, `mtb` → MTB) wins while that track is being
+navigated; otherwise the Vehicle setting. Going off track releases approach
+zoom and settles at the riding (max) zoom for every column — it never zooms
+in while you are off.
 
 ---
 
