@@ -3304,12 +3304,21 @@ for (const [id, k, dir] of [['zoomIn', 'min', 1], ['zoomOut', 'max', -1]]) {
 }
 /* box + dot: the old two-state dot/square button split into its two jobs —
    box (bottom-left) always fits the whole track, dot (bottom-right) always comes home */
+let homePending = false; // dot tapped before the first fix: come home when it lands
 function recentreTap() { // dot: come home, centre on me
+  if (!S.pos || !mapReady) {
+    // no fix yet (or the map is still loading): say so instead of silently hiding the
+    // dot, ask the OS again — the tap is the gesture iOS wants before it re-prompts —
+    // and finish the job on the first fix
+    if (!S.demo) { toast(gpsDenied ? gpsMsg(1) : 'Waiting for GPS…', gpsDenied ? 8000 : 0); kickGPS(); }
+    homePending = true; return;
+  }
+  homePending = false;
   S.dotFit = false; setFollow(true);
-  if (S.pos && mapReady) { const [la, lo] = toLL(S.pos.x, S.pos.y);
-    // coming home also restores the mode's camera: compass gets its tilt back
-    // after a flat box overview, north-up comes back flat
-    map.easeTo({ center: [lo, la], pitch: effOrient() === 'oriented' ? ADV('pitch') : 0, duration: 450 }); }
+  const [la, lo] = toLL(S.pos.x, S.pos.y);
+  // coming home also restores the mode's camera: compass gets its tilt back
+  // after a flat box overview, north-up comes back flat
+  map.easeTo({ center: [lo, la], pitch: effOrient() === 'oriented' ? ADV('pitch') : 0, duration: 450 });
   trainEvent('recentre');
 }
 function fitTap() { // box: zoom out to the whole track
@@ -3892,7 +3901,7 @@ function onFix(lat, lon, acc, speed, heading) {
   // the nav step runs BEFORE the dot and camera draw, so a locked profile can put
   // them on the track (track lock, 2026-09-06). finally: a thrown cue must not freeze the dot.
   try { navFix(x, y, t, spd, hdg); }
-  finally { refreshPosLayers(); followCamera(); }
+  finally { refreshPosLayers(); followCamera(); if (homePending && mapReady) recentreTap(); }
 }
 /* where the rider is DRAWN: the projected point + track bearing while locked, the raw
    fix otherwise. Consumers: the dot/arrow, the follow camera, the north-up drift. */
@@ -4810,17 +4819,76 @@ for (const b of document.querySelectorAll('#colourPick [data-tc]'))
   };
 document.getElementById('cpCancel').onclick = closeDialog;
 
-/* ---------------- GPS ---------------- */
-let watchId = null;
-function startGPS() {
-  if (watchId != null) return; // already watching — GPS runs continuously so the dot shows even when idle
-  if (!navigator.geolocation) { toast('No GPS available'); return; }
-  watchId = navigator.geolocation.watchPosition(
-    p => onFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.speed, p.coords.heading),
-    e => toast('GPS: ' + e.message),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+/* ---------------- GPS ----------------
+   One watchPosition for the life of the page. Everything past the first watch call is
+   here for iOS Safari (2026-09-07: a friend's iPhone showed no dot, and the recentre
+   tap did nothing):
+   - a watch that has errored (permission, timeout, no fix) stays registered but may
+     never deliver again; the old code kept its id, so startGPS() saw "already
+     watching" and nobody ever asked the OS a second time;
+   - iOS stops the watch when the screen locks or Safari goes to the background, and
+     a fresh watchPosition() is the only reliable way to get fixes flowing again;
+   - "Allow Once" expires in the background: the next callback is PERMISSION_DENIED,
+     and a fresh watch from a tap is what makes iOS ask again;
+   - iOS reports an unknown speed/heading as -1 where the spec (and Android) says null.
+   So: restart on error, restart on return to the foreground, and a watchdog that
+   restarts a watch that has gone quiet while the page is visible. */
+let watchId = null, gpsWanted = false, gpsDenied = false, lastFixAt = 0, lastGpsStart = 0;
+const GPS_OPTS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
+const GPS_QUIET_MS = 30000; // no fix for this long while visible = the watch has died
+function gpsMsg(code) {
+  if (code === 1) {
+    if (!isSecureContext) return 'GPS needs https — open the hosted link, not http://';
+    return /iPhone|iPad/.test(navigator.userAgent)
+      ? 'Location blocked — Settings → Privacy → Location Services → Safari Websites → While Using, then try again'
+      : 'Location blocked — allow it for this site in the browser settings';
+  }
+  return code === 3 ? 'GPS: waiting for a fix…' : 'GPS: position unavailable';
 }
-function stopGPS() { if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
+function onGpsError(e) {
+  console.warn('[gps] error', e.code, e.message);
+  if (e.code === 1) { gpsDenied = true; toast(gpsMsg(1), 8000); stopWatch(); return; } // ask again from a tap, not in a loop
+  toast(gpsMsg(e.code));
+  restartGPS(); // a watch that has errored is not to be trusted to recover on its own
+}
+function stopWatch() { if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
+function startWatch() {
+  stopWatch();
+  lastGpsStart = Date.now();
+  watchId = navigator.geolocation.watchPosition(p => {
+    const c = p.coords;
+    gpsDenied = false; lastFixAt = Date.now();
+    onFix(c.latitude, c.longitude, c.accuracy,
+      c.speed != null && c.speed >= 0 ? c.speed : null,
+      c.heading != null && c.heading >= 0 ? c.heading : null);
+  }, onGpsError, GPS_OPTS);
+}
+function startGPS() {
+  if (!navigator.geolocation) { toast('No GPS available'); return; }
+  gpsWanted = true;
+  if (watchId != null) return; // already watching — GPS runs continuously so the dot shows even when idle
+  startWatch();
+}
+function stopGPS() { gpsWanted = false; stopWatch(); }
+/* ask the OS for fixes again: after an error, on return from the background, when the
+   watch goes quiet, or from the recentre dot. Rate-limited so a flapping error can't spin. */
+function restartGPS() {
+  if (!gpsWanted || !navigator.geolocation) return;
+  if (Date.now() - lastGpsStart < 3000) return;
+  startWatch();
+}
+function kickGPS() { // a tap: past the rate limit, and a re-ask even after a denial
+  if (!navigator.geolocation) { toast('No GPS available'); return; }
+  gpsWanted = true; lastGpsStart = 0; restartGPS();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && gpsWanted) { lastGpsStart = 0; restartGPS(); }
+});
+addEventListener('pageshow', e => { if (e.persisted && gpsWanted) { lastGpsStart = 0; restartGPS(); } }); // back-forward cache resume
+setInterval(() => {
+  if (!gpsWanted || watchId == null || document.visibilityState !== 'visible') return;
+  if (Date.now() - Math.max(lastFixAt, lastGpsStart) > GPS_QUIET_MS) { console.warn('[gps] quiet — restarting the watch'); restartGPS(); }
+}, 10000);
 
 /* ---------------- wake lock ---------------- */
 let wakeLock = null;
@@ -6159,10 +6227,10 @@ function refreshEmpty() {
   }
 }
 let toastT = null;
-function toast(msg) {
+function toast(msg, ms) { // ms: hold longer than the 3.5 s default — for a message with instructions in it
   const el = document.getElementById('toast');
   el.textContent = msg; el.style.display = 'block';
-  clearTimeout(toastT); toastT = setTimeout(() => el.style.display = 'none', 3500);
+  clearTimeout(toastT); toastT = setTimeout(() => el.style.display = 'none', ms || 3500);
   console.log('[dingonav]', msg);
   // boot toasts sit under the startup screen (z39 > toast z30) — echo them onto the card
   const su = document.getElementById('startup');
