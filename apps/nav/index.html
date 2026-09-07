@@ -161,7 +161,7 @@
   #banner.on{display:block}
   #toast{position:fixed; bottom:calc(var(--chromeB,0px) + 116px); left:50%; transform:translateX(-50%); z-index:30;
     background:var(--panel2); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg); font-size:15px; padding:10px 18px;
-    border-radius:12px; display:none; max-width:88vw; text-align:center}
+    border-radius:12px; display:none; width:max-content; max-width:88vw; text-align:center} /* max-content: a centred fixed box otherwise shrink-wraps to half the screen and wraps a long message into a column */
   /* new-version banner: above the pills/toast, below modal dialogs — never shown mid-ride */
   #updBar{position:fixed; top:calc(env(safe-area-inset-top) + 10px); left:50%; transform:translateX(-50%);
     z-index:39; display:none; align-items:center; gap:12px; background:var(--panel2);
@@ -3310,7 +3310,7 @@ function recentreTap() { // dot: come home, centre on me
     // no fix yet (or the map is still loading): say so instead of silently hiding the
     // dot, ask the OS again — the tap is the gesture iOS wants before it re-prompts —
     // and finish the job on the first fix
-    if (!S.demo) { toast(gpsDenied ? gpsMsg(1) : 'Waiting for GPS…', gpsDenied ? 8000 : 0); kickGPS(); }
+    if (!S.demo) { toast(gpsDenied ? gpsMsg(1) : 'Waiting for GPS…', gpsDenied ? GPS_DENIED_MS : 0); kickGPS(); }
     homePending = true; return;
   }
   homePending = false;
@@ -4836,18 +4836,26 @@ document.getElementById('cpCancel').onclick = closeDialog;
 let watchId = null, gpsWanted = false, gpsDenied = false, lastFixAt = 0, lastGpsStart = 0;
 const GPS_OPTS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
 const GPS_QUIET_MS = 30000; // no fix for this long while visible = the watch has died
+const GPS_DENIED_MS = 12000; // the blocked toast carries a settings path — hold it long enough to follow
 function gpsMsg(code) {
   if (code === 1) {
     if (!isSecureContext) return 'GPS needs https — open the hosted link, not http://';
-    return /iPhone|iPad/.test(navigator.userAgent)
-      ? 'Location blocked — Settings → Privacy → Location Services → Safari Websites → While Using, then try again'
-      : 'Location blocked — allow it for this site in the browser settings';
+    if (/iPhone|iPad/.test(navigator.userAgent)) {
+      // iOS has three layers: the Location Services master, Safari's own entry in it, and
+      // the per-site choice under Safari's aA menu. "Location is on" usually means only
+      // the first one. A home-screen copy is its own app with its own entry instead.
+      const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+      return standalone
+        ? 'Location blocked — Settings → Privacy → Location Services → find DingoNav in the list → While Using, then reopen the app'
+        : 'Location blocked — in Safari tap aA (address bar) → Website Settings → Location → Allow. Still blocked? Settings → Privacy → Location Services → Safari Websites → While Using';
+    }
+    return 'Location blocked — allow it for this site in the browser settings';
   }
   return code === 3 ? 'GPS: waiting for a fix…' : 'GPS: position unavailable';
 }
 function onGpsError(e) {
   console.warn('[gps] error', e.code, e.message);
-  if (e.code === 1) { gpsDenied = true; toast(gpsMsg(1), 8000); stopWatch(); return; } // ask again from a tap, not in a loop
+  if (e.code === 1) { gpsDenied = true; toast(gpsMsg(1), GPS_DENIED_MS); stopWatch(); return; } // ask again from a tap, not in a loop
   toast(gpsMsg(e.code));
   restartGPS(); // a watch that has errored is not to be trusted to recover on its own
 }
