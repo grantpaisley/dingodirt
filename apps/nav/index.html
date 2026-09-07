@@ -872,7 +872,7 @@
 <div id="dlg" class="dd-dialog"><h2 id="dlgTitle"></h2><div id="dlgMsg"></div><button id="dlgOk">Got it</button></div>
 <!-- first visit only (who you are) now lives inside the startup card as #suIntro,
      so the cold-boot download is spent on setup instead of a bare progress bar -->
-<!-- track picker: long-press a track / tap the bottom bar, or Follow mode noticing you
+<!-- track picker: tap the bottom bar, or Follow mode noticing you
      left the route while sitting on another track you've loaded -->
 <div id="trkPick" class="dd-sheet">
   <div class="dd-sheet-handle"></div>
@@ -1453,10 +1453,12 @@ const DTILES = {
   },
 };
 let sharedBase = false, sharedHill = false; // serving from the shared archive?
-// flat-earth DEM blank (terrarium 0 m = rgb(128,0,0)) for offline hillshade misses
+// flat-earth DEM blank (terrarium 0 m = rgb(128,0,0)) for hillshade misses —
+// full 256 px like a real tile: MapLibre backfills DEM borders from the
+// neighbours and throws "dem dimension mismatch" on a 1×1 stand-in
 const DEM_BLANK = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 1;
-  const g = c.getContext('2d'); g.fillStyle = 'rgb(128,0,0)'; g.fillRect(0, 0, 1, 1);
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); g.fillStyle = 'rgb(128,0,0)'; g.fillRect(0, 0, 256, 256);
   const b64 = c.toDataURL('image/png').split(',')[1];
   return Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
 })();
@@ -2367,10 +2369,7 @@ async function setMapStyle(name) {
   if (!hasBasemap && !canSat) return; // nothing to render a base from
   if (name === 'satellite' && !canSat) toast('No satellite tiles — set an aerial source in settings, or bake tiles into a bundle from Dingo.');
   map.setStyle(await buildStyle());
-  await new Promise(res => {
-    const t = setInterval(() => { if (map.isStyleLoaded()) { clearInterval(t); res(); } }, 200);
-    map.once('idle', () => { clearInterval(t); res(); });
-  });
+  await styleSettled();
   addOverlays(); refreshPosLayers(); drawProgress(true);
   if (S.cueEdit) applyCueEditPaint(true);
   toast('Map style: ' + curStyle().label);
@@ -2420,6 +2419,18 @@ function attachSharedHill() {
   sharedHill = true; hasHillshade = true;
   setHillStatus('Terrain: shared archive — corridor tiles cached per pack');
 }
+/* A style swap is ready for addSource/addLayer once its JSON is in — not once
+   every tile has arrived. Waiting on isStyleLoaded() (all tiles) let one stalled
+   tile hide every overlay. Polled, not just the event: 'style.load' rides
+   requestAnimationFrame and stalls in hidden tabs. */
+function styleSettled() {
+  return new Promise(res => {
+    const ok = () => { try { return map.isStyleLoaded() || !!(map.style && map.style._loaded); } catch (e) { return false; } };
+    if (ok()) return res();
+    const t = setInterval(() => { if (ok()) { clearInterval(t); res(); } }, 200);
+    map.once('style.load', () => { clearInterval(t); res(); });
+  });
+}
 /* Re-apply the style on a live map, for a basemap/hillshade that landed after boot.
    Mirrors setMapStyle()'s swap path exactly, minus the settings write and the toast —
    this is not a user style change. That path is exercised by the style picker on
@@ -2427,17 +2438,23 @@ function attachSharedHill() {
 async function reStyle() {
   if (!map || !mapReady) return;
   map.setStyle(await buildStyle());
-  await new Promise(res => {
-    const t = setInterval(() => { if (map.isStyleLoaded()) { clearInterval(t); res(); } }, 200);
-    map.once('idle', () => { clearInterval(t); res(); });
-  });
+  await styleSettled();
   addOverlays(); refreshPosLayers(); drawProgress(true);
   if (S.cueEdit) applyCueEditPaint(true);
 }
 
 async function initMap() {
   const protocol = pmProtocol = new pmtiles.Protocol();
-  maplibregl.addProtocol('pmtiles', protocol.tile);
+  // A bundled hillshade is a sparse corridor cut. For a tile inside its bounds
+  // that it does not hold, pmtiles answers with empty data, and MapLibre leaves
+  // that DEM tile "loading" forever — which pins isStyleLoaded() false and,
+  // through it, stalled every style swap (Outback Day 9, 2026-09-07: no tracks,
+  // no points). Answer a miss with the flat tile the shared path already serves.
+  maplibregl.addProtocol('pmtiles', async (params, abort) => {
+    const r = await protocol.tile(params, abort);
+    if (r && r.data == null && /^pmtiles:\/\/hillshade\//.test(params.url)) return { data: DEM_BLANK.buffer.slice(0) };
+    return r;
+  });
   maplibregl.addProtocol('dtile', dtileServe); // shared archive, cache-first
   maplibregl.addProtocol('aerial', aerialServe); // device aerial source, cache-first
 
@@ -2517,14 +2534,16 @@ async function initMap() {
     const on = centredOnMe();
     if (on !== S.follow) setFollow(on);
   });
-  // riding: double-tap toggles the snap zoom; single taps (point menu, tap-to-add)
-  // wait out the double-tap window so the two can't collide.
+  // riding: double-tap toggles the snap zoom; a single tap does nothing (press-and-hold
+  // is the edit gesture — a gloved brush must not touch the pack). Planning taps wait
+  // out the double-tap window so the two can't collide.
   // The double is counted from paired 'click' events, NOT the map 'dblclick': on touch,
   // MapLibre only synthesizes a dblclick while its tap-zoom handler is enabled — and
   // riding disables that handler, which is how the junction gesture quietly died.
   // Click pairs fire for mouse and touch alike, moving or stopped.
   let rideTapT = null, lastTap = null;
   map.on('click', e => {
+    if (holdFired) { holdFired = false; return; } // a mouse/pen sends a click after a hold fires — never also a tap
     clearTimeout(rideTapT); rideTapT = null; // every tap waits out the double-tap window — planning too
     const now = performance.now();
     const dbl = lastTap && now - lastTap.t < 300 &&
@@ -2532,7 +2551,7 @@ async function initMap() {
     lastTap = { t: now, x: e.point.x, y: e.point.y };
     if (dbl && S.nav) { lastTap = null; S.snapZoom ? exitSnapZoom() : enterSnapZoom(); return; }
     rideTapT = setTimeout(() => { rideTapT = null;
-      S.nav ? rideTap(e.lngLat) : S.cueEdit ? cueEditTap(e.lngLat) : trackTap(e.lngLat); }, 300);
+      if (!S.nav) S.cueEdit ? cueEditTap(e.lngLat) : trackTap(e.lngLat); }, 300);
   });
   map.on('dblclick', e => {
     clearTimeout(rideTapT); rideTapT = null; // the pending single tap dies with the double
@@ -2558,12 +2577,7 @@ async function initMap() {
     }
   }, 1000);
   map.resize();
-  // don't rely solely on the 'load' event — it can stall in hidden tabs; poll isStyleLoaded too
-  await new Promise(res => {
-    if (map.isStyleLoaded()) return res();
-    const t = setInterval(() => { if (map.isStyleLoaded()) { clearInterval(t); res(); } }, 250);
-    map.once('load', () => { clearInterval(t); res(); });
-  });
+  await styleSettled(); // the style JSON is enough for the overlays; tiles keep streaming behind
   try { [stravaRideMeta, stravaHikeMeta] = await idb.getMany(['strava-ride-meta', 'strava-hike-meta']); } catch (e) {}
   // satMeta already loaded above (before buildStyle); no need to re-read here.
   mapReady = true; // before addOverlays — its refreshMapData() call needs this
@@ -3332,30 +3346,31 @@ function setFollow(on) {
 }
 setFollow(true);
 
-/* the dot button always comes home (2026-07-17 design). Long-press has one job
-   left (2026-08-04 design): stopped, near a track → the track picker. Centre
-   lock is gone — drag-pan is always live; taps handle marks. */
+/* the dot button always comes home (2026-07-17 design). Press-and-hold is the
+   one deliberate edit gesture on the map (2026-09-07): hold the route to
+   pin a turn point, hold a point to change or delete it — riding and planning
+   alike. A tap while riding does nothing; a tap while planning selects a track.
+   The track picker lives on the bottom bar. Centre lock is gone — drag-pan is
+   always live. iOS sends no click after a long hold, so the hold has its own
+   pointer handling here rather than riding the map's click. */
 document.getElementById('dotBtn').onclick = recentreTap;
+let holdFired = false; // set when a hold fires; the map click handler eats the click a mouse/pen sends on release
 function initLongPress() {
   const el = map.getContainer();
   let timer = null, start = null;
   const cancel = () => { if (timer) clearTimeout(timer); timer = null; };
   const down = e => {
+    holdFired = false;
     if (e.touches && e.touches.length > 1) return cancel();
     const p = e.touches ? e.touches[0] : e;
     start = [p.clientX, p.clientY];
     cancel();
     timer = setTimeout(() => {
       timer = null;
-      if (!mapReady || !start || S.nav || !S.tracks.length) return;
+      if (!mapReady || !start || !S.tracks.length) return;
+      holdFired = true;
       const r = el.getBoundingClientRect();
-      const ll = map.unproject([start[0] - r.left, start[1] - r.top]);
-      const [mx, my] = toXY(ll.lat, ll.lng);
-      const mpp = spanForZoom(map.getZoom(), ll.lat) / (el.clientHeight || 700);
-      const tapR = Math.max(20, mpp * 24);
-      let bd = Infinity;
-      for (const t of S.tracks) bd = Math.min(bd, nearestOnTrack(t, mx, my).d);
-      if (bd <= tapR) { vib([40]); openTrackPicker('pick'); }
+      holdAt(map.unproject([start[0] - r.left, start[1] - r.top]));
     }, 600);
   };
   const move = e => {
@@ -4358,16 +4373,32 @@ function exitSnapZoom(restore = true) {
     map.easeTo(opts);
   }
 }
-function rideTap(lngLat) {
+/* press-and-hold on the map — the edit gesture, riding or planning.
+   Hold a point (even one placed a second ago) → the mark picker: change kind or
+   delete. Hold the bare route → a turn point right there, no picker on the way in.
+   Riding edits every analysed track through the spot (as the pack sync does);
+   planning edits the selected track, so a hold has one home where routes overlap.
+   Empty map: nothing. */
+function holdAt(lngLat) {
   if (typeof layoutEditing !== 'undefined' && layoutEditing) return;
   const [x, y] = toXY(lngLat.lat, lngLat.lng);
   const mpp = spanForZoom(map.getZoom(), lngLat.lat) / (map.getContainer().clientHeight || 700);
-  const hit = findTurnPointNear(x, y, Math.max(15, mpp * 30));
-  // tap a point — even one placed a second ago — and the menu opens: change kind or delete
-  if (hit) { openMarkPicker(hit.x, hit.y, { cue: hit.cue }); return; }
-  // tap the bare track: a turn point appears right there, no picker on the way in
-  if (nearestPass(x, y) && addTurnPointAt(x, y)) { toast('Turn point added — tap it to change or delete'); vib([60]); }
-  // empty map: nothing
+  const tapR = Math.max(15, mpp * 24); // ~24 px of finger, floor 15 m on a zoomed-in map
+  const hit = findTurnPointNear(x, y, Math.max(tapR, mpp * 30));
+  if (hit) { vib([40]); openMarkPicker(hit.x, hit.y, { cue: hit.cue }); return; }
+  const only = S.nav ? null : S.tracks[S.sel] || null;
+  if (!S.nav && !only) { // planning, nothing selected: points draw on the selected track only — say so when a route is under the finger
+    if (S.tracks.some(t => nearestOnTrack(t, x, y, -1).d <= tapR)) toast('Tap the track to select it, then hold to add a point');
+    return;
+  }
+  const cands = only ? [only] : S.tracks.filter(t => t.baseCues);
+  let best = null, bd = tapR;
+  for (const t of cands) { const n = nearestOnTrack(t, x, y, -1); if (n.idx >= 0 && n.d < bd) { bd = n.d; best = { trk: t, idx: n.idx }; } }
+  if (!best) return;
+  if (!best.trk.baseCues) { toast('Cues still analysing…'); return; }
+  // snapped route coords: the fixed 25 m add radius always hits, whatever the zoom
+  const sx = best.trk.xy[best.idx * 2], sy = best.trk.xy[best.idx * 2 + 1];
+  if (addTurnPointAt(sx, sy, false, null, null, only)) { toast('Turn point added — hold it to change or delete'); vib([60]); }
 }
 /* nearest visible turn point (any analysed track) within R metres */
 function findTurnPointNear(x, y, R) {
@@ -4401,7 +4432,7 @@ function nearestPass(x, y, only) {
 }
 function openMarkPicker(x, y, edit, only) {
   const near = nearestPass(x, y, only);
-  if (!near) { toast('No track there — tap on the route'); return; }
+  if (!near) { toast('No track there — hold on the route'); return; }
   pickerCtx = { x, y, dirAuto: inferTurnDir(near.trk, near.idx), dirOv: null, edit: edit || null, only: only || null };
   document.getElementById('markPickerTitle').textContent =
     edit && edit.removed ? 'Removed mark' : edit ? 'Change mark' : 'Add mark here';
@@ -5109,8 +5140,8 @@ const TRAIN_STEPS = [
     html: 'Unmarked fork ahead. <b>Double-tap the map</b>: it snap-zooms in and turns track-up ' +
       'so you can read which fork is yours.' },
   { title: 'Marks — then back out', advance: { ev: 'snapzoom-exit' },
-    html: '<b>Tap the track</b> to pin a turn point at this junction for everyone who shares the pack; ' +
-      'tap any point to change or delete it (not now, this is a tour). <b>Double-tap again</b> to ride on.' },
+    html: '<b>Press and hold on the track</b> to pin a turn point at this junction for everyone who shares the pack; ' +
+      'hold any point to change or delete it (not now, this is a tour). <b>Double-tap again</b> to ride on.' },
   { at: t => t.alerts[2].at + 110, title: 'Going off track', advance: { ack: true },
     html: 'Now watch — we\'ll <b>overshoot on purpose</b>. You\'ll hear a <b>low growl</b> and ' +
       'see a red banner with your distance back to the route.' },
@@ -5846,7 +5877,7 @@ function trackTap(lngLat) {
 }
 /* ---------------- track picker ----------------
    One card, two modes:
-   'pick' — the rider asked (long-press any track, or tap the bottom bar). Tap a track to
+   'pick' — the rider asked (tap the bottom bar). Tap a track to
             take it; the dialog closes. Nothing happens until they tap.
    'off'  — Follow mode noticed they left the route while sitting on another track they've
             loaded. Red header, proximity dots, explicit Switch / Stay, and it dismisses
@@ -6043,7 +6074,7 @@ function cueEditTap(lngLat) {
   // change the kind. Snapped track-point coords guarantee the fixed 25 m radius
   // hits even when the zoom-scaled tapR is wider; save + pack sync in addTurnPointAt.
   if (addTurnPointAt(trk.xy[near.idx * 2], trk.xy[near.idx * 2 + 1], false, null, null, trk)) {
-    toast('Turn point added — tap it to change or delete'); vib([60]);
+    toast('Turn point added — hold it to change or delete'); vib([60]);
   }
 }
 function cueOverlay(trk) { return trk.overlay || (trk.overlay = { removed: [], added: [] }); }
