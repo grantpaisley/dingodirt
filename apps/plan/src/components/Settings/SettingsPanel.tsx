@@ -28,11 +28,11 @@ function HeatColorRow({ label, title, value, onChange }: {
                 onChange={(e) => onChange(e.target.value)}
                 style={{
                     width: 26, height: 18, padding: 0,
-                    border: '1px solid #555', borderRadius: 3,
+                    border: '1px solid var(--border-color)', borderRadius: 3,
                     background: 'transparent', cursor: 'pointer',
                 }}
             />
-            <span style={{ color: '#ccc', fontSize: 11 }}>{label}</span>
+            <span style={{ color: 'var(--text-primary)', fontSize: 11 }}>{label}</span>
         </label>
     )
 }
@@ -58,10 +58,10 @@ export function SettingsPaneContent() {
     return (
         <div style={{ width: 280 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Colour scales</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 'bold' }}>Colour scales</span>
                 <button
                     onClick={resetColourScales}
-                    style={{ background: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontSize: 10 }}
+                    style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: 10 }}
                 >
                     Reset
                 </button>
@@ -70,7 +70,7 @@ export function SettingsPaneContent() {
             <ScaleEditor label="Heart rate (bpm)" kind="hr" scale={hrScale} onChange={setHrScale} />
             <ScaleEditor label="Speed (km/h)" kind="speed" scale={speedScale} onChange={setSpeedScale} />
             <ScaleEditor label="Grade (% steepness)" kind="grade" scale={gradeScale} onChange={setGradeScale} />
-            <div style={{ color: '#777', fontSize: 10, marginTop: 4 }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 10, marginTop: 4 }}>
                 Pick a palette, click its swatches to choose which colours are
                 used (at least two), then drag the markers (or edit the
                 numbers) to place each colour&apos;s stop.
@@ -81,7 +81,7 @@ export function SettingsPaneContent() {
                 and overwrites the scheme-driven settings below (heat colours);
                 hand-tweaks made afterwards stick. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '16px 0 4px' }}>
-                <span style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Ride schema</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 'bold' }}>Ride schema</span>
             </div>
             <select
                 value={rideScheme}
@@ -90,7 +90,7 @@ export function SettingsPaneContent() {
                 style={{
                     width: '100%', padding: '4px 6px', fontSize: 11,
                     background: 'var(--bg-dark)', color: 'var(--text-primary)',
-                    border: '1px solid #555', borderRadius: 3, cursor: 'pointer',
+                    border: '1px solid var(--border-color)', borderRadius: 3, cursor: 'pointer',
                 }}
             >
                 <option value="default">Dingo default</option>
@@ -102,10 +102,10 @@ export function SettingsPaneContent() {
             {/* Heat colours: orange = me, blue = everything not ridden by me
                 (Strava overlays + planned heat) — each overridable. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '16px 0 4px' }}>
-                <span style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Heat colors</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 'bold' }}>Heat colors</span>
                 <button
                     onClick={resetHeatColors}
-                    style={{ background: 'transparent', color: '#888', border: 'none', cursor: 'pointer', fontSize: 10 }}
+                    style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: 10 }}
                 >
                     Reset
                 </button>
@@ -207,7 +207,7 @@ function ScaleEditor({
     return (
         <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: '#ccc', fontSize: 11 }}>{label}</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 11 }}>{label}</span>
                 {/* Palette picker: mini gradient per palette */}
                 <span style={{ display: 'flex', gap: 3 }}>
                     {Object.entries(PALETTES).map(([key, p]) => (
@@ -220,7 +220,7 @@ function ScaleEditor({
                                 height: 12,
                                 padding: 0,
                                 borderRadius: 3,
-                                border: scale.palette === key ? '1px solid white' : '1px solid #444',
+                                border: scale.palette === key ? '1px solid var(--text-primary)' : '1px solid var(--border-color)',
                                 background: `linear-gradient(90deg, ${p.colors.map(cssColor).join(', ')})`,
                                 cursor: 'pointer',
                                 opacity: scale.palette === key ? 1 : 0.6,
@@ -243,7 +243,7 @@ function ScaleEditor({
                                 height: 20,
                                 padding: 0,
                                 borderRadius: '50%',
-                                border: on ? '2px solid white' : '2px solid #555',
+                                border: on ? '2px solid var(--text-primary)' : '2px solid var(--border-color)',
                                 background: cssColor(c),
                                 opacity: on ? 1 : 0.25,
                                 cursor: 'pointer',
@@ -313,9 +313,9 @@ function ScaleEditor({
                         style={{
                             width: '100%',
                             minWidth: 0,
-                            background: '#1a1a1a',
-                            color: 'white',
-                            border: `1px solid ${ascending ? '#444' : '#c0392b'}`,
+                            background: 'var(--bg-dark)',
+                            color: 'var(--text-primary)',
+                            border: `1px solid ${ascending ? 'var(--border-color)' : '#c0392b'}`,
                             borderRadius: 4,
                             padding: '3px 5px',
                             fontSize: 11,

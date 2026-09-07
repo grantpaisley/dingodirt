@@ -34,7 +34,7 @@ export function DingodirtConnect() {
     const site = status?.site?.replace(/^https?:\/\//, '') ?? 'dingodirt.com'
 
     return (
-        <div style={{ marginTop: 16, paddingTop: 8, borderTop: '1px solid #444' }}>
+        <div style={{ marginTop: 16, paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: connected ? '#6bd06b' : '#e0a030' }}>
                     {connected
@@ -60,9 +60,9 @@ export function DingodirtConnect() {
 
             {open && (
                 <div style={{ marginTop: 6 }}>
-                    <div style={{ color: '#999', fontSize: 10, lineHeight: 1.5, marginBottom: 4 }}>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 10, lineHeight: 1.5, marginBottom: 4 }}>
                         Publishing packs needs a {site} account. Sign in there, create a
-                        token under <span style={{ color: '#ccc' }}>My packs → API tokens</span>,
+                        token under <span style={{ color: 'var(--text-primary)' }}>My packs → API tokens</span>,
                         and paste it here.
                     </div>
                     <input
@@ -72,7 +72,7 @@ export function DingodirtConnect() {
                         spellCheck={false}
                         style={{
                             width: '100%', boxSizing: 'border-box', marginBottom: 4,
-                            background: '#1a1a1a', color: 'white', border: '1px solid #444',
+                            background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border-color)',
                             borderRadius: 4, padding: 6, fontSize: 10, fontFamily: 'monospace',
                         }}
                     />
@@ -82,7 +82,7 @@ export function DingodirtConnect() {
                         disabled={busy || !token.trim()}
                         style={{
                             width: '100%', padding: '5px 0',
-                            background: busy || !token.trim() ? '#333' : '#c96f2e',
+                            background: busy || !token.trim() ? 'var(--border-color)' : '#c96f2e',
                             color: 'white', border: 'none', borderRadius: 4,
                             fontSize: 11, cursor: busy || !token.trim() ? 'default' : 'pointer',
                         }}

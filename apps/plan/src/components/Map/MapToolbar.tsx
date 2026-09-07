@@ -213,8 +213,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         })}
                         {/* Track shape — loop vs point-to-point (rides + list) */}
                         <div style={{
-                            borderTop: '1px solid #555', margin: '8px 0 4px',
-                            paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                            paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                         }}>
                             Track shape
                         </div>
@@ -230,8 +230,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         ))}
                         {/* Difficulty grade 1-5 + ungraded (Grant's scale) */}
                         <div style={{
-                            borderTop: '1px solid #555', margin: '8px 0 4px',
-                            paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                            paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                         }}>
                             Grade
                         </div>
@@ -245,11 +245,11 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                         minWidth: g === 'none' ? 34 : 28,
                                         padding: '4px 6px',
                                         borderRadius: 4,
-                                        border: '1px solid #666',
+                                        border: '1px solid var(--border-color)',
                                         cursor: 'pointer',
                                         fontSize: 12,
                                         background: gradeFilter[g] ? '#4f7cff' : 'transparent',
-                                        color: gradeFilter[g] ? 'white' : '#888',
+                                        color: gradeFilter[g] ? 'white' : 'var(--text-secondary)',
                                     }}
                                 >
                                     {g === 'none' ? '—' : g}
@@ -275,7 +275,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                 background: 'rgba(79,124,255,0.18)',
                                 border: '1px solid rgba(79,124,255,0.5)',
                                 borderRadius: 4, padding: '6px 8px', marginBottom: 8,
-                                color: 'white', fontSize: 12,
+                                color: 'var(--text-primary)', fontSize: 12,
                             }}>
                                 <span style={{ flex: 1 }}>Previewing pack layers</span>
                                 <button
@@ -299,8 +299,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         {collections && collections.length > 0 && (
                             <>
                                 <div style={{
-                                    borderTop: '1px solid #555', margin: '8px 0 4px',
-                                    paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                                    borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                                    paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                                 }}>
                                     Planned routes
                                 </div>
@@ -326,7 +326,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                                 style={{
                                                     background: 'transparent',
                                                     border: 'none',
-                                                    color: c.bbox ? '#9ab' : '#555',
+                                                    color: c.bbox ? 'var(--text-primary)' : 'var(--text-secondary)',
                                                     cursor: c.bbox ? 'pointer' : 'default',
                                                     padding: '4px 2px 4px 8px',
                                                     display: 'flex',
@@ -365,9 +365,9 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
                                                         borderRadius: '50%',
-                                                        border: `1px solid ${catOn ? meta.color : '#555'}`,
+                                                        border: `1px solid ${catOn ? meta.color : 'var(--border-color)'}`,
                                                         background: catOn ? meta.color : 'transparent',
-                                                        color: catOn ? 'white' : '#777',
+                                                        color: catOn ? 'var(--text-primary)' : 'var(--text-secondary)',
                                                         cursor: 'pointer',
                                                         padding: 0,
                                                     }}
@@ -387,7 +387,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                     onClick={toggleShowPlannedHeat}
                                     swatch={CLASS_SWATCH.plan}
                                 />
-                                <div style={{ borderTop: '1px solid #555', margin: '8px 0 4px' }} />
+                                <div style={{ borderTop: '1px solid var(--border-color)', margin: '8px 0 4px' }} />
                             </>
                         )}
                         <PaneRow
@@ -415,7 +415,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                             disabled={previewing}
                             onClick={toggleShowStravaHike}
                         />
-                        <div style={{ borderTop: '1px solid #555', margin: '8px 0 4px' }} />
+                        <div style={{ borderTop: '1px solid var(--border-color)', margin: '8px 0 4px' }} />
                         <PaneRow
                             icon={<Camera size={PANE_ICON_SIZE} />}
                             label="Photos"
@@ -444,8 +444,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         />
                         {/* Terrain — relief shading + 3D */}
                         <div style={{
-                            borderTop: '1px solid #555', margin: '8px 0 4px',
-                            paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                            paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                         }}>
                             Terrain
                         </div>
@@ -466,8 +466,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         />
                         {/* Base map (radio) */}
                         <div style={{
-                            borderTop: '1px solid #555', margin: '8px 0 4px',
-                            paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                            paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                         }}>
                             Base map
                         </div>
@@ -491,8 +491,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                             (the tile-data floor); Auto follows the active scheme. */}
                         {eff.baseStyle === 'dingo' && <>
                             <div style={{
-                                borderTop: '1px solid #555', margin: '8px 0 4px',
-                                paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                                borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                                paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                             }}>
                                 Track detail
                             </div>
@@ -510,8 +510,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         </>}
                         {/* Direction arrows — when the chevrons show (radio) */}
                         <div style={{
-                            borderTop: '1px solid #555', margin: '8px 0 4px',
-                            paddingTop: 8, color: 'white', fontSize: 13, fontWeight: 'bold',
+                            borderTop: '1px solid var(--border-color)', margin: '8px 0 4px',
+                            paddingTop: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold',
                         }}>
                             Direction arrows
                         </div>
@@ -538,7 +538,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
             >
                 {openPane === 'heatmap' && (
                     <Pane title="Heatmap">
-                        <div style={{ padding: '7px 4px', color: 'white', fontSize: 13 }}>
+                        <div style={{ padding: '7px 4px', color: 'var(--text-primary)', fontSize: 13 }}>
                             <div style={{ marginBottom: 4, opacity: 0.8 }}>Intensity</div>
                             <input
                                 type="range"
@@ -649,7 +649,7 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                         />
                         {/* How faint unhighlighted tracks go while a selection,
                             search, or the export basket is highlighting */}
-                        <div style={{ padding: '7px 4px', color: 'white', fontSize: 13 }}>
+                        <div style={{ padding: '7px 4px', color: 'var(--text-primary)', fontSize: 13 }}>
                             <div style={{ marginBottom: 4, opacity: 0.8 }}>Dim unhighlighted</div>
                             <input
                                 type="range"
@@ -762,7 +762,7 @@ function ZoomWidget({ styleId }: {
         alignItems: 'center',
         justifyContent: 'center',
         background: 'transparent',
-        color: 'white',
+        color: 'var(--text-primary)',
         border: 'none',
         cursor: 'pointer',
         fontSize: 14,
@@ -774,8 +774,8 @@ function ZoomWidget({ styleId }: {
             width: BUTTON_SIZE,
             display: 'flex',
             flexDirection: 'column',
-            background: 'rgba(0,0,0,0.85)',
-            border: '1px solid #666',
+            background: 'var(--pane-bg)',
+            border: '1px solid var(--border-color)',
             borderRadius: 8,
             boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
             overflow: 'hidden',
@@ -827,9 +827,9 @@ function ToolButton({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: active ? '#4f7cff' : 'rgba(0,0,0,0.85)',
-                    color: 'white',
-                    border: `1px solid ${active ? '#7ea0ff' : '#666'}`,
+                    background: active ? '#4f7cff' : 'var(--pane-bg)',
+                    color: active ? 'white' : 'var(--text-primary)',
+                    border: `1px solid ${active ? '#7ea0ff' : 'var(--border-color)'}`,
                     borderRadius: 8,
                     cursor: 'pointer',
                     position: 'relative',
@@ -846,7 +846,7 @@ function ToolButton({
                         height: 8,
                         borderRadius: '50%',
                         background: '#4f7cff',
-                        border: '1px solid rgba(0,0,0,0.85)',
+                        border: '1px solid var(--pane-bg)',
                     }} />
                 )}
             </button>
@@ -861,8 +861,9 @@ function Pane({ title, children }: { title?: string, children: ReactNode }) {
             position: 'absolute',
             left: 'calc(100% + 8px)',
             top: 0,
-            background: 'rgba(0,0,0,0.92)',
-            border: '1px solid #555',
+            background: 'var(--pane-bg)',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
             borderRadius: 8,
             padding: 12,
             zIndex: 100,
@@ -872,7 +873,7 @@ function Pane({ title, children }: { title?: string, children: ReactNode }) {
             overflowY: 'auto',
         }}>
             {title && (
-                <div style={{ color: 'white', fontSize: 13, fontWeight: 'bold', marginBottom: 9 }}>
+                <div style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 'bold', marginBottom: 9 }}>
                     {title}
                 </div>
             )}
@@ -909,7 +910,7 @@ function PaneRow({
                 gap: 10,
                 width: '100%',
                 background: 'transparent',
-                color: disabled ? '#666' : 'white',
+                color: disabled ? 'var(--text-secondary)' : 'var(--text-primary)',
                 border: 'none',
                 padding: '7px 4px',
                 borderRadius: 4,

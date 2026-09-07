@@ -78,13 +78,13 @@ export function FilterPaneContent({ filters, onChange, defaults }: FilterPanelPr
             overflowY: 'auto',
         }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Range Filters</span>
+                        <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 'bold' }}>Range Filters</span>
                         {hasActiveFilters && (
                             <button
                                 onClick={clearFilters}
                                 style={{
                                     background: 'transparent',
-                                    color: '#888',
+                                    color: 'var(--text-secondary)',
                                     border: 'none',
                                     cursor: 'pointer',
                                     fontSize: 10,
@@ -287,11 +287,11 @@ function DualHandleSlider({
                             cursor: 'pointer'
                         }}
                     />
-                    <span style={{ color: '#ccc', fontSize: 11, fontWeight: 500 }}>{label}</span>
+                    <span style={{ color: 'var(--text-primary)', fontSize: 11, fontWeight: 500 }}>{label}</span>
                 </label>
                 <span style={{
                     marginLeft: 'auto',
-                    color: '#666',
+                    color: 'var(--text-secondary)',
                     fontSize: 9,
                 }}>
                     {unit}
@@ -315,7 +315,7 @@ function DualHandleSlider({
                     left: 0,
                     right: 0,
                     height: 4,
-                    background: '#333',
+                    background: 'var(--border-color)',
                     borderRadius: 2,
                 }} />
 
@@ -326,7 +326,7 @@ function DualHandleSlider({
                     left: `${leftPercent}%`,
                     width: `${rightPercent - leftPercent}%`,
                     height: 4,
-                    background: enabled ? '#4f7cff' : '#555',
+                    background: enabled ? '#4f7cff' : 'var(--text-secondary)',
                     borderRadius: 2,
                     transition: 'background 0.2s',
                 }} />
@@ -346,7 +346,7 @@ function DualHandleSlider({
                         width: handleSize,
                         height: handleSize,
                         borderRadius: '50%',
-                        background: dragging === 'min' ? '#6b9fff' : (enabled ? '#4f7cff' : '#555'),
+                        background: dragging === 'min' ? '#6b9fff' : (enabled ? '#4f7cff' : 'var(--text-secondary)'),
                         border: '2px solid #fff',
                         cursor: enabled ? 'grab' : 'default',
                         boxShadow: hovering === 'min' || dragging === 'min'
@@ -372,7 +372,7 @@ function DualHandleSlider({
                         width: handleSize,
                         height: handleSize,
                         borderRadius: '50%',
-                        background: dragging === 'max' ? '#6b9fff' : (enabled ? '#4f7cff' : '#555'),
+                        background: dragging === 'max' ? '#6b9fff' : (enabled ? '#4f7cff' : 'var(--text-secondary)'),
                         border: '2px solid #fff',
                         cursor: enabled ? 'grab' : 'default',
                         boxShadow: hovering === 'max' || dragging === 'max'
@@ -389,7 +389,7 @@ function DualHandleSlider({
                     top: 22,
                     left: `${leftPercent}%`,
                     transform: 'translateX(-50%)',
-                    color: enabled ? '#fff' : '#666',
+                    color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)',
                     fontSize: 10,
                     fontFamily: 'monospace',
                     whiteSpace: 'nowrap',
@@ -404,7 +404,7 @@ function DualHandleSlider({
                     top: 22,
                     left: `${rightPercent}%`,
                     transform: 'translateX(-50%)',
-                    color: enabled ? '#fff' : '#666',
+                    color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)',
                     fontSize: 10,
                     fontFamily: 'monospace',
                     whiteSpace: 'nowrap',

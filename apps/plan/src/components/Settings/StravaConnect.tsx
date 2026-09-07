@@ -114,7 +114,7 @@ export function StravaConnect() {
     const ago = status?.updated_at ? timeAgo(status.updated_at) : null
 
     return (
-        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #444' }}>
+        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: connected ? '#6bd06b' : '#e0a030' }}>
                     {connected ? `Strava connected${ago ? ` · ${ago}` : ''}` : 'Strava not connected'}
@@ -129,11 +129,11 @@ export function StravaConnect() {
 
             {open && (
                 <div style={{ marginTop: 6 }}>
-                    <ol style={{ margin: '0 0 6px', paddingLeft: 16, color: '#999', fontSize: 10, lineHeight: 1.5 }}>
+                    <ol style={{ margin: '0 0 6px', paddingLeft: 16, color: 'var(--text-secondary)', fontSize: 10, lineHeight: 1.5 }}>
                         <li>Easiest: click the Dingo connector extension on strava.com — done.</li>
-                        <li>Manually: open <span style={{ color: '#ccc' }}>strava.com/maps/global-heatmap</span> logged in.</li>
-                        <li>DevTools (⌥⌘I) → <span style={{ color: '#ccc' }}>Network</span> → filter <span style={{ color: '#ccc' }}>tiles-auth</span>, pan the map.</li>
-                        <li>Click a tile request → Request Headers → copy the <span style={{ color: '#ccc' }}>Cookie</span> value, paste into any field below (it auto-splits). The Application-tab cookies under www.strava.com are the WRONG set.</li>
+                        <li>Manually: open <span style={{ color: 'var(--text-primary)' }}>strava.com/maps/global-heatmap</span> logged in.</li>
+                        <li>DevTools (⌥⌘I) → <span style={{ color: 'var(--text-primary)' }}>Network</span> → filter <span style={{ color: 'var(--text-primary)' }}>tiles-auth</span>, pan the map.</li>
+                        <li>Click a tile request → Request Headers → copy the <span style={{ color: 'var(--text-primary)' }}>Cookie</span> value, paste into any field below (it auto-splits). The Application-tab cookies under www.strava.com are the WRONG set.</li>
                     </ol>
                     {([
                         [COOKIE_NAMES[0], kp, setKp],
@@ -149,7 +149,7 @@ export function StravaConnect() {
                             spellCheck={false}
                             style={{
                                 width: '100%', boxSizing: 'border-box', marginBottom: 4,
-                                background: '#1a1a1a', color: 'white', border: '1px solid #444',
+                                background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border-color)',
                                 borderRadius: 4, padding: 6, fontSize: 10, fontFamily: 'monospace',
                             }}
                         />
@@ -161,7 +161,7 @@ export function StravaConnect() {
                         disabled={busy || !complete}
                         style={{
                             marginTop: 6, width: '100%', padding: '5px 0',
-                            background: busy || !complete ? '#333' : '#fc5200',
+                            background: busy || !complete ? 'var(--border-color)' : '#fc5200',
                             color: 'white', border: 'none', borderRadius: 4,
                             fontSize: 11, cursor: busy || !complete ? 'default' : 'pointer',
                         }}
