@@ -1,6 +1,6 @@
 // DingoNav service worker — cache-first so the app works fully offline.
 // Bump CACHE when shipping a new version.
-const CACHE = 'dingonav-v71';
+const CACHE = 'dingonav-v72';
 const SHELL = [
   './', './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './vendor/pmtiles.js', './vendor/fflate.js',
