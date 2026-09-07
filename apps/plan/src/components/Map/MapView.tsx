@@ -14,6 +14,7 @@ import { useSettings, useBasket, useUiState, rideMatchesFilters, rideMatchesSear
 import { inverseMask } from './maskGeometry'
 import { MAPTILER_KEY, BUILTIN_STYLE_URLS, resolveBaseStyle, styleOverlaysFor } from '../../mapStyles'
 import { setMapInstance } from './mapRegistry'
+import { parseColor } from './styleAttrs'
 import { useTrackGraph, formatDuration, type RoutedLeg, type GraphStatus } from './useTrackGraph'
 import { directKm, DEFAULT_SPEED_KMH } from '../../../../../core/track-graph/graph.js'
 
@@ -154,10 +155,36 @@ function styleLayerCount(m: maplibregl.Map): number {
     }
 }
 
+/** True when the active style paints a light ground (its background layer's
+ *  colour is closer to white than to black). Tracks are tuned against a dark
+ *  ground — on paper the same alpha wash goes invisible and a white casing
+ *  disappears — so the ride layers flip a few colours on this. A style with
+ *  no parseable background (satellite rasters) counts as dark, the tuning
+ *  the layers were built for; null while no style has parsed yet (getStyle()
+ *  throws mid-setStyle), so the caller keeps its last answer. */
+function groundIsLight(m: maplibregl.Map): boolean | null {
+    try {
+        const layers = m.getStyle()?.layers
+        if (!layers?.length) return null
+        const bg = layers.find(l => l.type === 'background')
+        const paint = (bg as { paint?: Record<string, unknown> } | undefined)?.paint
+        const c = parseColor(paint?.['background-color'])
+        if (!c) return false
+        const [r, g, b] = hexToRgb(c.hex, [0, 0, 0])
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5
+    } catch {
+        return null
+    }
+}
+
 // Pack-preview mask layers (see maskGeometry.ts). Two bands: everything under
 // the Strava rasters, and the Strava rasters themselves — they carry different
 // coverage in a bundle, so they can't share one mask.
 const PACK_MASK_IDS = ['pack-mask-lower', 'pack-mask-strava'] as const
+// Selected-track casing per ground (module constants: stable identities for
+// the layer memo's deps).
+const CASING_ON_DARK: RGBA = [255, 255, 255, 230]
+const CASING_ON_LIGHT: RGBA = [38, 32, 18, 220]
 const EMPTY_FEATURES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 /** Masked-out ground reads as the app's empty background, not as black. */
 const MASK_COLOR = '#0f0f1a'
@@ -284,6 +311,9 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     const onBoundsChangeRef = useRef(onBoundsChange)
     onBoundsChangeRef.current = onBoundsChange
     const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
+    // Light or dark ground under the tracks (see groundIsLight) — set on
+    // every style load, so a base-map switch retunes the ride layers.
+    const [lightGround, setLightGround] = useState(false)
     // UI settings from the persisted store (shared with ListPane; the map
     // toolbar owns all the setters — this component only reads)
     const {
@@ -543,7 +573,16 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         if (basketIds.length > 0) return new Set(basketIds)
         return null
     }, [selectedIds, searchQuery, rides, basketIds, pillMatchedIds])
-    const dimAlpha = Math.round(255 * dimmedOpacity)
+    // The dim slider is tuned for a dark ground, where an alpha-0.2 wash
+    // still reads as a darker line against near-black. On a light ground
+    // the same wash fades into the paper — and the basemap's own roads are
+    // coloured lines competing with it — so the slider's range is lifted:
+    // 0 → 0.6, 1 → 1 (measured: 0.5 was still lost among the roads). The
+    // slider keeps its meaning (fainter to the left) without a dead zone;
+    // the selection itself stays unmistakable through its casing + width.
+    const dimAlpha = Math.round(255 * (lightGround ? 0.6 + 0.4 * dimmedOpacity : dimmedOpacity))
+    // Selected-track casing: white pops on a dark ground, ink on a light one.
+    const selectedCasing = lightGround ? CASING_ON_LIGHT : CASING_ON_DARK
 
     // Direction chevrons along ride tracks (both mode-coloured and gradient
     // views). White with a dark outline so they read on any track colour.
@@ -996,7 +1035,8 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         }
 
         // Selected tracks: redrawn on top of the ordinary ride layers as a
-        // white casing + full-opacity core at ~3x the base width, so the
+        // casing (white on a dark ground, ink on a light one — see
+        // selectedCasing) + full-opacity core at ~3x the base width, so the
         // active selection is unmistakable. Separate layers rather than wider
         // getWidth in the base layers because those share widthMaxPixels
         // clamps with unselected tracks — at high zoom everything saturates
@@ -1011,7 +1051,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         data: segs,
                         getSourcePosition: (d: typeof gradientSegments[0]) => d.sourcePosition,
                         getTargetPosition: (d: typeof gradientSegments[0]) => d.targetPosition,
-                        getColor: [255, 255, 255, 230],
+                        getColor: selectedCasing,
                         // 13/9px matches the site's PlanView selected treatment
                         getWidth: 13,
                         widthUnits: 'pixels',
@@ -1044,7 +1084,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                         capRounded: true,
                         jointRounded: true,
                         getPath: (d: typeof ridesData[0]) => d.path,
-                        getColor: [255, 255, 255, 230],
+                        getColor: selectedCasing,
                         // 13/9px matches the site's PlanView selected treatment
                         getWidth: 13,
                         widthUnits: 'pixels',
@@ -1247,7 +1287,7 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
 
         return layers
     }, [ridesData, selectedIds, hoveredId, gradientSegments, hiddenIds, greyIds, colorMode,
-        showPhotos, photoGroups, showRides, rideChevrons, highlightIds, dimAlpha, graphCursor,
+        showPhotos, photoGroups, showRides, rideChevrons, highlightIds, dimAlpha, selectedCasing, graphCursor,
         showAreas, areas, showClosures, closures, coveragePreview, markPreview, packPreview,
         drawLegs, drawAnchor, drawMode, measureLegs, measureAnchor, measureMode,
         showHeatmap, heatPaths, heatIntensity, heatWidth, heatZoomScaling, heatZoomQ,
@@ -1675,6 +1715,14 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
         // and terrain survive a map-type change. Persistent (not once-per-switch)
         // so it can never miss the event.
         map.current.on('style.load', applyMapExtras)
+        // Ground tone for the ride layers. 'styledata' rather than
+        // 'style.load' alone: a setStyle that diffs onto the current style
+        // (the stub → Dingo swap, a scheme rebuild) never fires 'style.load'.
+        // Cheap — same-value setState is a no-op.
+        map.current.on('styledata', () => {
+            const light = map.current && groundIsLight(map.current)
+            if (light !== null) setLightGround(light)
+        })
         // 'style.load' alone is not enough: MapLibre withholds it until the
         // style reports loaded, which never happens while a source is stuck —
         // and our own Strava rasters get stuck whenever an owner has no

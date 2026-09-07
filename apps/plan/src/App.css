@@ -785,6 +785,10 @@ select.export-input {
   color-scheme: dark;
 }
 
+:root[data-mode="light"] .list-dates input[type="date"] {
+  color-scheme: light;
+}
+
 .list-items {
   flex: 1;
   overflow-y: auto;
