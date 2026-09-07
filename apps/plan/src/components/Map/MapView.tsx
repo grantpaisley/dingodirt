@@ -2603,12 +2603,13 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                 position: 'absolute',
                 bottom: 24,
                 left: 10,
-                background: 'rgba(0,0,0,0.75)',
+                background: 'var(--pane-bg)',
+                border: '1px solid var(--border-color)',
                 padding: '8px 12px',
                 borderRadius: 8,
                 zIndex: 2,
                 fontSize: 11,
-                color: 'white',
+                color: 'var(--text-primary)',
             }}>
                 {colorMode === 'mode' ? (
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
