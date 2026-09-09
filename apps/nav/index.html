@@ -1463,7 +1463,12 @@ const DEM_BLANK = (() => {
   return Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
 })();
 
+let liveTiles = 0; // dtile requests the map is waiting on right now — the prefetch yields to them
 async function dtileServe(params) {
+  liveTiles++;
+  try { return await dtileServeInner(params); } finally { liveTiles--; }
+}
+async function dtileServeInner(params) {
   const m = params.url.match(/^dtile:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)$/);
   if (!m) return { data: null };
   const [, src, z, x, y] = m;
@@ -1554,7 +1559,14 @@ async function prefetchCorridor(slug) {
     let done = 0, errs = 0;
     const workers = Array.from({ length: 4 }, async () => {
       while (todo.length) {
+        // the live map comes first: four workers decompressing and writing IDB on
+        // the same thread as tile serving doubled time-to-idle on every zoom while
+        // a corridor was fetching. Only tiles the map is waiting on are yielded
+        // to — not motion: a following camera never stops, and a prefetch that
+        // waited for it would run during the ride instead of before it
+        while (liveTiles > 0) await new Promise(r => setTimeout(r, 40));
         const j = todo.shift();
+        if (!j) break;
         try {
           const data = await j.get();
           if (data) await idb.tput({ key: j.key, src: j.src, blob: new Blob([data]) });
@@ -2603,6 +2615,7 @@ async function initMap() {
     } catch (e) { console.warn('basemap download failed', e); }
   })();
   basePending.then(baseSettle, baseSettle); // settle either way — never leave a waiter hanging
+  let hillLate = false;
   const hillPending = (async () => {
     if (hasHillshade && !sharedHill) return;
     try {
@@ -2610,12 +2623,16 @@ async function initMap() {
       if (!(await isPMTiles(blob))) return; // SPA-fallback HTML masquerading as the file
       await idb.put({ id: 'hillshade', name: 'hillshade.pmtiles', kind: 'hillshade', blob });
       attachHill(blob, 'hillshade.pmtiles');
+      hillLate = true;
       toast('Terrain shading stored for offline use (' + (blob.size / 1e6).toFixed(0) + ' MB)');
     } catch (e) { console.warn('hillshade download failed', e); }
   })();
   // hillshade is cosmetic and lands after the startup screen is gone — one final
-  // re-style folds it in whenever it arrives
-  Promise.all([basePending, hillPending]).then(reStyle);
+  // re-style folds it in whenever it arrives. Only when it did arrive: in shared-
+  // archive mode neither download runs (the slim deploy ships no local archive),
+  // and an unconditional re-style here rebuilt the whole map at every boot —
+  // a second setStyle, every overlay source dropped and re-indexed.
+  Promise.all([basePending, hillPending]).then(() => { if (hillLate) reStyle(); });
 }
 function clsMatch() { return ['match', ['get', 'class'], 'other', ADV('colOther'), 'plan', ADV('colPlan'), ADV('colOwn')]; }
 /* route widths: total px interpolated overview→nav zoom; the core keeps its share
@@ -2673,9 +2690,15 @@ function addOverlays() {
     setStravaInfo('Strava tiles loaded: ' + parts.join(', '));
   }
 
-  map.addSource('heat', { type: 'geojson', data: S.heat ? S.heat.geojson : EMPTY });
-  map.addSource('tracksOther', { type: 'geojson', data: EMPTY });
-  map.addSource('selTrack', { type: 'geojson', data: EMPTY });
+  // Line sources stop tiling at z14 (the archive's own vector maxzoom); past it
+  // MapLibre overzooms the z14 tile. At the default maxzoom 18 every camera move
+  // at rider zoom and every per-fix setData re-tiled each source at z15-18 for
+  // no visible gain: geojson-vt's tolerance at z14 is ~0.2 m on the ground.
+  // The heat is a blurred line up to 26 px wide, so a 1-unit tolerance
+  // (~0.6 m) on its 360k points is invisible and a third of the vertices.
+  map.addSource('heat', { type: 'geojson', data: S.heat ? S.heat.geojson : EMPTY, maxzoom: 14, tolerance: 1 });
+  map.addSource('tracksOther', { type: 'geojson', data: EMPTY, maxzoom: 14 });
+  map.addSource('selTrack', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   map.addSource('alerts', { type: 'geojson', data: EMPTY });
   map.addSource('friends', { type: 'geojson', data: EMPTY });
   map.addSource('posAcc', { type: 'geojson', data: EMPTY });
@@ -2697,7 +2720,7 @@ function addOverlays() {
   // backtrack trail: the dotted thread of where you've actually been. The layer is
   // added here but MOVED below (see moveLayer) — its stacking is deliberate, not
   // wherever the add order happened to leave it.
-  map.addSource('trail', { type: 'geojson', data: EMPTY });
+  map.addSource('trail', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   // One solid red line, narrower than the route core so the covered segments still show
   // either side of it. Slightly transparent so the map reads through as well.
   // Rounded joins as well as caps — mitred corners notch.
@@ -2709,7 +2732,7 @@ function addOverlays() {
      route blue by default, or slope/surface colouring picked from the ☰ Track colour
      tile. Travelled sections use the per-feature dimmed variant ('cd') so slope and
      surface still read behind you. Casing = day/night shadow/glow (caseColor()). */
-  map.addSource('selSurf', { type: 'geojson', data: EMPTY });
+  map.addSource('selSurf', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   const rnd = { 'line-join': 'round', 'line-cap': 'round' };
   const sf = st => ['==', ['get', 'state'], st];
   /* progress ladder, bottom→top: travelled (dimmed, reduced dark case) → remaining
@@ -2812,10 +2835,14 @@ function addOverlays() {
     map.on('mouseenter', 'friends-dots', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'friends-dots', () => map.getCanvas().style.cursor = '');
     // redraw the progress strip as the map moves/zooms so it keeps matching the visible track
-    let progMoveRAF = 0;
+    // ...at 10 Hz, not per frame: while following, the camera is always easing, so
+    // a per-frame redraw (a full track walk, a canvas repaint and three innerHTML
+    // writes) was the largest per-frame piece of app code in nav
+    let progMoveT = 0, progMoveLast = 0;
     map.on('move', () => {
-      if (progMoveRAF || !S.nav) return;
-      progMoveRAF = requestAnimationFrame(() => { progMoveRAF = 0; drawProgress(); });
+      if (progMoveT || !S.nav) return;
+      const wait = Math.max(0, 100 - (performance.now() - progMoveLast));
+      progMoveT = setTimeout(() => { progMoveT = 0; progMoveLast = performance.now(); drawProgress(); }, wait);
     });
   }
   map.addLayer({ id: 'pos-acc', type: 'fill', source: 'posAcc',
@@ -2886,9 +2913,7 @@ function refreshMapData() {
   // IT the casing and dims the rest only slightly — the casing carries the selection
   map.setPaintProperty('tracks-other', 'line-opacity', S.sel >= 0 ? 0.65 : 1);
   const trk = S.tracks[S.sel];
-  const dir = S.navState ? S.navState.dir : (trk && trk.reverse ? -1 : 1);
-  map.getSource('selTrack').setData(trk ? { type: 'Feature', properties: {},
-    geometry: { type: 'LineString', coordinates: dir > 0 ? trk.coordsLL : [...trk.coordsLL].reverse() } } : EMPTY);
+  refreshSelTrack();
   // dots come from the base analysis + hand-added cues; removed ones stay (greyed) for edit mode
   const cueFeat = (a, removed, manual) => { const [la, lo] = toLL(trk.xy[a.idx * 2], trk.xy[a.idx * 2 + 1]);
     const k = kindOf(a);
@@ -2970,6 +2995,25 @@ function slopeBuckets(trk) {
   }
   return trk._slopeB = b;
 }
+/* The resampled route as GeoJSON [lon,lat] pairs, projected once per track.
+   refreshRouteFeatures runs every 1.5 s while riding and re-projected every
+   point each time — on a 20,000-point ride that was the whole budget. REF is
+   the projection origin; a new one invalidates the cache. */
+function routeLL(trk) {
+  if (trk._ll && trk._llRef === REF) return trk._ll;
+  const ll = new Array(trk.n);
+  for (let j = 0; j < trk.n; j++) { const [la, lo] = toLL(trk.xy[j * 2], trk.xy[j * 2 + 1]); ll[j] = [lo, la]; }
+  trk._ll = ll; trk._llRef = REF;
+  return ll;
+}
+/* The selected route in riding direction — the sel-core/-case fallback layers. */
+function refreshSelTrack() {
+  if (!mapReady || !map.getSource('selTrack')) return;
+  const trk = S.tracks[S.sel];
+  const dir = S.navState ? S.navState.dir : (trk && trk.reverse ? -1 : 1);
+  map.getSource('selTrack').setData(trk ? { type: 'Feature', properties: {},
+    geometry: { type: 'LineString', coordinates: dir > 0 ? trk.coordsLL : [...trk.coordsLL].reverse() } } : EMPTY);
+}
 function refreshRouteFeatures() {
   if (!mapReady) return;
   const trk = S.tracks[S.sel];
@@ -2985,13 +3029,13 @@ function refreshRouteFeatures() {
       : mode === 'speed' && trk.spd ? (scaleColour('speed', trk.spd[i] * 3.6) || ADV('colRoute'))
       : mode === 'surface' && trk.wayCls ? (SURF_COLOURS[surfOf(trk.wayCls[i])] || ADV('colRoute'))
       : ADV('colRoute');
-    const cls = progClassAt(trk);
+    const cls = progClassAt(trk), ll = routeLL(trk);
     let s0 = 0, st0 = cls(0), c0 = colAt(0);
     for (let i = 1; i <= trk.n; i++) {
       const st = i < trk.n ? cls(i) : null;
       if (i < trk.n && colAt(i) === c0 && st === st0) continue;
       const coords = [];
-      for (let j = s0; j <= Math.min(i, trk.n - 1); j++) { const [la, lo] = toLL(trk.xy[j * 2], trk.xy[j * 2 + 1]); coords.push([lo, la]); }
+      for (let j = s0; j <= Math.min(i, trk.n - 1); j++) coords.push(ll[j]);
       if (coords.length > 1) surfFeats.push({ type: 'Feature',
         properties: { c: c0, cd: mode === 'none' ? ADV('colDone') : dimColour(c0), state: st0 },
         geometry: { type: 'LineString', coordinates: coords } });
@@ -3164,6 +3208,14 @@ function followCamera() {
       ns.offZoomed = true;
     } else if (S.set.autoZoom) { const z = cruiseZoom(la); if (z != null) opts.zoom = z; }
     if (effOrient() === 'oriented' && S.deviceHeading != null) opts.bearing = S.deviceHeading;
+  }
+  // auto-zoom is a continuous float (it drifts with cos(lat) and the speed EMA);
+  // sent raw, every ease was a zoom change and MapLibre re-derived tile cover and
+  // symbol placement for it each frame. 1/20 of a zoom level is below what the eye
+  // reads; a change smaller than that is not a change.
+  if (opts.zoom != null && !S.snapZoom) {
+    opts.zoom = Math.round(opts.zoom * 20) / 20;
+    if (Math.abs(opts.zoom - map.getZoom()) < 0.05) delete opts.zoom;
   }
   map.easeTo(opts);
 }
@@ -3948,7 +4000,9 @@ function navFix(x, y, t, spd, hdg) {
     if (delta !== 0) ns.dirVotes = Math.max(-8, Math.min(8, ns.dirVotes + Math.sign(delta)));
     const newDir = ns.dirVotes <= -4 ? -1 : ns.dirVotes >= 4 ? 1 : ns.dir;
     if (newDir !== ns.dir) {
-      ns.dir = newDir; ns.confirmAt = null; refreshMapData(); // chevrons follow riding direction
+      // chevrons follow riding direction: the route sources only — refreshMapData
+      // would also re-send the whole heat and every other track for a flip
+      ns.dir = newDir; ns.confirmAt = null; refreshSelTrack(); refreshRouteFeatures();
       toast(ns.dir > 0 ? 'Direction: forward along track' : 'Direction: reverse along track');
     }
   }
@@ -4207,17 +4261,20 @@ function drawProgress(force) {
   }
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(posX, dotY, 4.5, 0, 7); ctx.fill();
   ctx.fillStyle = '#4096ff'; ctx.beginPath(); ctx.arc(posX, dotY, 3, 0, 7); ctx.fill();
-  progDone.innerHTML = '<b>' + (done / 1000).toFixed(1) + ' km</b> · ' + fmtTime(ns.movingS);
+  // the three readouts change once a second at most; the strip redraws far more often
+  htmlIf(progDone, '<b>' + (done / 1000).toFixed(1) + ' km</b> · ' + fmtTime(ns.movingS));
   const rem = Math.max(0, len - done);
-  progTogo.innerHTML = '<b>' + (rem / 1000).toFixed(1) + ' km</b> · ' +
-    (ns.avgSpd > 0.5 ? '~' + fmtTime(rem / ns.avgSpd) : '—');
+  htmlIf(progTogo, '<b>' + (rem / 1000).toFixed(1) + ' km</b> · ' +
+    (ns.avgSpd > 0.5 ? '~' + fmtTime(rem / ns.avgSpd) : '—'));
   // centre: distance to the next cue — the strip is windowed to the map, so at rider
   // zoom the next turn is usually off the right edge; this is the number that matters
   const nd = ns.cdD;
-  progNext.innerHTML = isFinite(nd) && nd != null && !ns.off
+  htmlIf(progNext, isFinite(nd) && nd != null && !ns.off
     ? '→ <b>' + (nd < 1000 ? Math.max(10, Math.round(nd / 10) * 10) + ' m' : (nd / 1000).toFixed(1) + ' km') + '</b>'
-    : '';
+    : '');
 }
+/* innerHTML only when the markup changed — a same-string write still invalidates layout */
+function htmlIf(el, html) { if (el._html !== html) { el._html = html; el.innerHTML = html; } }
 /* countdown bar: fixed full width, fills left→right as the next cue closes in; big number
    in metres or seconds (settings). Seconds freeze at the last value when stopped — never ∞. */
 function drawCountdown(ctx, w, h, ns) {

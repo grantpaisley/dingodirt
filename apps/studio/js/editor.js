@@ -255,7 +255,7 @@ function schemeJson() {
 export async function exportScheme() {
   const files = { 'scheme.json': fflate.strToU8(schemeJson()) };
   try {
-    const url = ED.view.capturePng();
+    const url = await ED.view.capturePng();
     const b64 = url.split(',')[1];
     files['preview.png'] = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   } catch (e) { console.warn('preview capture failed', e); }

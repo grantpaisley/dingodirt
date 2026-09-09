@@ -10,13 +10,12 @@ import type maplibregl from 'maplibre-gl'
 let instance: maplibregl.Map | null = null
 
 export function setMapInstance(m: maplibregl.Map | null): void {
-    instance = m
-    // Dev-only handle, the __dingoMap convention the site's plan page also
-    // follows. A UI sweep needs to place the camera exactly before it can
-    // click a point that sits on a track.
-    if (import.meta.env.DEV) {
-        (window as unknown as Record<string, unknown>).__dingoMap = m
-    }
+    instance = m;
+    // Debug handle, the __dingoMap convention the site's plan page also
+    // follows. Set in every build, not only dev: the UI sweep and the perf
+    // harness (tools/perf) drive the production bundle and need to place the
+    // camera exactly. It is one window property; nothing else reads it.
+    (window as unknown as Record<string, unknown>).__dingoMap = m
 }
 
 export function getMapInstance(): maplibregl.Map | null {

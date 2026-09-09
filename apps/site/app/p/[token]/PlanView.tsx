@@ -356,7 +356,14 @@ export default function PlanView({
   );
 
   // ---- server sync ----
+  // The 30 s poll (and every window focus) returns the same items almost
+  // every time; re-sending the whole track FeatureCollection for an
+  // unchanged payload re-tiled it in the worker for nothing.
+  const lastItemsJson = useRef("");
   const applyItems = useCallback((items: Feedback) => {
+    const json = JSON.stringify(items);
+    if (json === lastItemsJson.current) return;
+    lastItemsJson.current = json;
     setFeedback(items);
     const map = mapRef.current;
     const src = map?.getSource("tracks") as maplibreNs.GeoJSONSource | undefined;
@@ -879,15 +886,19 @@ export default function PlanView({
           }
         }
       });
+      // One hit test per mousemove for the pointer cursor. A delegated
+      // mouseenter/mouseleave pair per layer ran queryRenderedFeatures ten
+      // times on every mouse move (two per layer); this runs it once.
       const pointerLayers = ["tracks", "track-active", "pois-icons", "closures-line", "closures-point"];
-      for (const l of pointerLayers) {
-        map.on("mouseenter", l, () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", l, () => {
-          map.getCanvas().style.cursor = "";
-        });
-      }
+      let pointerOn = false;
+      map.on("mousemove", (e) => {
+        const layers = pointerLayers.filter((l) => !!map.getLayer(l));
+        const hit = layers.length > 0 && map.queryRenderedFeatures(e.point, { layers }).length > 0;
+        if (hit !== pointerOn) {
+          pointerOn = hit;
+          map.getCanvas().style.cursor = hit ? "pointer" : "";
+        }
+      });
 
       const all = doc.tracks.flatMap((t) => coordsOf(t.geometry));
       if (all.length) {

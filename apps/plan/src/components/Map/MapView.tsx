@@ -311,6 +311,8 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
     const onBoundsChangeRef = useRef(onBoundsChange)
     onBoundsChangeRef.current = onBoundsChange
     const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
+    // Last quantised camera pushed into React state (see syncViewState).
+    const lastViewSync = useRef({ zq: NaN, latq: NaN })
     // Light or dark ground under the tracks (see groundIsLight) — set on
     // every style load, so a base-map switch retunes the ride layers.
     const [lightGround, setLightGround] = useState(false)
@@ -1679,10 +1681,20 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
                 pitch: map.current.getPitch(),
                 bearing: map.current.getBearing(),
             }
-            setViewState(newViewState)
             deck.current.setProps({ viewState: newViewState })
             // Quantised in the setter — a no-op most frames.
             useUiState.getState().setMapZoom(newViewState.zoom)
+            // React state only at 0.1-zoom / 0.01° steps. deck has the exact
+            // camera from setProps above; everything React derives from
+            // viewState (ride tier, POI/heat zoom quanta, chevron lat) is
+            // coarser than this, so re-rendering the component on every
+            // animation frame bought nothing. moveend flushes the exact value.
+            const zq = Math.round(newViewState.zoom * 10)
+            const latq = Math.round(newViewState.latitude * 100)
+            if (zq !== lastViewSync.current.zq || latq !== lastViewSync.current.latq) {
+                lastViewSync.current = { zq, latq }
+                setViewState(newViewState)
+            }
         }
 
         // Update bounds for viewport filtering (debounced)
@@ -1701,8 +1713,15 @@ export function MapView({ selectedIds, hoveredId, onSelect, onHover, onBoundsCha
 
         // Sync view state on every move (for shouldLoadGradients)
         map.current.on('move', syncViewState)
-        // Update bounds only on moveend (debounced data fetch)
-        map.current.on('moveend', updateBounds)
+        // Update bounds only on moveend (debounced data fetch); the exact
+        // camera lands in React state here too, past the per-frame quantum.
+        map.current.on('moveend', () => {
+            updateBounds()
+            if (!map.current) return
+            const c = map.current.getCenter()
+            lastViewSync.current = { zq: NaN, latq: NaN }
+            setViewState({ longitude: c.lng, latitude: c.lat, zoom: map.current.getZoom(), pitch: map.current.getPitch(), bearing: map.current.getBearing() })
+        })
         // Initialize bounds on load
         map.current.on('load', () => {
             // Strava raster + hillshade/terrain, per the current settings

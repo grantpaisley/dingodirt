@@ -1,0 +1,12 @@
+{
+  "name": "dingo-perf",
+  "private": true,
+  "description": "Map performance harness — drives Nav, Studio and Plan in headless Chromium and measures style build, first render, zoom, pan and follow-mode frame times. Own package.json so the repo root and the no-build apps stay dependency-free.",
+  "type": "module",
+  "scripts": {
+    "bench": "node bench.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
