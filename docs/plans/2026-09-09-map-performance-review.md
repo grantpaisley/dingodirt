@@ -30,7 +30,9 @@ harness at the commits named in the tables; the code references are into
   thread, a route re-projection of every track point every 1.5 s while
   riding, a progress strip redrawn on every animation frame with three
   `innerHTML` writes, and a riding-direction flip that re-sent the whole heat
-  map. All six are fixed and measured in §4.
+  map. All six are fixed and measured in §4, and a second round gave its
+  GeoJSON line sources a z14 tiling ceiling, which cut tile latency p50 by
+  57 to 85 percent and the long-track zoom sweep by a third.
 - **Studio** dropped `preserveDrawingBuffer` (a full-canvas copy per frame on
   mobile GPUs) by moving the preview capture into a render callback: tile
   latency fell 19 to 23 percent and the worst follow frame 20 percent.
@@ -270,6 +272,43 @@ route work scales. Two runs each, medians, same harness build:
 On the phone the route rebuild runs every 1.5 s while riding, so on a long
 ride the first row is the one that matters: 45 ms of main thread returned
 every 1.5 s.
+
+#### 4.1.1 The `onFix` rise, bisected
+
+`onFix` rose from 1.8 to 3.1 ms on the long track. The only round-one change
+on the per-fix path is the auto-zoom quantisation, so it was measured with
+that block removed (`navlong-noquant`, two runs): `navFix` 2.8 → 2.0 ms, but
+follow frame p95 +12%, frame max +15%, zoom sweep +10% and follow tile
+reloads +12%. The round-two variant below, which keeps the quantisation,
+then measured `navFix` at 2.0 ms as well. The per-fix figure swings between
+2.0 and 2.9 ms across runs of identical code; the quantisation stays.
+
+#### 4.1.2 Round two: GeoJSON source options
+
+`maxzoom: 14` on the five line sources (`heat`, `tracksOther`, `selTrack`,
+`selSurf`, `trail`) and `tolerance: 1` on `heat`. The archive's own vector
+tiles stop at z14; past it MapLibre overzooms. With the default GeoJSON
+`maxzoom` of 18, every camera move at rider zoom re-tiled each source at
+z15 to z18, and every per-fix `setData` did the same. At z14 geojson-vt's
+tolerance is 0.375 tile units, about 0.2 m on the ground, so nothing the eye
+can see changes at z18; the heat is a blurred line up to 26 px wide, so its
+1-unit tolerance (about 0.6 m) is invisible too.
+
+| Metric | round one | round two | change | | round one (long) | round two (long) | change |
+|---|---|---|---|---|---|---|---|
+| boot total ms | 3,584 | 3,258 | −9% | | 3,819 | 3,635 | −5% |
+| zoom sweep ms | 10,624 | 10,225 | −4% | | 13,623 | 9,055 | −34% |
+| tile latency p50 ms | 87.3 | 13.3 | −85% | | 64.3 | 27.9 | −57% |
+| tile latency p95 ms | 2,312 | 2,167 | −6% | | 2,264 | 2,043 | −10% |
+| follow tile reloads | 2,065 | 1,743 | −16% | | 522 | 499 | −4% |
+| `refreshMapData` mean ms | 1.3 | 1.3 | 0 | | 29.6 | 24.0 | −19% |
+| follow long tasks, count | 30 | 27 | −10% | | 26 | 28 | +8% |
+| follow frame p95 ms | 283 | 317 | +12% | | 283 | 350 | +24% |
+
+The frame p95 and maximum moved inside the band that identical
+configurations produce here (p95 267 to 433 ms, max 400 to 1,119 ms across
+the `main` runs), so they are not read as a cost; the tile latency and the
+zoom sweep are the measured effect.
 
 ### 4.2 Studio
 
