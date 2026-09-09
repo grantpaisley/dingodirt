@@ -2690,9 +2690,15 @@ function addOverlays() {
     setStravaInfo('Strava tiles loaded: ' + parts.join(', '));
   }
 
-  map.addSource('heat', { type: 'geojson', data: S.heat ? S.heat.geojson : EMPTY });
-  map.addSource('tracksOther', { type: 'geojson', data: EMPTY });
-  map.addSource('selTrack', { type: 'geojson', data: EMPTY });
+  // Line sources stop tiling at z14 (the archive's own vector maxzoom); past it
+  // MapLibre overzooms the z14 tile. At the default maxzoom 18 every camera move
+  // at rider zoom and every per-fix setData re-tiled each source at z15-18 for
+  // no visible gain: geojson-vt's tolerance at z14 is ~0.2 m on the ground.
+  // The heat is a blurred line up to 26 px wide, so a 1-unit tolerance
+  // (~0.6 m) on its 360k points is invisible and a third of the vertices.
+  map.addSource('heat', { type: 'geojson', data: S.heat ? S.heat.geojson : EMPTY, maxzoom: 14, tolerance: 1 });
+  map.addSource('tracksOther', { type: 'geojson', data: EMPTY, maxzoom: 14 });
+  map.addSource('selTrack', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   map.addSource('alerts', { type: 'geojson', data: EMPTY });
   map.addSource('friends', { type: 'geojson', data: EMPTY });
   map.addSource('posAcc', { type: 'geojson', data: EMPTY });
@@ -2714,7 +2720,7 @@ function addOverlays() {
   // backtrack trail: the dotted thread of where you've actually been. The layer is
   // added here but MOVED below (see moveLayer) — its stacking is deliberate, not
   // wherever the add order happened to leave it.
-  map.addSource('trail', { type: 'geojson', data: EMPTY });
+  map.addSource('trail', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   // One solid red line, narrower than the route core so the covered segments still show
   // either side of it. Slightly transparent so the map reads through as well.
   // Rounded joins as well as caps — mitred corners notch.
@@ -2726,7 +2732,7 @@ function addOverlays() {
      route blue by default, or slope/surface colouring picked from the ☰ Track colour
      tile. Travelled sections use the per-feature dimmed variant ('cd') so slope and
      surface still read behind you. Casing = day/night shadow/glow (caseColor()). */
-  map.addSource('selSurf', { type: 'geojson', data: EMPTY });
+  map.addSource('selSurf', { type: 'geojson', data: EMPTY, maxzoom: 14 });
   const rnd = { 'line-join': 'round', 'line-cap': 'round' };
   const sf = st => ['==', ['get', 'state'], st];
   /* progress ladder, bottom→top: travelled (dimmed, reduced dark case) → remaining
