@@ -93,12 +93,14 @@
   // rasteriser), style loads, renders, and the first 20 error messages.
   P.tileLat = [];
   P.errors = [];
+  P.tilesBySource = {}; // which sources the tile loads belong to (GeoJSON sources re-tile on every setData)
   P.attach = function (m) {
     const pending = new Map();
     m.on('dataloading', (e) => { if (e.dataType === 'source' && e.tile) pending.set(e.tile.tileID.key, performance.now()); });
     m.on('data', (e) => {
       if (e.dataType !== 'source' || !e.tile) return;
       P.events.tileLoad++;
+      P.tilesBySource[e.sourceId] = (P.tilesBySource[e.sourceId] || 0) + 1;
       const k = e.tile.tileID.key, t = pending.get(k);
       if (t != null) { P.tileLat.push(performance.now() - t); pending.delete(k); }
     });

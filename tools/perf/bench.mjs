@@ -45,6 +45,10 @@ const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args
 const APPS = opt('--apps', 'nav,studio,plan').split(',');
 const RUNS = +opt('--runs', 3);
 const LABEL = opt('--label', 'run');
+// --ref <git ref>: serve apps/nav/index.html from that commit instead of the
+// working tree, so an A/B runs both sides through one harness build (Nav only:
+// it is one file; Studio and Plan need a checkout or a rebuild).
+const REF = opt('--ref', null);
 
 // ---------------------------------------------------------------- helpers
 function median(xs) { const s = xs.filter((x) => typeof x === 'number').sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; }
@@ -117,7 +121,9 @@ async function cameraSweep(page, mapExpr) {
     return P.waitIdle(m, to).then(() => ({ idleMs: +(performance.now() - t).toFixed(0), tiles: P.events.tileLoad - tiles0 }));
   }, [mapExpr, call, arg, IDLE_TIMEOUT]);
   const zoom = [];
+  await page.evaluate(() => { window.__perf.tilesBySource = {}; });
   for (const { z, c } of ZOOM_STEPS) zoom.push({ z, ...(await move('jumpTo', { center: c, zoom: z })) });
+  const zoomTilesBySource = await page.evaluate(() => window.__perf.tilesBySource);
   // pan: a straight run west at z15 across the archive, each step into fresh tiles
   await move('jumpTo', { center: [151.42, -33.30], zoom: 15 });
   const pan = [];
@@ -126,7 +132,7 @@ async function cameraSweep(page, mapExpr) {
   const ease = await easeWindow(page, mapExpr);
   return {
     zoom, zoomTotalMs: zoom.reduce((a, b) => a + b.idleMs, 0), zoomTiles: zoom.reduce((a, b) => a + b.tiles, 0),
-    panTotalMs: pan.reduce((a, b) => a + b, 0), panMaxMs: Math.max(...pan), tileLat, ease,
+    panTotalMs: pan.reduce((a, b) => a + b, 0), panMaxMs: Math.max(...pan), tileLat, ease, zoomTilesBySource,
   };
 }
 // --profile: sample the main thread (CDP Profiler) during the follow window and
@@ -192,7 +198,11 @@ const scenarios = {
     const bootMs = Date.now() - t0;
     const boot = { totalMs: bootMs, mapIdleMs: +bootIdle.toFixed(0), ...(await timings(page, ['buildStyle', 'initMap', 'addOverlays', 'processTrack', 'processHeatmap', 'parseGPX'])) };
     await page.evaluate(() => { selectTrack(0); refreshMapData(); });
+    // the sweep runs while the corridor prefetch is still fetching, as it does
+    // when a rider opens a pack and starts zooming; the follow window waits for
+    // it so that phase compares like for like between configurations
     const sweep = await cameraSweep(page, 'map');
+    await page.waitForFunction(() => typeof dtileFetching === 'undefined' || !dtileFetching, null, { timeout: IDLE_TIMEOUT }).catch(() => {});
     // follow mode: the demo feeds synthetic fixes through onFix at 10 Hz
     await page.evaluate(() => { startDemo(); });
     await page.waitForFunction(() => S.nav === true, null, { timeout: 30000 });
@@ -259,9 +269,17 @@ async function main() {
   if (args[0] === '--compare') return compare(args[1], args[2]);
   const bundle = prepNavBundle();
   const planDist = join(ROOT, 'apps/plan/dist');
+  let navOverride = null;
+  if (REF) {
+    mkdirSync(CACHE, { recursive: true });
+    navOverride = join(CACHE, `nav-index-${REF.replace(/[^\w.-]/g, '_')}.html`);
+    writeFileSync(navOverride, execSync(`git show ${REF}:apps/nav/index.html`, { cwd: ROOT, maxBuffer: 64 << 20 }));
+    console.log(`nav: serving apps/nav/index.html from ${REF}`);
+  }
   const { server, port } = await startServer({
     root: ROOT,
     overrides: {
+      ...(navOverride ? { '/apps/nav/index.html': navOverride } : {}),
       '/apps/nav/bundle.json': bundle,
       '/tiles/basemap-au.pmtiles': join(ROOT, 'apps/studio/basemap/central-coast.pmtiles'),
       '/tiles/hillshade-au.pmtiles': join(ROOT, 'apps/studio/basemap/hillshade.pmtiles'),
@@ -276,7 +294,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true, executablePath, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox'] });
   let commit = 'unknown';
   try { commit = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim(); } catch {}
-  const out = { label: LABEL, commit, date: new Date().toISOString(), runs: RUNS, apps: {} };
+  const out = { label: LABEL, commit: REF ? `${REF} (nav file)` : commit, date: new Date().toISOString(), runs: RUNS, apps: {} };
 
   for (const app of APPS) {
     if (!scenarios[app]) { console.error(`unknown app ${app}`); continue; }
@@ -327,6 +345,8 @@ function printSummary(out) {
     console.log(`\n== ${app} (median of ${data.runs.length}) ==`);
     for (const [k, label] of KEY_METRICS) if (flat[k] != null) console.log(`  ${label.padEnd(22)} ${fmt(flat[k])}`);
     if (data.median.zoom) console.log('  zoom steps            ' + data.median.zoom.map((s) => `z${s.z}:${fmt(s.idleMs)}ms/${s.tiles}t`).join('  '));
+    const bySrc = data.runs[0].zoomTilesBySource;
+    if (bySrc) console.log('  zoom tiles by source  ' + Object.entries(bySrc).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => `${k}:${v}`).join('  '));
     const prof = data.runs[0].follow && data.runs[0].follow.profile;
     if (prof) { console.log(`  follow profile (run 1, ${prof.totalMs} ms sampled, ${prof.idleMs} ms idle):`); for (const l of prof.top) console.log('    ' + l); }
   }
