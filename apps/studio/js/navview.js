@@ -300,7 +300,10 @@ export class NavView {
       center: [151.3, -33.3], zoom: 9, pitch: this._b('camera.pitch'),
       maxPitch: 60, pitchWithRotate: false, dragRotate: false,
       attributionControl: { compact: true },
-      preserveDrawingBuffer: true, // preview.png capture
+      // preview.png is captured inside a render callback (capturePng), so the
+      // drawing buffer need not be preserved between frames — preserving it
+      // costs a full-canvas copy per frame on tile-based mobile GPUs
+      preserveDrawingBuffer: false,
       interactive: this.opts.interactive !== false,
     });
     this.map.touchZoomRotate.disableRotation();
@@ -791,7 +794,14 @@ export class NavView {
     fill.style.width = Math.max(0, Math.min(100, dTo / win * 100)) + '%';
   }
 
-  capturePng() { return this.map.getCanvas().toDataURL('image/png'); }
+  /* The canvas is only readable right after MapLibre draws it (no
+     preserveDrawingBuffer): ask for a frame and read it inside 'render'. */
+  capturePng() {
+    return new Promise(res => {
+      this.map.once('render', () => res(this.map.getCanvas().toDataURL('image/png')));
+      this.map.triggerRepaint();
+    });
+  }
   destroy() {
     this.ro.disconnect();
     if (this.map) this.map.remove();
