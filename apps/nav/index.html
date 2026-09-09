@@ -1561,8 +1561,10 @@ async function prefetchCorridor(slug) {
       while (todo.length) {
         // the live map comes first: four workers decompressing and writing IDB on
         // the same thread as tile serving doubled time-to-idle on every zoom while
-        // a corridor was fetching
-        while (liveTiles > 0 || (mapReady && map.isMoving())) await new Promise(r => setTimeout(r, 40));
+        // a corridor was fetching. Only tiles the map is waiting on are yielded
+        // to — not motion: a following camera never stops, and a prefetch that
+        // waited for it would run during the ride instead of before it
+        while (liveTiles > 0) await new Promise(r => setTimeout(r, 40));
         const j = todo.shift();
         if (!j) break;
         try {
