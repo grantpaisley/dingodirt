@@ -252,6 +252,25 @@ each of which re-tiles on every camera change: on the z10 step, `selSurf` 57,
 `friends`, `posAcc` and `pos`, against a handful of vector and DEM tiles.
 That is the next lever (§5).
 
+**Long track.** The `navlong` scenario joins the eight longest recorded
+tracks in the sample heatmap into one 19,000-point ride, which is where the
+route work scales. Two runs each, medians, same harness build:
+
+| Metric | `main` | after | change |
+|---|---|---|---|
+| `refreshRouteFeatures` mean ms | 69.8 | 25.0 | −64% |
+| `refreshMapData` mean ms | 43.2 | 29.6 | −32% |
+| route analysis ms | 12,419 | 10,479 | −16% |
+| zoom sweep ms | 16,455 | 13,623 | −17% |
+| tile latency p50 ms | 150.5 | 64.3 | −57% |
+| follow frame max ms | 683 | 450 | −34% |
+| boot → idle ms | 2,273 | 2,135 | −6% |
+| `onFix` mean ms | 1.8 | 3.1 | +69% (see §4.1.1) |
+
+On the phone the route rebuild runs every 1.5 s while riding, so on a long
+ride the first row is the one that matters: 45 ms of main thread returned
+every 1.5 s.
+
 ### 4.2 Studio
 
 `f394baa`: `preserveDrawingBuffer: false`; `capturePng` asks for a frame and
