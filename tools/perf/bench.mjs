@@ -80,6 +80,21 @@ function prepNavBundle() {
   writeFileSync(out, JSON.stringify({ tracks: [{ name: 'Palm Dale loop', gpx }], heatmap, heatmapName: 'heatmap-central-coast.geojson' }));
   return out;
 }
+// A long ride for the navlong scenario: the eight longest recorded tracks in
+// the sample heatmap joined end to end (~19,000 points, all inside the archive).
+// Route work in Nav scales with point count; the 542-point loop hides it.
+function prepLongBundle() {
+  mkdirSync(CACHE, { recursive: true });
+  const out = join(CACHE, 'nav-bundle-long.json');
+  if (existsSync(out)) return out;
+  const heatmap = JSON.parse(readFileSync(SAMPLE_HEAT, 'utf8'));
+  const lines = heatmap.features.filter((f) => f.geometry.type === 'LineString').sort((a, b) => b.geometry.coordinates.length - a.geometry.coordinates.length).slice(0, 8);
+  let t = 0;
+  const pts = lines.flatMap((f) => f.geometry.coordinates.map(([lon, lat]) => `<trkpt lat="${lat}" lon="${lon}"><time>${new Date(1600000000000 + (t += 3000)).toISOString()}</time></trkpt>`));
+  const gpx = `<?xml version="1.0"?><gpx version="1.1" creator="dingo-perf"><trk><name>Long ride</name><trkseg>${pts.join('')}</trkseg></trk></gpx>`;
+  writeFileSync(out, JSON.stringify({ tracks: [{ name: 'Long ride', gpx }], heatmap, heatmapName: 'heatmap-central-coast.geojson' }));
+  return out;
+}
 
 // ------------------------------------------------------------ page driving
 async function waitIdle(page, mapExpr, relaxed = false) {
@@ -114,14 +129,39 @@ async function cameraSweep(page, mapExpr) {
     panTotalMs: pan.reduce((a, b) => a + b, 0), panMaxMs: Math.max(...pan), tileLat, ease,
   };
 }
+// --profile: sample the main thread (CDP Profiler) during the follow window and
+// keep the top self-time functions, so a regression or a win has a name.
+const PROFILE = args.includes('--profile');
+async function profiled(page, fn) {
+  if (!PROFILE) return fn();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
+  await cdp.send('Profiler.start');
+  const result = await fn();
+  const { profile } = await cdp.send('Profiler.stop');
+  await cdp.detach();
+  const self = new Map(); const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+  const total = profile.timeDeltas.reduce((a, b) => a + b, 0) / 1000;
+  profile.samples.forEach((id, i) => {
+    const n = byId.get(id); const cf = n.callFrame;
+    const key = `${cf.functionName || '(anonymous)'} ${cf.url.split('/').slice(-1)[0]}:${cf.lineNumber + 1}`;
+    self.set(key, (self.get(key) || 0) + profile.timeDeltas[i] / 1000);
+  });
+  const top = [...self.entries()].filter(([k]) => !/^\(idle\)|^\(program\)|^\(garbage collector\)|^\(root\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, v]) => `${v.toFixed(0)}ms ${k}`);
+  result.profile = { totalMs: +total.toFixed(0), idleMs: +((self.get('(idle) :0') || 0)).toFixed(0), top };
+  return result;
+}
 async function followWindow(page, ms) {
-  await page.evaluate(() => { const P = window.__perf; P.startFrames(); P.resetLongTasks(); P.tileLat = []; P._t = performance.now(); P._r = P.events.render; P._tl = P.events.tileLoad; });
-  await page.waitForTimeout(ms);
-  return page.evaluate(() => {
-    const P = window.__perf;
-    const frames = P.stopFrames();
-    const wall = performance.now() - P._t;
-    return { frames, longTasks: P.longTaskStats(P._t), renders: P.events.render - P._r, rendersPerSec: +((P.events.render - P._r) / (wall / 1000)).toFixed(1), tiles: P.events.tileLoad - P._tl, tileLat: P.tileLatStats() };
+  return profiled(page, async () => {
+    await page.evaluate(() => { const P = window.__perf; P.startFrames(); P.resetLongTasks(); P.tileLat = []; P._t = performance.now(); P._r = P.events.render; P._tl = P.events.tileLoad; });
+    await page.waitForTimeout(ms);
+    return page.evaluate(() => {
+      const P = window.__perf;
+      const frames = P.stopFrames();
+      const wall = performance.now() - P._t;
+      return { frames, longTasks: P.longTaskStats(P._t), renders: P.events.render - P._r, rendersPerSec: +((P.events.render - P._r) / (wall / 1000)).toFixed(1), tiles: P.events.tileLoad - P._tl, tileLat: P.tileLatStats() };
+    });
   });
 }
 async function timings(page, keys) {
@@ -133,14 +173,16 @@ async function timings(page, keys) {
 }
 
 const scenarios = {
-  async nav({ browser, origin, tilesBase }) {
+  async navlong(ctx) { return scenarios.nav({ ...ctx, bundle: prepLongBundle() }); },
+  async nav({ browser, origin, tilesBase, bundle }) {
     const context = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+    if (bundle) await context.route('**/apps/nav/bundle.json', (r) => r.fulfill({ path: bundle, contentType: 'application/json' }));
     await context.addInitScript({ path: join(HERE, 'instrument.js') });
     await context.addInitScript(({ base, names }) => {
       localStorage.setItem('dtiles-base', base);
       localStorage.setItem('dingonav-visited', '1');
       document.addEventListener('DOMContentLoaded', () => { for (const n of names) window.__perf.wrap(window, n); });
-    }, { base: tilesBase, names: ['buildStyle', 'initMap', 'addOverlays', 'refreshMapData', 'onFix', 'navFix', 'followCamera', 'setHud', 'analyzeRoute', 'processTrack', 'parseGPX', 'processHeatmap'] });
+    }, { base: tilesBase, names: ['buildStyle', 'initMap', 'addOverlays', 'refreshMapData', 'refreshRouteFeatures', 'refreshTrail', 'drawProgress', 'onFix', 'navFix', 'followCamera', 'setHud', 'analyzeRoute', 'processTrack', 'parseGPX', 'processHeatmap'] });
     const page = await context.newPage();
     page.on('pageerror', (e) => console.error('  [nav pageerror]', e.message));
     const t0 = Date.now();
@@ -159,7 +201,7 @@ const scenarios = {
     await page.waitForFunction(() => S.tracks[0] && S.tracks[0].alerts, null, { timeout: IDLE_TIMEOUT }).catch(() => {});
     await page.waitForTimeout(1000);
     const follow = await followWindow(page, FOLLOW_MS);
-    follow.fn = await timings(page, ['onFix', 'navFix', 'followCamera', 'setHud', 'refreshMapData', 'analyzeRoute']);
+    follow.fn = await timings(page, ['onFix', 'navFix', 'followCamera', 'setHud', 'refreshMapData', 'refreshRouteFeatures', 'refreshTrail', 'drawProgress', 'analyzeRoute']);
     const snap = await page.evaluate(() => window.__perf.snapshot());
     const events = snap.events, errors = snap.errors;
     await page.evaluate(() => { stopDemo(); stopNav(); }).catch(() => {});
@@ -273,6 +315,9 @@ const KEY_METRICS = [
   ['follow.rendersPerSec', 'renders/s'], ['follow.tiles', 'follow tiles'], ['follow.longTasks.count', 'long tasks'], ['follow.longTasks.totalMs', 'long task ms'],
   ['follow.fn.onFix.mean', 'onFix mean ms'], ['follow.fn.onFix.p95', 'onFix p95 ms'], ['follow.fn.navFix.mean', 'navFix mean ms'],
   ['follow.fn.refreshMapData.mean', 'refreshMapData ms'], ['follow.fn.refreshMapData.n', 'refreshMapData calls'],
+  ['follow.fn.refreshRouteFeatures.mean', 'refreshRouteFeat ms'], ['follow.fn.refreshRouteFeatures.n', 'refreshRouteFeat calls'],
+  ['follow.fn.refreshTrail.mean', 'refreshTrail ms'], ['follow.fn.drawProgress.mean', 'drawProgress ms'], ['follow.fn.drawProgress.n', 'drawProgress calls'],
+  ['boot.processTrack.mean', 'processTrack ms'],
   ['follow.fn.setHud.mean', 'setHud ms'], ['follow.fn.analyzeRoute.mean', 'analyzeRoute ms'],
   ['events.setStyle', 'setStyle calls'], ['events.error', 'map errors'],
 ];
@@ -282,6 +327,8 @@ function printSummary(out) {
     console.log(`\n== ${app} (median of ${data.runs.length}) ==`);
     for (const [k, label] of KEY_METRICS) if (flat[k] != null) console.log(`  ${label.padEnd(22)} ${fmt(flat[k])}`);
     if (data.median.zoom) console.log('  zoom steps            ' + data.median.zoom.map((s) => `z${s.z}:${fmt(s.idleMs)}ms/${s.tiles}t`).join('  '));
+    const prof = data.runs[0].follow && data.runs[0].follow.profile;
+    if (prof) { console.log(`  follow profile (run 1, ${prof.totalMs} ms sampled, ${prof.idleMs} ms idle):`); for (const l of prof.top) console.log('    ' + l); }
   }
 }
 function compare(a, b) {
