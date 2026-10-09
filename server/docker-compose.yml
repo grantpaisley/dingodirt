@@ -1,3 +1,10 @@
+# Pin the Compose project name. Without it Compose names the project after
+# this folder ("server"), so it does not recognise the dingo-db container and
+# dingo_dingo_pgdata volume that the pre-monorepo Dingo checkout made under
+# the project "dingo". `docker compose up -d` then fails with a container-name
+# conflict, and a fresh setup would get an empty server_dingo_pgdata volume.
+name: dingo
+
 services:
   db:
     image: postgis/postgis:16-3.4
