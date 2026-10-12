@@ -94,7 +94,10 @@ Android, the lock only works for an installed PWA in fullscreen — so a true
 lock is Android-only and unreliable. The CSS-rotate-the-whole-UI option is
 a hack that fights the split-screen support added earlier. Revisit this
 only if the app is wrapped natively, or if an Android-only best-effort lock
-is judged worth it.
+is judged worth it. **Revisited 2026-10-12** — see
+`nav-2026-10-12-car-screens-and-gpx-open-design.md`: the answer is still
+"only as part of a native wrapper", and that doc weighs the wrapper as a
+whole rather than this button on its own.
 
 ## "+" placeholder tiles in the ride-panel dock (spare slots)
 
@@ -144,3 +147,31 @@ Findings from the Dingo side, so the groundwork is not repeated:
 Open question if picked up: does usage telemetry belong in a
 trail-knowledge database at all, or in something separate that only shares
 the email as a key?
+
+## CarPlay / Android Auto, and a native wrapper
+
+**Decision (2026-10-12): parked, with the research written down.** See
+`nav-2026-10-12-car-screens-and-gpx-open-design.md` for the full record.
+The short version, so nobody re-opens this from scratch:
+
+- **A car screen cannot show DingoNav.** CarPlay and Android Auto render
+  only native templated UI; there is no web view on the car display. So
+  this is not a wrapping job — MapLibre, the offline basemap, the cue
+  rendering and the Studio schemes do not cross over, and a car version
+  is a *second* navigation UI sharing only track data.
+- **CarPlay** needs an entitlement granted by Apple before the app will
+  even build. **Android Auto** needs the Car App Library plus Google's
+  approval for the navigation category to distribute publicly;
+  sideloading works for personal use today but is being tightened.
+- **What was shipped instead (same round):** GPX files now reach Nav
+  through the Android share sheet and the desktop "Open with" list. No
+  native code — the service worker answers the share POST, because
+  Pages cannot.
+- **What a wrapper would buy** is listed in that doc: storage iOS cannot
+  evict, background GPS recording, a real orientation lock, and a Stark
+  Varg link that does not need the Stark app or VargPilot running first
+  (with the caveat that the "won't stream unaided" problem is a protocol
+  unknown, not a browser limit).
+
+Nothing here is scheduled. Pick it up when a car screen, or the Varg
+background link, is what actually blocks a ride.

@@ -5701,6 +5701,32 @@ async function handleFiles(files) {
 document.getElementById('fileInput').addEventListener('change', e => { handleFiles([...e.target.files]); e.target.value = ''; });
 document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
 
+/* Files handed over by the Android share sheet (Files, Drive, a mate's message
+   -> Share -> DingoNav). The manifest's share_target has to POST to carry
+   files, and Nav is on GitHub Pages with no server to take a POST, so sw.js
+   answers it and parks the files in the 'dingonav-share' cache. Here we rebuild
+   real File objects and clear the bucket, so one share is spent exactly once.
+   Held in pendingShare rather than loaded on the spot: handleFiles repaints the
+   map and fits the track, so it has to wait for initMap (see boot). */
+let pendingShare = [];
+async function drainSharedFiles() {
+  const out = [];
+  try {
+    const c = await caches.open('dingonav-share');
+    const keys = await c.keys();
+    keys.sort((a, b) => a.url.localeCompare(b.url)); // sw.js zero-pads -> rider's order
+    for (const k of keys) {
+      const r = await c.match(k);
+      if (!r) continue;
+      // stored as ./shared/<nnn>-<encoded name>; strip the ordering prefix back off
+      const name = decodeURIComponent(k.url.split('/').pop()).replace(/^\d+-/, '');
+      out.push(new File([await r.blob()], name, { type: r.headers.get('Content-Type') || '' }));
+    }
+    await Promise.all(keys.map(k => c.delete(k)));
+  } catch (e) { console.warn('shared files unavailable', e); }
+  return out;
+}
+
 /* A shared Google Maps directions link → a track. The link carries only the
    stops; dingodirt.com routes them through the Google Routes API and hands
    back a GPX (design: docs/plans/nav-2026-09-06-gmaps-link-import-design.md).
@@ -8662,6 +8688,14 @@ async function boot() {
     if (link) { bootPhase('share'); await importGmapsLink(link, true); }
     else toast('The shared text had no Google Maps link in it');
   }
+  // ?share_files=1 — the same share sheet, but it handed over FILES rather than
+  // text (sw.js took the multipart POST and parked them). Drain the bucket and
+  // strip the param here, so a reload can never re-import; the load itself
+  // waits for the map, below.
+  if (params.has('share_files')) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    pendingShare = await drainSharedFiles();
+  }
   // No tile reload needed on this path: the import above is fully awaited
   // before initMap() below, which reads basemap/strava/sat tiles from IDB.
   // backtrack trail from the last ride survives an app restart
@@ -8688,6 +8722,13 @@ async function boot() {
   // would be dismissed onto an empty dark void. analyzeRouteInner awaits baseReady
   // too, so this is about WHEN the screen goes, not about cue correctness.
   await baseReady;
+  // Shared-in files land here, not at the point the param was read: handleFiles
+  // calls refreshMapData() and fitSelected(), which need the map on screen.
+  if (pendingShare.length) {
+    bootPhase('share');
+    const f = pendingShare; pendingShare = [];
+    await handleFiles(f);
+  }
   if (S.sel >= 0 && !S.tracks[S.sel].alerts) {
     bootPhase('cues');
     await analyzeRoute(S.tracks[S.sel]).then(() => { updateBottomBar(); refreshMapData(); });
