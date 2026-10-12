@@ -12,9 +12,26 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
   ],
   "share_target": {
-    "action": "./",
-    "method": "GET",
-    "params": { "title": "title", "text": "share", "url": "url" }
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "share",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "application/gpx+xml", "application/xml", "text/xml", ".gpx",
+            "application/geo+json", "application/json", ".geojson",
+            "application/x-dingonav", ".dingonav",
+            "application/zip", ".zip",
+            "application/octet-stream"
+          ]
+        }
+      ]
+    }
   },
   "file_handlers": [
     {
@@ -22,6 +39,13 @@
       "accept": {
         "application/x-dingonav": [".dingonav"],
         "application/zip": [".dingonav", ".zip"]
+      }
+    },
+    {
+      "action": "./",
+      "accept": {
+        "application/gpx+xml": [".gpx"],
+        "application/geo+json": [".geojson"]
       }
     }
   ]
