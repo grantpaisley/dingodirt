@@ -58,7 +58,8 @@ sha2 = "0.10"
 hex = "0.4"
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+# rustls-tls: Garmin's API accepts TLS 1.3 only, which macOS native TLS can't do.
+reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"] }
 
 # Web framework (daemon)
 axum = "0.8"
