@@ -5,6 +5,7 @@ pub mod closures;
 pub mod dingodirt;
 pub mod export;
 pub mod folders;
+pub mod garmin;
 pub mod items;
 pub mod labels;
 pub mod heat;
@@ -43,4 +44,5 @@ pub fn api_routes() -> Router {
         .nest("/labels", labels::routes())
         .nest("/styles", styles::routes())
         .nest("/settings/dingodirt", dingodirt::routes())
+        .nest("/settings/garmin", garmin::routes())
 }

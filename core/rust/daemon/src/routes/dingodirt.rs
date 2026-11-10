@@ -59,7 +59,7 @@ pub async fn get_setting(pool: &PgPool, key: &str) -> Result<Option<String>, Api
     Ok(row.map(|(v,)| v))
 }
 
-async fn set_setting(pool: &PgPool, key: &str, value: Option<&str>) -> Result<(), ApiError> {
+pub async fn set_setting(pool: &PgPool, key: &str, value: Option<&str>) -> Result<(), ApiError> {
     match value {
         Some(v) => {
             sqlx::query(

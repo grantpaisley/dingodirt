@@ -6,6 +6,7 @@ import {
 import { useSchemeIndex } from '../../scheme/scheme'
 import { pickRideScheme } from '../../scheme/useRideScheme'
 import { DingodirtConnect } from './DingodirtConnect'
+import { GarminConnect } from './GarminConnect'
 
 /** One "Heat colors" row: swatch picker + label */
 function HeatColorRow({ label, title, value, onChange }: {
@@ -131,6 +132,9 @@ export function SettingsPaneContent() {
 
             {/* Publishing packs goes through dingodirt.com — connect once. */}
             <DingodirtConnect />
+
+            {/* Pull own Garmin activities with a personal API key. */}
+            <GarminConnect />
         </div>
     )
 }

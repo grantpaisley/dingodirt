@@ -1461,6 +1461,60 @@ export async function setDingodirtToken(token: string | null): Promise<Dingodirt
     return res.json()
 }
 
+// ---- Garmin Connect (personal API key → original FIT files) ----
+
+export interface GarminStatus {
+    connected: boolean
+    /** "…abcd" — enough to recognise the key, never the whole thing */
+    key_suffix: string | null
+    /** startTimeGMT of the newest activity synced in order */
+    synced_through: string | null
+}
+
+export interface GarminSyncResult {
+    imported: number
+    duplicates: number
+    skipped_no_gps: number
+    failed: { name: string, error: string }[]
+    remaining: number
+    rate_limited: boolean
+    synced_through: string | null
+}
+
+export function useGarminStatus() {
+    return useQuery({
+        queryKey: ['garmin-status'],
+        queryFn: async (): Promise<GarminStatus> => {
+            const res = await fetch(`${API_BASE}/settings/garmin`)
+            if (!res.ok) throw new Error(await res.text())
+            return res.json()
+        },
+    })
+}
+
+/** Store a pasted personal API key (Garmin checks it first) or, with null,
+ *  disconnect. */
+export async function setGarminKey(key: string | null): Promise<GarminStatus> {
+    const res = await fetch(`${API_BASE}/settings/garmin`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify({ key }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
+/** Pull new Garmin activities; `since` (YYYY-MM-DD) backfills from that day. */
+export async function syncGarmin(since?: string): Promise<GarminSyncResult> {
+    const res = await fetch(`${API_BASE}/settings/garmin/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
+        body: JSON.stringify(since ? { since } : {}),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
+}
+
 // ---- Pack mark edits (DingoNav → review queue → baked into the bundle) ----
 
 /** One harvested DingoNav mark edit, matched to the nearest pack track for
