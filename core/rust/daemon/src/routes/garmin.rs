@@ -3,9 +3,9 @@
 //! The user makes a personal API key on Garmin Connect
 //! (connect.garmin.com/app/settings/personalApiToken) and pastes it once into
 //! Plan's Settings. The key lives in app_settings, like the dingodirt.com
-//! token. Each sync swaps the key for a 24-hour access token, lists the
-//! activities newer than the watermark, downloads each original file (a zip
-//! that holds the FIT), and sends it through the normal ingest and
+//! token. Each refresh swaps the key for a 24-hour access token, lists the
+//! activities newer than the newest own ride, downloads each original file
+//! (a zip that holds the FIT), and sends it through the normal ingest and
 //! post-import pipeline. See
 //! docs/plans/2026-11-10-garmin-personal-api-sync-design.md.
 
@@ -23,14 +23,11 @@ use super::dingodirt::{get_setting, set_setting};
 use super::export::{ApiError, bad_request, internal};
 
 const KEY_SETTING: &str = "garmin_api_key";
-/// `startTimeGMT` of the newest activity handled in order, in Garmin's own
-/// `yyyy-MM-dd HH:mm:ss` form, so plain string compare orders it.
-const WATERMARK_SETTING: &str = "garmin_synced_through";
 const TOKEN_PATH: &str = "/personalapitoken-service/personal-api/personal-api-key/token";
 const LIST_PATH: &str = "/activitylist-service/activities/search/activities";
 const PAGE: usize = 100;
-const DEFAULT_LIMIT: usize = 50;
-const MAX_LIMIT: usize = 200;
+/// Activities per refresh; the rest wait for the next click.
+const BATCH: usize = 50;
 
 pub fn routes() -> Router {
     Router::new()
@@ -140,9 +137,9 @@ struct Activity {
     start_latitude: Option<f64>,
 }
 
-/// Activities that start after `watermark`, oldest first. Pages newest first
-/// and stops at the first one at or before the watermark.
-async fn list_new(token: &str, watermark: Option<&str>) -> Result<Vec<Activity>, GarminError> {
+/// Activities that start after `after`, oldest first. Pages newest first
+/// and stops at the first one at or before `after`.
+async fn list_new(token: &str, after: Option<&str>) -> Result<Vec<Activity>, GarminError> {
     let mut out: Vec<Activity> = Vec::new();
     let mut start = 0usize;
     'pages: loop {
@@ -165,7 +162,7 @@ async fn list_new(token: &str, watermark: Option<&str>) -> Result<Vec<Activity>,
             .map_err(|e| GarminError::Other(format!("activity list: {e}")))?;
         let n = page.len();
         for a in page {
-            if watermark.is_some_and(|w| a.start_time_gmt.as_str() <= w) {
+            if after.is_some_and(|w| a.start_time_gmt.as_str() <= w) {
                 break 'pages;
             }
             out.push(a);
@@ -203,11 +200,10 @@ fn suffix(key: &str) -> String {
 
 async fn status(Extension(pool): Extension<PgPool>) -> Result<Json<serde_json::Value>, ApiError> {
     let key = get_setting(&pool, KEY_SETTING).await?;
-    let synced = get_setting(&pool, WATERMARK_SETTING).await?;
     Ok(Json(serde_json::json!({
         "connected": key.is_some(),
         "key_suffix": key.as_deref().map(suffix),
-        "synced_through": synced,
+        "newest_ride": newest_ride(&pool).await?,
     })))
 }
 
@@ -240,13 +236,6 @@ async fn set_key(
 // POST /sync
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Default, Deserialize)]
-struct SyncBody {
-    /// `YYYY-MM-DD`: pull from this day, ignoring the stored watermark.
-    since: Option<String>,
-    limit: Option<usize>,
-}
-
 #[derive(Debug, Default, Serialize)]
 struct Failed {
     name: String,
@@ -259,23 +248,16 @@ struct SyncResult {
     duplicates: usize,
     skipped_no_gps: usize,
     failed: Vec<Failed>,
-    /// New activities left over after `limit` (sync again to get them).
+    /// New activities left over after this batch (refresh again to get them).
     remaining: usize,
     rate_limited: bool,
-    synced_through: Option<String>,
 }
 
-/// Where this sync starts: `since`, else the stored watermark, else the
-/// newest own ride (so a first sync does not pull years of history).
-async fn watermark(pool: &PgPool, since: Option<&str>) -> Result<Option<String>, ApiError> {
-    if let Some(day) = since.map(str::trim).filter(|s| !s.is_empty()) {
-        chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
-            .map_err(|_| bad_request("since must be YYYY-MM-DD"))?;
-        return Ok(Some(format!("{day} 00:00:00")));
-    }
-    if let Some(w) = get_setting(pool, WATERMARK_SETTING).await? {
-        return Ok(Some(w));
-    }
+/// Start of the newest own ride, in Garmin's `yyyy-MM-dd HH:mm:ss` UTC form so
+/// a plain string compare with `startTimeGMT` orders them. A refresh pulls
+/// only activities after it, so nothing older than what is already here
+/// comes in again under another file hash.
+async fn newest_ride(pool: &PgPool) -> Result<Option<String>, ApiError> {
     let newest: Option<(Option<String>,)> = sqlx::query_as(
         "SELECT to_char(max(started_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
          FROM rides WHERE origin = 'self'",
@@ -317,69 +299,50 @@ async fn ingest_activity(
     Ok(ids)
 }
 
-async fn sync(
-    Extension(pool): Extension<PgPool>,
-    body: Option<Json<SyncBody>>,
-) -> Result<Json<SyncResult>, ApiError> {
-    let body = body.map(|Json(b)| b).unwrap_or_default();
+async fn sync(Extension(pool): Extension<PgPool>) -> Result<Json<SyncResult>, ApiError> {
     let key = get_setting(&pool, KEY_SETTING).await?.ok_or((
         StatusCode::UNAUTHORIZED,
         "Garmin not connected — paste a personal API key in Settings".to_string(),
     ))?;
-    let limit = body.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
     let config = dingo_core::Config::load().map_err(internal)?;
     let store = dingo_ingest::FileStore::new(&config.file_store_path).map_err(internal)?;
 
     let token = access_token(&key)
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    let mut mark = watermark(&pool, body.since.as_deref()).await?;
-    let mut todo = list_new(&token, mark.as_deref())
+    let newest = newest_ride(&pool).await?;
+    let mut todo = list_new(&token, newest.as_deref())
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
 
     let mut out = SyncResult {
-        remaining: todo.len().saturating_sub(limit),
+        remaining: todo.len().saturating_sub(BATCH),
         ..Default::default()
     };
-    todo.truncate(limit);
+    todo.truncate(BATCH);
 
     let scratch = std::env::temp_dir().join(format!("dingo-garmin-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&scratch).map_err(internal)?;
     let mut new_ids: Vec<Uuid> = Vec::new();
-    // The watermark moves only through activities handled in order; the
-    // first failure holds it so the next sync tries that one again.
-    let mut in_order = true;
     for a in &todo {
-        let name = a.activity_name.clone().unwrap_or_else(|| format!("activity {}", a.activity_id));
-        let result = if a.start_latitude.is_none() {
+        if a.start_latitude.is_none() {
             out.skipped_no_gps += 1;
-            Ok(())
-        } else {
-            match ingest_activity(&pool, &store, &scratch, &token, a).await {
-                Ok(ids) if ids.is_empty() => {
-                    out.duplicates += 1;
-                    Ok(())
-                }
-                Ok(ids) => {
-                    out.imported += 1;
-                    new_ids.extend(ids);
-                    Ok(())
-                }
-                Err(e) => Err(e),
+            continue;
+        }
+        match ingest_activity(&pool, &store, &scratch, &token, a).await {
+            Ok(ids) if ids.is_empty() => out.duplicates += 1,
+            Ok(ids) => {
+                out.imported += 1;
+                new_ids.extend(ids);
             }
-        };
-        match result {
-            Ok(()) if in_order => mark = Some(a.start_time_gmt.clone()),
-            Ok(()) => {}
             Err(GarminError::RateLimited) => {
                 out.rate_limited = true;
                 break;
             }
-            Err(GarminError::Other(error)) => {
-                in_order = false;
-                out.failed.push(Failed { name, error });
-            }
+            Err(GarminError::Other(error)) => out.failed.push(Failed {
+                name: a.activity_name.clone().unwrap_or_else(|| format!("activity {}", a.activity_id)),
+                error,
+            }),
         }
     }
     let _ = std::fs::remove_dir_all(&scratch);
@@ -392,10 +355,6 @@ async fn sync(
             .map_err(internal)?;
         super::import::postprocess_new_rides(&pool, &config, new_ids).await;
     }
-    if let Some(m) = &mark {
-        set_setting(&pool, WATERMARK_SETTING, Some(m)).await?;
-    }
-    out.synced_through = mark;
     Ok(Json(out))
 }
 
@@ -485,7 +444,7 @@ mod tests {
         let token = access_token("good").await.expect("token");
         assert_eq!(token, "tok");
 
-        // No watermark: both pages, oldest first.
+        // No newest ride: both pages, oldest first.
         let all = list_new(&token, None).await.expect("list");
         assert_eq!(all.len(), 150);
         assert_eq!(all[0].activity_id, 1);
@@ -493,7 +452,7 @@ mod tests {
         assert_eq!(all[1].start_latitude, Some(-33.5));
         assert_eq!(all[0].start_latitude, None);
 
-        // Watermark at activity 120: only 121..=150 come back, oldest first.
+        // Newest ride at activity 120: only 121..=150 come back, oldest first.
         let w = all[119].start_time_gmt.clone();
         let newer = list_new(&token, Some(&w)).await.expect("list");
         assert_eq!(newer.iter().map(|a| a.activity_id).collect::<Vec<_>>(), (121..=150).collect::<Vec<_>>());
