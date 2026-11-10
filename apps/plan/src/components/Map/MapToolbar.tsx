@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
     Compass, Flame, Bike, Waves, MapPin,
     Layers, Camera,
@@ -856,8 +856,22 @@ function ToolButton({
 }
 
 function Pane({ title, children }: { title?: string, children: ReactNode }) {
+    // Never run off the map: cap the pane at the space left below its top
+    // edge, measured against the map (100vh ignores the graph pane under it).
+    const ref = useRef<HTMLDivElement>(null)
+    const [maxHeight, setMaxHeight] = useState<number>()
+    useLayoutEffect(() => {
+        const pane = ref.current
+        const map = pane?.closest('.maplibregl-map')
+        if (!pane || !map) return
+        const fit = () => setMaxHeight(map.getBoundingClientRect().bottom - pane.getBoundingClientRect().top - 8)
+        fit()
+        const ro = new ResizeObserver(fit)
+        ro.observe(map)
+        return () => ro.disconnect()
+    }, [])
     return (
-        <div style={{
+        <div ref={ref} style={{
             position: 'absolute',
             left: 'calc(100% + 8px)',
             top: 0,
@@ -868,8 +882,7 @@ function Pane({ title, children }: { title?: string, children: ReactNode }) {
             padding: 12,
             zIndex: 100,
             minWidth: 190,
-            // Never run off the map: scroll inside the pane instead
-            maxHeight: 'calc(100vh - 180px)',
+            maxHeight: maxHeight ?? 'calc(100vh - 180px)',
             overflowY: 'auto',
         }}>
             {title && (
