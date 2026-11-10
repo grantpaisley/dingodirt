@@ -2,7 +2,7 @@
 //!
 //! Phase 2: Takeout archive import (bulk backfill with geo + link-out URLs).
 //! Later: Picker API for incremental imports (OAuth; no geo, no link-out —
-//! see Docs/dingo-architecture-design.md, Photo Enrichment Pipeline).
+//! not built yet).
 
 pub mod maps;
 pub mod photo_match;
