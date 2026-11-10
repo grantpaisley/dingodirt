@@ -235,7 +235,7 @@ async fn import_files(
 /// placement (returns ride id -> library path), plus the background Strava
 /// heat harvest. Every step is best-effort — rides are ingested either way,
 /// and the next organize run repairs anything missed.
-async fn postprocess_new_rides(
+pub(crate) async fn postprocess_new_rides(
     pool: &PgPool,
     config: &dingo_core::Config,
     ride_ids: Vec<Uuid>,
