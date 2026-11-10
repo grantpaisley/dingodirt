@@ -1,7 +1,7 @@
 //! Packs API: persisted, refreshable share bundles.
 //!
 //! A pack is a named recipe — an ordered ride list + layer options + notes
-//! (Docs/plans/2026-07-15-packs-design.md). Publishing builds the `.dingonav`
+//! (docs/plans/dingo-2026-07-15-packs-design.md). Publishing builds the `.dingonav`
 //! and uploads it to dingodirt.com (docs/plans/2026-08-06-plan-publish-to-
 //! dingodirt-design.md); the site owns share links, versioning and
 //! moderation. The live link is `<nav>/?b=<share_token>`; re-publishing

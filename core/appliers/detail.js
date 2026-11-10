@@ -1,7 +1,7 @@
 /* Detail-level zoom bias — when tracks and minor roads appear on the map.
-   Canonical copy (same contract as applier-nav.js: authored here first,
-   apps reach it through symlinks / direct import; Nav's single-file runtime
-   carries a hand-translation — grow the behaviour HERE first).
+   The only editable copy (same contract as applier-nav.js: apps reach it
+   through symlinks, direct import or the site's prebuild copy — grow the
+   behaviour HERE).
 
    Out bush a track IS the road network and should read from a couple of zoom
    levels further out; in town the same rule would bury the suburbs in

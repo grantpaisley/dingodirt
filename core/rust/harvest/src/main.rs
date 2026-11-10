@@ -1,4 +1,4 @@
-//! dingo-harvest — heat tile harvester (Docs/plans/2026-07-12-heat-harvester-design.md).
+//! dingo-harvest — heat tile harvester (docs/plans/dingo-2026-07-12-heat-harvester-design.md).
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};

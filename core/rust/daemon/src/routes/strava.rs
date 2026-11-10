@@ -11,7 +11,7 @@
 //! Cookie acquisition is plan B: headless login is dead (React SPA + reCAPTCHA
 //! as of 2026-07), so the user pastes the values from a logged-in browser
 //! (copy-as-curl of any heat-tile request works) into the web UI, which POSTs
-//! them here. See Docs/plans/2026-07-11-strava-overlay-bundle-v2-design.md.
+//! them here. See docs/plans/dingo-2026-07-11-strava-overlay-bundle-v2-design.md.
 
 use axum::{
     Json, Router,
