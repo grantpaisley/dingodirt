@@ -12,6 +12,3 @@ sqlx.workspace = true
 uuid.workspace = true
 # Encode rendered heat tiles (same minimal PNG-only build as harvest)
 image = { version = "0.25", default-features = false, features = ["png"] }
-
-[dev-dependencies]
-tokio.workspace = true
