@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the shared hillshade archive: Terrarium DEM tiles -> raster-dem .pmtiles.
 
-Australia-scale version of DingoNav/make_hillshade.py: a coarse land mask
+Australia-scale by default (--bbox cuts any smaller area): a coarse land mask
 (au-region.geojson) prunes open-ocean tiles, and tiles are spooled to disk
 first so the build is resumable and memory-flat.
 
