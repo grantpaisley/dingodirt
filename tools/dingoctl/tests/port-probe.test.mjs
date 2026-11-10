@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
-import { portOpen } from '../tools/dingoctl/manager.mjs'
+import { portOpen } from '../manager.mjs'
 
 /** A listener on one address family only. Resolves to its port. */
 function listenOn(host) {
