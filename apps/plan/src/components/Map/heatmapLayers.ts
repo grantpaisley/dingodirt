@@ -50,8 +50,8 @@ export interface HeatStyle {
 }
 
 // Per-pass tuning, fitted against Strava's own heat tiles (2026-07-28 bench,
-// Hornsby/Galston reference — see Docs/plans/2026-07-28-strava-heatmap-zoom-
-// parity-design.md). The measured truth: Strava draws each pass as a
+// Hornsby/Galston reference — see docs/plans/
+// dingo-2026-07-28-strava-heatmap-zoom-parity-design.md). The measured truth: Strava draws each pass as a
 // CONSTANT ~1.5-CSS-px stroke at every tile zoom z6-z14 — no ground scaling
 // at all. All the apparent widening as you zoom in is emergent (GPS scatter
 // across repeated rides, plus brightness normalization), and past their z14

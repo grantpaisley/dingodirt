@@ -217,10 +217,6 @@ interface SettingsState {
      *  Kept for pack heatmap_filters recipes and pack preview mapping; the
      *  Layers rows that toggled it dissolved into the Owner/Type pills. */
     trackClasses: Record<TrackClass, boolean>
-    /** Owner ids toggled OFF in the per-owner facet under "Other rides" —
-     *  default all on, so newly-seen owners show without bookkeeping. Only
-     *  filters other-class tracks (own/plan stay governed by their rows). */
-    ownersOff: string[]
     /** Which track shapes show — loop (start ≈ end) / oneway (point-to-point).
      *  Filters the rides layer and the list. */
     shapeClasses: Record<TrackShape, boolean>
@@ -248,13 +244,6 @@ interface SettingsState {
     /** Grade colour scale (% steepness, unsigned) */
     gradeScale: ColourScale
 
-    toggleShowRides: () => void
-    /** Layers-pane rows. "My rides" covers own + planned, "Other rides" covers
-     *  other. Both write trackClasses — still the single filter source of truth
-     *  for the rides layer, the list and rideMatchesFilters — and keep
-     *  showRides in sync as the derived master (any class on = rides drawn). */
-    toggleMyRides: () => void
-    toggleOtherRides: () => void
     setColorMode: (m: ColorMode) => void
     toggleMode: (m: RideMode) => void
     setFilters: (f: FilterValues) => void
@@ -279,7 +268,6 @@ interface SettingsState {
     resetHeatColors: () => void
     setRideScheme: (id: string) => void
     setBaseStyle: (s: BaseStyle) => void
-    setBaseStyleMode: (m: BaseStyleMode) => void
     setDetailLevel: (d: DetailLevel) => void
     setHillshade: (v: boolean) => void
     setTerrain3d: (v: boolean) => void
@@ -290,8 +278,6 @@ interface SettingsState {
     removePill: (index: number) => void
     addSearchPill: (q: string) => void
     removeSearchPill: (index: number) => void
-    toggleTrackClass: (c: TrackClass) => void
-    toggleOwnerOff: (id: string) => void
     toggleShapeClass: (c: TrackShape) => void
     toggleGradeKey: (g: GradeKey) => void
     setHeatIntensity: (v: number) => void
@@ -344,7 +330,6 @@ export const useSettings = create<SettingsState>()(
             pills: [],
             searchPills: [],
             trackClasses: { own: true, other: true, plan: true },
-            ownersOff: [],
             shapeClasses: { loop: true, oneway: true },
             gradeFilter: { '1': true, '2': true, '3': true, '4': true, '5': true, none: true },
             heatIntensity: 1,
@@ -355,21 +340,6 @@ export const useSettings = create<SettingsState>()(
             speedScale: structuredClone(DEFAULT_SPEED_SCALE),
             gradeScale: structuredClone(DEFAULT_GRADE_SCALE),
 
-            toggleShowRides: () => set((s) => ({ showRides: !s.showRides })),
-            toggleMyRides: () =>
-                set((s) => {
-                    const on = !(s.trackClasses.own || s.trackClasses.plan)
-                    const trackClasses = { ...s.trackClasses, own: on, plan: on }
-                    return { trackClasses, showRides: on || trackClasses.other }
-                }),
-            toggleOtherRides: () =>
-                set((s) => {
-                    const trackClasses = { ...s.trackClasses, other: !s.trackClasses.other }
-                    return {
-                        trackClasses,
-                        showRides: trackClasses.own || trackClasses.plan || trackClasses.other,
-                    }
-                }),
             setColorMode: (colorMode) => set({ colorMode }),
             toggleMode: (m) =>
                 set((s) => ({
@@ -410,7 +380,6 @@ export const useSettings = create<SettingsState>()(
                 }),
             setRideScheme: (rideScheme) => set({ rideScheme }),
             setBaseStyle: (baseStyle) => set({ baseStyle }),
-            setBaseStyleMode: (baseStyleMode) => set({ baseStyleMode }),
             setDetailLevel: (detailLevel) => set({ detailLevel }),
             setHillshade: (hillshade) => set({ hillshade }),
             setTerrain3d: (terrain3d) => set({ terrain3d }),
@@ -428,14 +397,6 @@ export const useSettings = create<SettingsState>()(
                 set((s) => (q.trim() ? { searchPills: [...s.searchPills, q.trim()] } : s)),
             removeSearchPill: (index) =>
                 set((s) => ({ searchPills: s.searchPills.filter((_, i) => i !== index) })),
-            toggleTrackClass: (c) =>
-                set((s) => ({ trackClasses: { ...s.trackClasses, [c]: !s.trackClasses[c] } })),
-            toggleOwnerOff: (id) =>
-                set((s) => ({
-                    ownersOff: s.ownersOff.includes(id)
-                        ? s.ownersOff.filter(x => x !== id)
-                        : [...s.ownersOff, id],
-                })),
             toggleShapeClass: (c) =>
                 set((s) => ({ shapeClasses: { ...s.shapeClasses, [c]: !s.shapeClasses[c] } })),
             toggleGradeKey: (g) =>
@@ -554,7 +515,6 @@ export const useSettings = create<SettingsState>()(
                 // profiles onto all-on exactly once.
                 if (!p.pillsMigration2026) {
                     merged.trackClasses = { own: true, other: true, plan: true }
-                    merged.ownersOff = []
                     merged.pillsMigration2026 = true
                 }
                 // 2026-08-08 filter pills: validate the persisted pill state
