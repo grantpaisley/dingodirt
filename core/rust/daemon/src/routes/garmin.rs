@@ -51,6 +51,8 @@ fn http() -> &'static reqwest::Client {
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .user_agent("Dingo/garmin-sync")
+            // Garmin accepts TLS 1.3 only; macOS native TLS stops at 1.2.
+            .use_rustls_tls()
             .timeout(std::time::Duration::from_secs(120))
             .build()
             .expect("reqwest client")
@@ -74,7 +76,16 @@ impl std::fmt::Display for GarminError {
 
 /// Check the status, and turn a non-2xx answer into an error with Garmin's text.
 async fn checked(res: Result<reqwest::Response, reqwest::Error>) -> Result<reqwest::Response, GarminError> {
-    let res = res.map_err(|e| GarminError::Other(format!("can't reach Garmin: {e}")))?;
+    let res = res.map_err(|e| {
+        // reqwest's Display hides the cause ("bad protocol version", …).
+        let mut msg = format!("can't reach Garmin: {e}");
+        let mut cause = std::error::Error::source(&e);
+        while let Some(c) = cause {
+            msg += &format!(": {c}");
+            cause = c.source();
+        }
+        GarminError::Other(msg)
+    })?;
     let status = res.status();
     if status == StatusCode::TOO_MANY_REQUESTS {
         return Err(GarminError::RateLimited);
