@@ -6,7 +6,6 @@ members = [
     "ingest",
     "enrich",
     "export",
-    "vision",
     "google",
     "daemon",
     "harvest",
@@ -63,7 +62,6 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 
 # Web framework (daemon)
 axum = "0.8"
-tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs", "compression-gzip"] }
 
 # GPX/FIT parsing
@@ -79,25 +77,6 @@ osmpbf = "0.3"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
-
-# Vector DB and ML inference — reserved for the Phase 3+ photo pipeline. NOTHING
-# currently depends on these, and that is deliberate: lancedb alone drags in ~400
-# transitive crates (datafusion, arrow, aws-sdk-*, tantivy) and used to exhaust the
-# CI runner's disk. Versions stay pinned here so the choice is recorded, but only
-# add `lancedb.workspace = true` to a crate that actually calls it.
-lancedb = "0.16"
-ort = "2.0.0-rc.10" # ONNX Runtime
-
-# Internal crates
-dingo_core = { path = "crates/core" }
-dingo_geo = { path = "crates/geo" }
-dingo_ingest = { path = "crates/ingest" }
-dingo_enrich = { path = "crates/enrich" }
-dingo_export = { path = "crates/export" }
-dingo_vision = { path = "crates/vision" }
-dingo_google = { path = "crates/google" }
-dingo_daemon = { path = "crates/daemon" }
-dingo_harvest = { path = "crates/harvest" }
 
 [profile.release]
 lto = true

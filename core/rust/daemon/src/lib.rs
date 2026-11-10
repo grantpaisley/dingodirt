@@ -17,7 +17,7 @@ use tracing::info;
 /// Reject state-changing cross-site requests. The daemon has no user auth and
 /// serves a local-first single user, so a malicious page the user visits
 /// could otherwise drive `fetch()` at localhost:3000 and (e.g.) publish their
-/// tracks via /api/export/share. Two gates together stop it:
+/// tracks via the pack publish route. Two gates together stop it:
 ///   1. CORS restricts read access to the known web origins (below), so a
 ///      hostile page can't read any response (ride list, share URL, ...).
 ///   2. Every non-GET request must carry `x-dingo-web: 1`. A cross-origin

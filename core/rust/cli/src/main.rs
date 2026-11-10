@@ -217,7 +217,7 @@ enum Commands {
         #[command(subcommand)]
         action: PrivacyAction,
     },
-    /// Pull your own new Strava activities (see Docs/strava-sync.md)
+    /// Pull your own new Strava activities (see docs/strava-sync.md)
     Strava {
         #[command(subcommand)]
         action: StravaAction,

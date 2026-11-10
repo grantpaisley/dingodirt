@@ -1,5 +1,5 @@
 //! Terrarium DEM sampler — elevation for any lat/lon from the AWS Open Data
-//! terrain tiles (the same free source make_hillshade.py cuts Nav's relief
+//! terrain tiles (the same free source build-hillshade.py cuts Nav's relief
 //! from; SRTM / Geoscience Australia et al., no API key).
 //!
 //! Tiles are 256×256 PNGs, elevation packed per pixel as

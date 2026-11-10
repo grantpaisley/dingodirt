@@ -5,7 +5,7 @@
 //! app open). We harvest that topic on demand, queue the edits for per-item
 //! review, and the publish path bakes accepted ones into the bundle as the
 //! `turnEdits` array DingoNav already replays on load.
-//! Design: Docs/plans/2026-07-18-marks-sync-design.md
+//! Design: docs/plans/dingo-2026-07-18-marks-sync-design.md
 
 use axum::http::StatusCode;
 use axum::{

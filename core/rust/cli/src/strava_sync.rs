@@ -138,7 +138,7 @@ pub async fn auth() -> anyhow::Result<()> {
 
 async fn fresh_access_token(client: &reqwest::Client) -> anyhow::Result<String> {
     let raw = std::fs::read(token_path()).map_err(|_| {
-        anyhow::anyhow!("Not connected — run `dingo strava auth` first (see Docs/strava-sync.md)")
+        anyhow::anyhow!("Not connected — run `dingo strava auth` first (see docs/strava-sync.md)")
     })?;
     let mut tokens: Tokens = serde_json::from_slice(&raw)?;
 

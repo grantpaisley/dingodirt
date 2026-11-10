@@ -3,7 +3,7 @@
 Dingo Studio is the community scheme editor for the Dingo family. Design
 complete look-and-feel "schemes" for DingoNav and Dingo Plan. Test-drive
 them at speed. Share them as `.dingoscheme` packs. Design doc:
-`Dingo/Docs/plans/2026-08-02-dingo-studio-design.md`.
+`docs/plans/dingo-2026-08-02-dingo-studio-design.md`.
 
 Studio is a static PWA in the DingoNav mould: MapLibre GL + PMTiles,
 vendored libraries, no backend, no build step. End-state URL:

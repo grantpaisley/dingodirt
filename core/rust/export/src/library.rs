@@ -1,5 +1,5 @@
 //! The browsable GPX library tree — shared placement engine
-//! (Docs/plans/2026-07-28-gpx-library-storage-design.md).
+//! (docs/plans/dingo-2026-07-28-gpx-library-storage-design.md).
 //!
 //! ONE location hierarchy: State → District → Region → LGA → Suburb, where
 //! District comes from the manually-curated `district_map` (unmapped regions

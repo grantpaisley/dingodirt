@@ -3,9 +3,9 @@
 This is the community website and pack service for the Dingo ecosystem. It
 is the open-source home of Dingo Plan, Nav, and Studio (AGPL-3.0).
 
-Design docs (in the Dingo repo):
-`Docs/plans/2026-08-02-dingodirt-website-design.md` +
-`Docs/plans/2026-08-03-dingodirt-open-source-pivot-design.md`.
+Design docs:
+`docs/plans/dingo-2026-08-02-dingodirt-website-design.md` +
+`docs/plans/dingo-2026-08-03-dingodirt-open-source-pivot-design.md`.
 
 ## What it does
 

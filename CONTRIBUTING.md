@@ -8,31 +8,31 @@ Plan can be wrong in Nav.
 
 | Where | What it is | The rule |
 |---|---|---|
-| `apps/nav` | One HTML file, vendored libraries, **no build step** | Keep it that way. See below. |
+| `apps/nav` | One HTML file plus small sidecars, vendored libraries, **no build step** | Keep it that way. See below. |
 | `apps/studio` | Native ES modules, no build step, no dependencies | Add modules, not tooling. |
 | `apps/plan` | React + Vite + TypeScript | A normal React app. Run `npm ci`, then `npm run dev`. |
 | `apps/site` | Next.js, auth, Postgres | It needs a database and OAuth — see `apps/site/GO-LIVE.md`. |
 | `core/` | Shared by all apps | **Grow the shared vocabulary here first.** |
 | `server/` | Migrations, docker-compose, tooling | Deano's self-hosted backend. |
 
-### Nav is one file on purpose
+### Nav has no build step on purpose
 
 `apps/nav/index.html` is large, and this is not an accident. Nav must operate
 with no signal, on a phone mounted to a handlebar. It must also operate as a
-PWA that the rider installed months before. One file with vendored libraries
-gives three protections. There is no module graph that can fail to load.
-There is no CDN that can be unreachable. There is no build step between the
-source and the app that the rider runs.
+PWA that the rider installed months before. Vendored libraries and a service
+worker that precaches every file give two protections. There is no CDN that
+can be unreachable. There is no build step between the source and the app
+that the rider runs.
 
 So: no bundler, no npm dependencies, no framework. If you want to add a build
 step to Nav, start a design discussion. Do not open a pull request.
 
-The result is that **Nav's inline applier is a hand-aligned translation** of
-`core/appliers/applier-nav.js`, not a copy of it. Nav has no module system
-to import the module with. Its token names are different
-(`overlays.breadcrumb` → `colCrumb`, day tokens only). When the vocabulary
-grows, align the two by hand. A full unification needs Nav to adopt native
-ES modules, and that is a separate piece of work.
+Nav is `index.html` plus three classic sidecar scripts (`corridor.js`,
+`tracklock.js`, `gmaps-link.js`) and the canonical `core/appliers` ES
+modules, which it loads through the `apps/nav/appliers` symlink. There is no
+inline applier: `tests/no-applier-copies.test.mjs` fails if one comes back.
+When you add a file that Nav loads, add it to the `SHELL` list in
+`apps/nav/sw.js`, or an offline boot cannot find it.
 
 ## core/ holds exactly one copy of everything shared
 
@@ -63,7 +63,7 @@ presets again when the presets change, and only then.
 
 1. Add the token to `TOKEN_DEFS` / `TOKEN_GROUPS` in `core/appliers/scheme.js`.
 2. Apply the token in `core/appliers/applier-nav.js`.
-3. Hand-align Nav's inline applier and Plan's `applierPlan.ts`.
+3. If Plan's chrome reads the token, map it in Plan's `applierPlan.ts`.
 4. Run `npm run test:studio` — the applier-contract test pins the mapping.
 
 ## Running things
@@ -72,6 +72,7 @@ presets again when the presets change, and only then.
 npm test                 # repo guard: no vendored preset copies
 npm run test:nav         # corridor tests
 npm run test:studio      # schema, applier contract, replay
+npm run test:dingoctl    # the dev process manager (not run in CI)
 
 cd apps/plan  && npm ci && npm run dev      # http://localhost:5173
 cd apps/studio && node serve.js             # http://localhost:8138

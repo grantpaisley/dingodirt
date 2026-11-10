@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { daemonCommand } from '../tools/dingoctl/services.mjs'
+import { daemonCommand } from '../services.mjs'
 
 /** A fake repo root holding the named daemon builds, oldest first. */
 function repoWith(builds) {

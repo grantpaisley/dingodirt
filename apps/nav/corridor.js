@@ -1,7 +1,7 @@
 /* Corridor tile math for the shared tile archive (pack format v2).
    Pure logic, no DOM/IDB — loaded by index.html and node-testable
    (tests/corridor.test.mjs). Design:
-   Dingo/Docs/plans/2026-08-04-shared-tiles-pack-v2-design.md
+   docs/plans/dingo-2026-08-04-shared-tiles-pack-v2-design.md
 
    Tiers (defaults, tunable here in one place):
      z12-14  track corridor, ~2 km buffer either side

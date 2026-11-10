@@ -8,7 +8,7 @@ export const SERVER_BASE: string = import.meta.env.VITE_API_URL || 'http://local
 const API_BASE = `${SERVER_BASE}/api`
 
 // CSRF gate: the daemon rejects any non-GET without this header (see
-// crates/daemon/src/lib.rs). A cross-origin page can't set a custom header
+// core/rust/daemon/src/lib.rs). A cross-origin page can't set a custom header
 // without a preflight the daemon denies, so only our own web app can mutate.
 const WEB_HEADER: Record<string, string> = { 'x-dingo-web': '1' }
 
@@ -254,14 +254,6 @@ export function useRide(id: string | undefined) {
         // Hover-previews sweep across many tracks — show the previous ride
         // while the next loads instead of flashing a loading state each time.
         placeholderData: keepPreviousData,
-    })
-}
-
-export function useRidePoints(id: string | undefined) {
-    return useQuery({
-        queryKey: ['ridePoints', id],
-        queryFn: () => fetchRidePoints(id!),
-        enabled: !!id,
     })
 }
 
@@ -635,11 +627,6 @@ export async function createFolder(name: string, parentId?: string | null): Prom
     return res.json()
 }
 
-export async function deleteFolder(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/folders/${id}`, { method: 'DELETE', headers: WEB_HEADER })
-    if (!res.ok) throw new Error(await res.text())
-}
-
 /** File items into a folder; null folder returns them to Unfiled. */
 export async function assignToFolder(
     itemType: 'ride' | 'pack',
@@ -992,21 +979,6 @@ export function useAllRideMeta(enabled: boolean) {
     })
 }
 
-/** Ride ids under a location folder (deeper levels omitted = whole subtree) */
-export async function fetchRideIdsByLocation(loc: {
-    state?: string, region?: string, lga?: string, suburb?: string
-}): Promise<string[]> {
-    const params = new URLSearchParams({ fields: 'ids', limit: '10000' })
-    if (loc.state) params.set('state', loc.state)
-    if (loc.region) params.set('region', loc.region)
-    if (loc.lga) params.set('lga', loc.lga)
-    if (loc.suburb) params.set('suburb', loc.suburb)
-    const res = await fetch(`${API_BASE}/rides?${params}`)
-    if (!res.ok) throw new Error('Failed to fetch folder rides')
-    const rides: { id: string }[] = await res.json()
-    return rides.map(r => r.id)
-}
-
 // Lasso selection: ride ids inside or crossing a freehand polygon. fields=ids
 // returns an id-only payload — no full-precision geometry for up to 10k rides.
 export async function fetchRideIdsInPolygon(points: [number, number][]): Promise<string[]> {
@@ -1170,40 +1142,6 @@ export interface LayerCoverage {
  *  a heatmap clipped around them, and optionally a corridor basemap extract and
  *  Strava heatmap tiles — importable on the phone as a single file. Returns the
  *  build manifest (from the x-dingo-manifest header) so the UI can report it. */
-export interface ShareResult {
-    share_url: string
-    gist_url: string
-    /** Pack key: same share name always maps to the same slug/gist/link. */
-    slug: string
-    /** Bumps on every re-share of the same name; mates refresh to pick it up. */
-    revision: number
-    /** True when an existing link was updated in place rather than created. */
-    updated: boolean
-    tracks: number
-    heatmap_features: number
-    skipped: string[]
-    bytes: number
-}
-
-/** Publish a privacy-trimmed DingoNav bundle as a secret gist and get a
- *  one-tap DingoNav link. Needs the gh CLI logged in on the daemon machine. */
-export async function exportShare(req: {
-    ride_ids: string[]
-    name: string
-    include_tracks: boolean
-    include_heatmap: boolean
-    heatmap_filters?: HeatmapFilters
-    privacy: boolean
-}): Promise<ShareResult> {
-    const res = await fetch(`${API_BASE}/export/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
-        body: JSON.stringify(req),
-    })
-    if (!res.ok) throw new Error(await res.text())
-    return res.json()
-}
-
 export async function exportDingoNav(req: {
     ride_ids: string[]
     name: string

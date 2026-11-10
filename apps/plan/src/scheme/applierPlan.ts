@@ -1,6 +1,5 @@
-/** Plan token applier — hand-aligned sibling of Studio's canonical
- *  js/applier-nav.js (see DingoStudio/sync-appliers.sh for which copies are
- *  canonical vs translated).
+/** Plan token applier — maps a scheme onto Plan's chrome and overlay
+ *  settings. Basemap paint goes through the canonical core/appliers modules.
  *
  *  What a scheme drives in Plan:
  *    - the app theme: hud.* tokens → Plan's CSS variables

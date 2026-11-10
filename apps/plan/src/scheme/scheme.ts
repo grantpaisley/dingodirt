@@ -1,7 +1,7 @@
-/** .dingoscheme support for Dingo Plan — the preset catalogue vendored from
- *  Dingo Studio into /public/schemes (synced by DingoStudio/sync-appliers.sh).
+/** .dingoscheme support for Dingo Plan — the preset catalogue is core/schemes,
+ *  reached through the /public/schemes symlink.
  *
- *  Compatibility contract (Docs/plans/2026-08-02-dingo-studio-design.md):
+ *  Compatibility contract (docs/plans/dingo-2026-08-02-dingo-studio-design.md):
  *  apps IGNORE unknown tokens and DEFAULT missing tokens; a scheme is values
  *  only, never executable style JSON; schemaVersion major mismatch rejects.
  */

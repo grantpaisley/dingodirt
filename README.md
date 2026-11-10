@@ -80,8 +80,8 @@ publishes to the site, and Nav's `?b=` links download from it. The old
 ## Getting started
 
 Per-app setup, and the rules that say which app gets a feature, are in
-[CONTRIBUTING.md](CONTRIBUTING.md). The short version: Nav is one file on
-purpose, Studio is modules, Plan is React, and `core/` is shared. Grow the
+[CONTRIBUTING.md](CONTRIBUTING.md). The short version: Nav has no build
+step on purpose, Studio is modules, Plan is React, and `core/` is shared. Grow the
 shared vocabulary in `core/` first.
 
 ## Licence

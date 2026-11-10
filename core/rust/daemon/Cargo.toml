@@ -21,20 +21,16 @@ geo.workspace = true
 geojson.workspace = true
 # Bundle download endpoint zips the built folder in memory
 zip = { version = "2", default-features = false, features = ["deflate"] }
-# base64 the .dingonav zip into the GitHub Contents API body for tile-carrying shares
-base64 = "0.22"
 # Serve-time colourisation of grayscale heat tiles (MapLibre GL has no raster-color)
 image = { version = "0.25", default-features = false, features = ["png"] }
 axum = { workspace = true, features = ["multipart", "macros"] }
 # Strava heatmap tile proxy (server-side fetch with cached CloudFront cookies)
 reqwest.workspace = true
-tower.workspace = true
 tower-http.workspace = true
 tokio.workspace = true
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true

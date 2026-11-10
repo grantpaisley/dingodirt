@@ -738,7 +738,7 @@
      A layout-design tool (Settings → General → Edit screen layout), not a riding
      feature: buttons/readouts wobble, drag to a 5×6 slot grid; dragging to the
      bottom springs the real ☰ panel up as the dock target. Everything here is
-     inert unless body.editing — see docs/plans/2026-07-15-editable-layout-design.md.
+     inert unless body.editing — see docs/plans/nav-2026-07-15-editable-layout-design.md.
      Kept after the media queries so customised sizes/positions win the cascade. */
   /* docked controls ARE the ☰ grid — dropped buttons become tiles beside the fixed ones */
   #gloveGrid .ctl{width:auto; height:min(26vh,180px); border-radius:18px; font-size:34px}
@@ -1074,7 +1074,7 @@
     <div class="hint">A .pmtiles extract gives roads, trails, water and labels offline. One is auto-downloaded on first open when hosted with the app; cut other areas with the <b>pmtiles</b> CLI (see README).</div>
     <div id="hillStatus">no terrain shading loaded</div>
     <div class="btnRow"><button class="btn" id="hillBtn">Load .pmtiles terrain…</button></div>
-    <div class="hint">Optional elevation extract adds hillshade relief under the trails — gullies and ridges readable at a glance, still flat north-up 2D. Cut one with <b>make_hillshade.py</b> (see README).</div>
+    <div class="hint">Optional elevation extract adds hillshade relief under the trails — gullies and ridges readable at a glance, still flat north-up 2D. Cut one with <b>server/tools/build-tiles/build-hillshade.py</b> (see README).</div>
     <div id="dtileStatus">Shared tile cache: —</div>
     <div class="btnRow"><button class="btn" id="dtileClearBtn">Clear shared tile cache</button></div>
     <div class="hint">With no local .pmtiles loaded, maps come from the shared dingodirt archive: each pack's ride corridor is fetched once and cached for offline. Deleting a pack releases its tiles.</div>
@@ -1432,7 +1432,7 @@ const STRAVA_BLANK = (() => {
    pmtiles: dtile://<src>/{z}/{x}/{y} serves cache-first from the IDB
    'tiles' store, falls through to a live PMTiles range request while
    online (caching the result), and returns a blank offline.
-   Design: Dingo/Docs/plans/2026-08-04-shared-tiles-pack-v2-design.md */
+   Design: docs/plans/dingo-2026-08-04-shared-tiles-pack-v2-design.md */
 const DTILES = {
   // localStorage override for dev/self-hosters, e.g. 'http://localhost:8123/'
   base: localStorage.getItem('dtiles-base') || 'https://tiles.dingodirt.com/',
@@ -2852,7 +2852,7 @@ function addOverlays() {
   map.addLayer({ id: 'pos-arrow', type: 'symbol', source: 'pos',
     layout: { 'icon-image': 'nav-dart', 'icon-size': 1.5, 'icon-rotate': ['get', 'heading'],
       'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-  // marked spots (hazard / camp / water — MARK SPOT in the ☰ grid)
+  // marked spots (hazard / camp / water — from friend/pack sync)
   map.addSource('spots', { type: 'geojson', data: EMPTY });
   map.addLayer({ id: 'spot-dots', type: 'circle', source: 'spots',
     paint: { 'circle-radius': 7, 'circle-color': '#42d7f5',
@@ -4702,19 +4702,11 @@ function turnSyncInfo() {
     : 'Turn points marked while riding queue here — shared live with the ride group, and copyable into Dingo to update the pack.';
 }
 
-/* ---------------- marked spots: hazard / camp / water — MARK SPOT in the ☰ grid ---------------- */
+/* ---------------- marked spots: hazard / camp / water ----------------
+   The local MARK SPOT drop left the glove grid on 2026-08-05 (Schema took the
+   tile); friend/pack 'spot' sync still lands here via the inbox. */
 let spots = [];
 try { spots = JSON.parse(localStorage.getItem('dingonav-spots') || '[]'); } catch (e) {}
-/* local spot-drop — no longer on the glove grid (Schema took the tile,
-   2026-08-05); kept because friend/pack 'spot' sync still lands via the inbox */
-function markSpot() {
-  if (!S.pos) { toast('No GPS fix yet'); return; }
-  const [la, lo] = toLL(S.pos.x, S.pos.y);
-  spots.push({ la: +la.toFixed(6), lo: +lo.toFixed(6), t: Date.now() });
-  localStorage.setItem('dingonav-spots', JSON.stringify(spots));
-  refreshSpots(); queueTurnEdit('spot', la, lo);
-  toast('Spot marked (' + spots.length + ')'); vib([60]);
-}
 function refreshSpots() {
   if (!mapReady || !map.getSource('spots')) return;
   map.getSource('spots').setData({ type: 'FeatureCollection',
@@ -6372,7 +6364,7 @@ applyShowAdv();
    - The status characteristic carries the same STATUS_BITS words VargPilot
      re-serves — walking_mode 8=reverse / 12=crawl matches what we confirmed
      live on the '25 EX through VargPilot before its source was retired
-     (docs/plans/2026-07-28-vargpilot-webserver-source.md). */
+     (docs/plans/nav-2026-07-28-vargpilot-webserver-source.md). */
 const VARG_SVC = { // xxxxxxxx- prefix on ascii "StarK Future"
   battery: '00006000-5374-6172-4b20-467574757265',
   live:    '00002000-5374-6172-4b20-467574757265',
@@ -7317,7 +7309,7 @@ async function vargBoot() { // reclaim a previously-permitted bike with zero tap
 /* The VargPilot webserver WebSocket used to be a second telemetry source here.
    Removed 2026-07-28 once direct BLE was proven on the bike — the protocol,
    its verified path map and the restore steps live in
-   docs/plans/2026-07-28-vargpilot-webserver-source.md (that's also the route
+   docs/plans/nav-2026-07-28-vargpilot-webserver-source.md (that's also the route
    to iOS support, which Web Bluetooth can't provide). The VargPilot APP is
    still part of the working setup: it starts the telemetry that direct BLE
    piggybacks on. */
@@ -7888,8 +7880,7 @@ function applyAllSettings() {
    2026-08-03): ignore unknown tokens/params, default missing ones, reject on
    schemaVersion major mismatch, and a bad schema must never brick Nav — a
    stored schema that fails to mount falls back to the factory look.
-   The scheme applier below is the vendored canonical piece (Studio's
-   js/applier-nav.js) translated to Nav's runtime names. */
+   Scheme application below calls the canonical core/appliers modules. */
 const SCHEMA_SCHEMES = [
   { id: 'default', label: 'Dingo default' },
   { id: 'classic', label: 'Classic' }, // the pre-2026-08 slate look, preserved
@@ -8135,7 +8126,7 @@ document.getElementById('cfgPasteBtn').onclick = async () => {
    out of the adaptive body.navving offsets. Nothing here runs per-fix or
    per-frame — applyLayout() fires on boot/viewport-change/edit-exit only, and
    the drag machinery binds only while editing.
-   See docs/plans/2026-07-15-editable-layout-design.md. */
+   See docs/plans/nav-2026-07-15-editable-layout-design.md. */
 const LO_GRID = { cols: 5, rows: 6, topRes: 64, botRes: 64, edge: 10 };
 const LO_SZ = { S: 0.7, M: 1, L: 1.4 }; // legacy letter sizes — sizes are numeric multipliers now
 const LO_ELS = {

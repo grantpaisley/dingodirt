@@ -1,6 +1,6 @@
 //! Turn-cue detection — shared junction marks from named-road transitions.
 //!
-//! Design: Docs/plans/2026-08-03-gmaps-import-turn-cues-design.md. The track
+//! Design: docs/plans/dingo-2026-08-03-gmaps-import-turn-cues-design.md. The track
 //! is resampled to ~15 m, each sample matched to the nearest named road
 //! (roads table, ≤ 25 m), the name sequence run-length smoothed, and each
 //! boundary between two different sustained roads becomes a turn. Marks are

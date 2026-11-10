@@ -1,6 +1,6 @@
 //! Google Maps URL import — a shared directions link becomes a plan.
 //!
-//! Design: Docs/plans/2026-08-03-gmaps-import-turn-cues-design.md. The URL
+//! Design: docs/plans/dingo-2026-08-03-gmaps-import-turn-cues-design.md. The URL
 //! only carries the ordered stops (names in the path, precise lat/lons in
 //! the `data=` blob); the road-following geometry lives on Google's servers,
 //! so the extracted waypoints are fed to the Routes API and the returned

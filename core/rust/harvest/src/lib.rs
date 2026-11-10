@@ -2,8 +2,8 @@
 //! later baked GPX heat) into local MBTiles archives, driven by a resumable
 //! PostGIS frontier queue with pruning descent.
 //!
-//! Design: Docs/plans/2026-07-12-heat-harvester-design.md (+ the owners
-//! refinement in 2026-07-12-owners-and-import-design.md — sources *are* owners).
+//! Design: docs/plans/dingo-2026-07-12-heat-harvester-design.md (+ the owners
+//! refinement in dingo-2026-07-12-owners-and-import-design.md — sources *are* owners).
 
 pub mod fetch;
 pub mod frontier;

@@ -1,7 +1,7 @@
 # Shared tile archive build
 
 This tool builds the Australia-wide archive behind `tiles.dingodirt.com`,
-per `Docs/plans/2026-08-04-shared-tiles-pack-v2-design.md`. Self-hosters:
+per `docs/plans/dingo-2026-08-04-shared-tiles-pack-v2-design.md`. Self-hosters:
 the same scripts with `--bbox`/`--region` build any area. Point the `tiles`
 override of your packs at your own host.
 

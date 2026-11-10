@@ -6,7 +6,7 @@
    - a profile is values only — never executable code
    - schemaVersion major mismatch → rejected at import with a plain message
    Grounding: parameter set distilled from verified behaviour research on
-   Google Maps / Waze / Locus Map / DMD2 (docs/2026-08-03-nav-behavior-framework.md). */
+   Google Maps / Waze / Locus Map / DMD2 (docs/plans/studio-2026-08-03-nav-behavior-framework.md). */
 
 export const BEHAVIOR_SCHEMA_VERSION = '1.0';
 
