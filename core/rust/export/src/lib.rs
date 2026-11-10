@@ -28,7 +28,7 @@ use sqlx::types::Uuid;
 use sqlx::{PgPool, Row};
 
 /// Web heatmap palette (RRGGBB, no '#') — matches /api/heatmap and
-/// web/src/components/Map/heatmapLayers.ts.
+/// apps/plan/src/components/Map/heatmapLayers.ts.
 pub const COLOR_OWN: &str = "FF822D";
 pub const COLOR_OTHER: &str = "FF2D46";
 pub const COLOR_PLAN: &str = "468CFF";

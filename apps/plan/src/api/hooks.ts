@@ -8,7 +8,7 @@ export const SERVER_BASE: string = import.meta.env.VITE_API_URL || 'http://local
 const API_BASE = `${SERVER_BASE}/api`
 
 // CSRF gate: the daemon rejects any non-GET without this header (see
-// crates/daemon/src/lib.rs). A cross-origin page can't set a custom header
+// core/rust/daemon/src/lib.rs). A cross-origin page can't set a custom header
 // without a preflight the daemon denies, so only our own web app can mutate.
 const WEB_HEADER: Record<string, string> = { 'x-dingo-web': '1' }
 

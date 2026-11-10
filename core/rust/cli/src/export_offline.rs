@@ -12,7 +12,7 @@
 //!   POIs.gpx           waypoints in scope (fuel/camp/water/…), Garmin syms
 //!
 //! Class rules and colors match the web heatmap exactly (`/api/heatmap`,
-//! `web/src/components/Map/heatmapLayers.ts`). Colors are embedded three
+//! `apps/plan/src/components/Map/heatmapLayers.ts`). Colors are embedded three
 //! ways per file — bare `<color>`, `gpx_style:line`, and `osmand:color` —
 //! so OsmAnd (old and new) and Locus all honor them; each app ignores the
 //! dialects it doesn't know. Merged heatmap geometries are simplified
