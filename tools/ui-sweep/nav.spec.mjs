@@ -84,6 +84,24 @@ async function applyScheme(page, name) {
   await expect(page.locator('#schemaPicker')).toBeHidden();
 }
 
+/* The pack list needs a pack on the device. Load a one-track pack through
+   Nav's own import path — it becomes the ride pack; the loose sweep track
+   stays. No corridor fetch: external hosts are aborted, and the sweep only
+   reads the list's text. */
+async function loadSweepPack(page) {
+  await page.evaluate(async () => {
+    let lat = -33.42;
+    const pts = [];
+    for (let i = 0; i < 20; i++) { pts.push(`<trkpt lat="${lat.toFixed(6)}" lon="151.210000"><ele>100</ele></trkpt>`); lat += 0.00045; }
+    await addFile('bundle.json', JSON.stringify({
+      bundleId: 'sweep-pack', bundleName: 'Sweep pack', revision: 2,
+      tracks: [{ name: 'sweep pack day 1', rideId: 'sweep-pack-r1',
+        gpx: `<?xml version="1.0"?><gpx version="1.1"><trk><name>sweep pack day 1</name><trkseg>${pts.join('')}</trkseg></trk></gpx>` }],
+    }));
+    refreshTrackList(); refreshEmpty(); refreshMapData(); updateBottomBar();
+  });
+}
+
 async function measure(page, state, results) {
   const samples = await page.evaluate(collectTextStyles);
   const { failures, skipped, measured } = contrastFailures(samples, state);
@@ -114,6 +132,17 @@ for (const scheme of SCHEMES) {
     await measure(page, `${scheme}-schema-picker`, results);
     await page.locator('#schemaClose').click();
 
+    // the pack list with everything on: part sizes (Details) and the bins (pen)
+    await loadSweepPack(page);
+    await openGlove(page);
+    await gloveTile(page, 'Packs').click();
+    await expect(page.locator('#packPicker')).toBeVisible();
+    if (!(await page.locator('#packPicker.det').count())) await page.locator('#packDet').click();
+    await page.locator('#packEdit').click();
+    await expect(page.locator('#packList .pkBin').first()).toBeVisible();
+    await measure(page, `${scheme}-pack-picker`, results);
+    await page.locator('#packClose').click();
+
     await openGlove(page);
     await gloveTile(page, 'Settings').click();
     await expect(page.locator('#panel')).toBeVisible();
@@ -124,13 +153,18 @@ for (const scheme of SCHEMES) {
   });
 }
 
-// factory daylight — the Day tile cycles the base style; body.daymode
-// re-skins the settings panel, historically its own contrast trap.
+// factory daylight — the next base style on from the default; body.daymode
+// re-skins the settings panel, historically its own contrast trap. The ☰
+// tile that cycled the base style is gone (Packs took its place), so the
+// rider's path is now the Map layers seg at the top of Settings.
 test('nav menus readable — factory daylight', async ({ page }) => {
   const results = [];
   await boot(page);
   await openGlove(page);
-  await gloveTile(page, 'Day').click();
+  await gloveTile(page, 'Settings').click();
+  await expect(page.locator('#panel')).toBeVisible();
+  await page.locator('#styleSeg button[data-v="contrast"]').click();
+  await page.locator('#panelClose').click();
   await page.waitForTimeout(400);
 
   await measure(page, 'daylight-main', results);

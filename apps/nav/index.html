@@ -460,6 +460,51 @@
   .schGrid .mtile{padding:18px 6px}
   body:not(.portrait) #schemaPicker .schGrid, body:not(.portrait) #schemaHead,
   body:not(.portrait) #schemaPicker .schSec{max-width:640px}
+  .schGrid .mtile .ic{width:22px; height:22px; display:block; margin:0 auto 2px}
+
+  /* PACK PICKER: full-screen like the schema picker — one glove-sized row per
+     pack on the phone. #packPicker.det shows the part sizes, .edit shows the
+     bins. Sub-text is a fg/panel mix, not --dim (same sweep finding as .gs). */
+  #packPicker{position:fixed; inset:0; z-index:40; display:none;
+    background:color-mix(in srgb, var(--bg) 92%, transparent);
+    flex-direction:column; align-items:center; padding:calc(env(safe-area-inset-top) + 18px) 18px 18px; overflow-y:auto}
+  #packPicker.open{display:flex}
+  #packHead, #packBar, #packList{max-width:480px; width:100%}
+  body:not(.portrait) #packHead, body:not(.portrait) #packBar, body:not(.portrait) #packList{max-width:640px}
+  #packHead{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px}
+  #packHead b{font-size:17px}
+  #packClose{background:none; border:none; color:var(--fg); font-size:22px; padding:8px; cursor:pointer}
+  #packBar{display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13px;
+    color:color-mix(in srgb, var(--fg) 78%, var(--panel))}
+  #packSum{flex:1; min-width:0}
+  .psw{width:46px; height:28px; border-radius:14px; border:2px solid color-mix(in srgb, var(--fg) 45%, transparent);
+    background:var(--panel2); position:relative; flex:none; cursor:pointer; padding:0}
+  .psw::after{content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:var(--fg)}
+  .psw[aria-checked="true"]{border-color:var(--accent)}
+  .psw[aria-checked="true"]::after{left:21px; background:var(--accent)}
+  #packEdit{width:44px; height:44px; border-radius:12px; background:var(--panel2); color:var(--fg); font-size:19px;
+    border:2px solid color-mix(in srgb, var(--fg) 16%, transparent); flex:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center}
+  #packEdit[aria-pressed="true"]{border-color:var(--accent); border-width:3px}
+  .pkRow{background:var(--panel2); border:2px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius:14px;
+    padding:10px 10px 10px 14px; margin-bottom:10px; cursor:pointer}
+  .pkRow:active{background:color-mix(in srgb, var(--fg) 10%, var(--panel))}
+  .pkRow.cur{border-color:var(--accent); border-width:3px}
+  .pkTop{display:flex; align-items:center; gap:10px; min-height:48px}
+  .pkTop > .ic{width:28px; height:28px; flex:none}
+  .pkNm{flex:1; min-width:0}
+  .pkNm b{display:block; font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pkNm span{font-size:12.5px; color:color-mix(in srgb, var(--fg) 78%, var(--panel))}
+  .pkTot{font-size:15px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums}
+  .pkBin{display:none; width:48px; height:48px; border-radius:12px; background:none; color:var(--fg); font-size:21px;
+    border:2px solid color-mix(in srgb, var(--fg) 30%, transparent); flex:none; cursor:pointer; align-items:center; justify-content:center}
+  #packPicker.edit .pkBin{display:flex}
+  .pkParts{display:none; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 16px; margin-top:8px; padding-top:8px;
+    border-top:1px solid color-mix(in srgb, var(--fg) 16%, transparent)}
+  #packPicker.det .pkParts{display:grid}
+  .pkParts div{display:flex; align-items:center; gap:7px; font-size:13px; color:color-mix(in srgb, var(--fg) 78%, var(--panel))}
+  .pkParts em{font-style:normal; margin-left:auto; color:var(--fg); font-variant-numeric:tabular-nums}
+  #packList .hint{text-align:center; padding:24px 8px}
 
   /* ---------- panel ---------- */
   #shade{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:19; display:none}
@@ -811,6 +856,10 @@
   <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
   <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
   <symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <symbol id="i-satellite" viewBox="0 0 24 24"><path d="m13.5 6.5-3.148-3.148a1.205 1.205 0 0 0-1.704 0L6.352 5.648a1.205 1.205 0 0 0 0 1.704L9.5 10.5"/><path d="M16.5 7.5 19 5"/><path d="m17.5 10.5 3.148 3.148a1.205 1.205 0 0 1 0 1.704l-2.296 2.296a1.205 1.205 0 0 1-1.704 0L13.5 14.5"/><path d="M9 21a6 6 0 0 0-6-6"/><path d="M9.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l4.296-4.296a1.205 1.205 0 0 0 0-1.704l-2.296-2.296a1.205 1.205 0 0 0-1.704 0z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></symbol>
+  <symbol id="i-mountain" viewBox="0 0 24 24"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
   <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
@@ -938,6 +987,17 @@
   <div class="schSec">Look — .dingoscheme</div><div id="schSchemes" class="schGrid"></div>
   <div class="schSec">Behaviour — .dingobehavior</div><div id="schBehaviors" class="schGrid"></div>
 </div>
+<!-- pack picker: every pack kept on this phone. A tap on a row makes that pack
+     the ride pack. Details = size of each part; the pen shows the bins. -->
+<div id="packPicker">
+  <div id="packHead"><b>Packs on this phone</b>
+    <button id="packClose" title="close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div id="packBar"><span id="packSum"></span>
+    <span id="packDetLbl">Details</span>
+    <button id="packDet" class="psw" role="switch" aria-checked="false" aria-labelledby="packDetLbl"></button>
+    <button id="packEdit" title="Edit packs" aria-pressed="false"><svg class="ic"><use href="#i-pencil"/></svg></button></div>
+  <div id="packList"></div>
+</div>
 
 <!-- Startup / readiness screen. `loading` is in the MARKUP so the card paints before
      the app script runs. The card is up while boot is working OR while first-run
@@ -995,7 +1055,7 @@
      buttons land here too. -->
 <div id="gloveOverlay"><div id="gloveGrid">
   <div class="gtile" id="gDemo"><div class="gi"><svg class="ic"><use href="#i-circle-play"/></svg></div><div class="gl">Demo</div></div>
-  <div class="gtile" id="gLayers"><div class="gi"><svg class="ic"><use href="#i-layers"/></svg></div><div class="gl">Day</div></div>
+  <div class="gtile" id="gPacks"><div class="gi"><svg class="ic"><use href="#i-package"/></svg></div><div class="gl">Packs</div><div class="gs"></div></div>
   <div class="gtile" id="gMute"><div class="gi"><svg class="ic"><use href="#i-volume-2"/></svg></div><div class="gl">Mute</div></div>
   <div class="gtile" id="gNavMode"><div class="gi"><svg class="ic"><use href="#i-route"/></svg></div><div class="gl">Follow</div><div class="gs"></div></div>
   <div class="gtile" id="gZoom"><div class="gi"><svg class="ic"><use href="#i-maximize-2"/></svg></div><div class="gl">Auto zoom</div></div>
@@ -1337,6 +1397,14 @@ function migrateBigLeft() {
 migrateBigLeft();
 if (S.set.orient === 'course') S.set.orient = 'north'; // course-up retired 2026-08-14
 function saveSet() { localStorage.setItem('dingonav-set', JSON.stringify(S.set)); }
+/* The ride pack: many packs are held on the phone, ONE is loaded and ridden.
+   The pointer has its own key, not S.set — the scheme switcher resets S.set
+   and a config import replaces it, and neither may change which pack you
+   ride. null = never set (a store from before packs were held side by side:
+   boot adopts its one pack); '' = no ride pack, by the rider's own removal. */
+const ACTIVE_PACK_KEY = 'dingonav-active-pack';
+let ACTIVE_PACK = localStorage.getItem(ACTIVE_PACK_KEY);
+function writeActivePack(slug) { ACTIVE_PACK = slug || ''; localStorage.setItem(ACTIVE_PACK_KEY, ACTIVE_PACK); }
 // v2 migration: ♥ favourite spans become the max zoom preset
 if (!S.set._v2) {
   S.set._v2 = 1;
@@ -1443,8 +1511,8 @@ const DTILES = {
   maxzoom: { basemap: 14, hillshade: 12 },
   remotes: {},
   // v2 packs may carry a `tiles` override ({basemap: url, hillshade: url}) —
-  // one active pack at a time, so the first pack with one wins
-  override() { for (const p of S.packs.values()) if (p.tilesOverride) return p.tilesOverride; return null; },
+  // many packs live on the phone, only the ride pack's override applies
+  override() { const p = S.packs.get(ACTIVE_PACK || ''); return (p && p.tilesOverride) || null; },
   url(src) { const o = this.override(); return (o && o[src]) || this.base + this.files[src]; },
   // overridden archives cache under their own namespace — no cross-archive mixing
   ns(src) { const o = this.override(); return o && o[src] ? '@' + textHash(o[src]) : ''; },
@@ -1557,6 +1625,9 @@ async function prefetchCorridor(slug) {
     for (const src of ['basemap', 'hillshade', 'aerial'])
       await idb.rput({ id: slug + '|' + src, pack: slug, src,
         keys: jobs.filter(j => j.src === src).map(j => j.key) }).catch(() => {});
+    // a pack refresh keeps its tiles and lands here with a new key set — drop
+    // what no pack references any more (the refs above already own the new set)
+    await gcTiles();
     if (!todo.length) { updateDtileStatus(); return; }
     toast(`Fetching offline maps: ${todo.length} tiles…`);
     let done = 0, errs = 0;
@@ -1580,18 +1651,25 @@ async function prefetchCorridor(slug) {
     await Promise.all(workers);
     toast(errs ? `Offline maps partial (${errs} failed) — re-open online to finish`
                : 'Offline maps ready for this ride');
-  } finally { dtileFetching = false; updateDtileStatus(); }
+  } finally { dtileFetching = false; packSizeCache = null; updateDtileStatus(); }
 }
 
+/* Delete cached tiles that no pack's reference set holds. Packs that cover
+   the same ground share tiles — a tile goes only when its last pack does. */
+async function gcTiles() {
+  try {
+    const wanted = new Set();
+    for (const r of await idb.rall()) for (const k of r.keys || []) wanted.add(k);
+    for (const key of await idb.tkeys()) if (!wanted.has(key)) await idb.tdel(key);
+  } catch (e) {}
+  packSizeCache = null;
+}
 /* Drop a pack's tile references and GC tiles nothing references any more. */
 async function dropTileRefs(slug) {
   try {
     await idb.rdel(slug + '|basemap'); await idb.rdel(slug + '|hillshade'); await idb.rdel(slug + '|aerial');
-    const refs = await idb.rall();
-    const wanted = new Set();
-    for (const r of refs) for (const k of r.keys || []) wanted.add(k);
-    for (const key of await idb.tkeys()) if (!wanted.has(key)) await idb.tdel(key);
   } catch (e) {}
+  await gcTiles();
   updateDtileStatus();
 }
 
@@ -2501,6 +2579,13 @@ async function initMap() {
   let baseRec = null, hillRec = null;
   let schemaRec = null;
   try { [baseRec, hillRec, satMeta, schemaRec] = await idb.getMany(['basemap', 'hillshade', 'sat-meta', 'schema']); } catch (e) {}
+  // embedded assets are tagged with the pack that shipped them: another
+  // pack's corridor cut is the wrong ground for the ride pack — leave it out
+  // (untagged = loaded by hand or auto-downloaded: the user's own, always used)
+  const mine = rec => rec && (!rec.pack || rec.pack === (ACTIVE_PACK || ''));
+  if (!mine(baseRec)) baseRec = null;
+  if (!mine(hillRec)) hillRec = null;
+  if (!mine(satMeta)) satMeta = null;
   // stored schema re-mounts its look (CSS vars, mark colours, map style entry)
   // before the first buildStyle — no default-style flash. A schema that fails
   // to mount must never brick Nav: fall back to the factory look and say so.
@@ -2594,6 +2679,9 @@ async function initMap() {
   map.resize();
   await styleSettled(); // the style JSON is enough for the overlays; tiles keep streaming behind
   try { [stravaRideMeta, stravaHikeMeta] = await idb.getMany(['strava-ride-meta', 'strava-hike-meta']); } catch (e) {}
+  const ridePack = ACTIVE_PACK || ''; // another pack's baked tiles stay out (see initMap)
+  if (stravaRideMeta && stravaRideMeta.pack && stravaRideMeta.pack !== ridePack) stravaRideMeta = null;
+  if (stravaHikeMeta && stravaHikeMeta.pack && stravaHikeMeta.pack !== ridePack) stravaHikeMeta = null;
   // satMeta already loaded above (before buildStyle); no need to re-read here.
   mapReady = true; // before addOverlays — its refreshMapData() call needs this
   addOverlays();
@@ -4840,7 +4928,10 @@ function refreshGlove() {
   const trk = S.tracks[S.sel];
   const g = id => document.getElementById(id);
   g('gZoom').classList.toggle('active', S.set.autoZoom);
-  g('gLayers').querySelector('.gl').textContent = curStyle().label || S.set.mapStyle;
+  const gp = g('gPacks'), ridePack = S.packs.get(ACTIVE_PACK || '');
+  gp.querySelector('.gs').textContent = ridePack ? ridePack.name.slice(0, 18)
+    : [...S.packs.values()].some(packHasData) ? 'none in use' : 'none on phone';
+  gp.classList.toggle('active', !!ridePack);
   setIc(g('gMute').querySelector('.gi'), S.set.sound ? 'volume-2' : 'volume-x');
   g('gMute').querySelector('.gl').textContent = S.set.sound ? 'Mute' : 'Muted';
   g('gMute').classList.toggle('active', !S.set.sound);
@@ -4865,11 +4956,7 @@ document.getElementById('gZoom').onclick = gloveTap(() => {
   S.set.autoZoom = !S.set.autoZoom; saveSet();
   document.getElementById('setAutoZoom').checked = S.set.autoZoom;
 });
-document.getElementById('gLayers').onclick = gloveTap(() => {
-  const STYLE_CYCLE = styleCycle();
-  const i = STYLE_CYCLE.indexOf(S.set.mapStyle);
-  setMapStyle(STYLE_CYCLE[(i + 1) % STYLE_CYCLE.length]);
-});
+document.getElementById('gPacks').onclick = () => { closeGlove(); openPackPicker(); };
 document.getElementById('gMute').onclick = gloveTap(() => setSound(!S.set.sound));
 document.getElementById('gSchema').onclick = () => { closeGlove(); openSchemaPicker(); };
 document.getElementById('gNavMode').onclick = gloveTap(() => // tap cycles follow → explore → snap
@@ -5417,13 +5504,19 @@ async function addFile(name, text, ctx) {
       // bundle REPLACES the pack's tracks + heatmap instead of accumulating
       // duplicates; bundles with neither load loose, exactly as before.
       const slug = obj.bundleId || (ctx && ctx.slug) || '';
-      // one active pack: a pack download replaces ALL previous pack data (any
-      // slug), not just its own — loose user-loaded tracks stay
-      if (slug) await purgeAllPacks();
-      let nT = 0, errs = 0;
-      if (obj.heatmap) await addFile(obj.heatmapName || 'heatmap.geojson', JSON.stringify(obj.heatmap), slug ? { pack: slug } : undefined);
+      // packs live side by side on the phone: a download replaces only ITS OWN
+      // earlier copy (tiles kept — the corridor prefetch re-points them). The
+      // new pack becomes the ride pack, so the previous ride pack's tracks
+      // leave memory (never IDB). Loose user-loaded tracks stay.
+      if (slug) { await removePackData(slug, { keepTiles: true }); unloadOtherPacks(slug); }
+      let nT = 0, errs = 0, tracksBytes = 0;
+      const heatText = obj.heatmap ? JSON.stringify(obj.heatmap) : '';
+      if (obj.heatmap) await addFile(obj.heatmapName || 'heatmap.geojson', heatText, slug ? { pack: slug } : undefined);
       for (const t of obj.tracks) {
-        try { await addFile(t.name, t.gpx, { pack: slug || '', rideId: slug ? t.rideId : null, mode: t.mode || null }); nT++; }
+        try {
+          await addFile(t.name, t.gpx, { pack: slug || '', rideId: slug ? t.rideId : null, mode: t.mode || null });
+          nT++; tracksBytes += t.gpx.length;
+        }
         catch (e) { errs++; console.warn('bundle track failed', t.name, e); }
       }
       // pack-carried turn edits: replay other riders' contributions on this download
@@ -5433,9 +5526,13 @@ async function addFile(name, text, ctx) {
       // only once per distinct config, so pack refreshes don't nag re-offers
       if (obj.config && typeof obj.config === 'object' && !Array.isArray(obj.config)) {
         const sig = textHash(JSON.stringify(obj.config));
-        if (S.set._packCfg !== sig &&
-            offerConfig(obj.config, `pack "${obj.bundleName || obj.name || slug || name}"`, true)) {
-          S.set._packCfg = sig; saveSet();
+        // one signature PER PACK: with many packs held, a single slot made
+        // every refresh of pack A re-offer after pack B had loaded. (An old
+        // single-string value still counts once, for whichever pack matches.)
+        const seen = S.set._packCfg && typeof S.set._packCfg === 'object' ? S.set._packCfg : {};
+        const known = seen[slug || ''] === sig || S.set._packCfg === sig;
+        if (!known && offerConfig(obj.config, `pack "${obj.bundleName || obj.name || slug || name}"`, true)) {
+          seen[slug || ''] = sig; S.set._packCfg = seen; saveSet();
         }
       }
       // v2 meta: the pack's display name + free-text notes (surfaced on load)
@@ -5453,8 +5550,15 @@ async function addFile(name, text, ctx) {
           formatVersion: obj.formatVersion || 1,
           tilesOverride: (obj.tiles && typeof obj.tiles === 'object' && !Array.isArray(obj.tiles)) ? obj.tiles : null,
           schemes: Array.isArray(obj.schemes) ? obj.schemes : (obj.scheme ? [obj.scheme] : null),
-          loadedAt: Date.now() };
+          // what the pack holds on this phone: the IDB keys of its tracks (boot
+          // skips them while another pack is the ride pack; removal deletes
+          // them without loading the pack) and its text sizes for the pack list
+          trackIds: S.tracks.filter(t => t.pack === slug).map(t => t.recId || t.id),
+          tracksBytes, heatBytes: heatText.length,
+          loadedAt: Date.now(), lastUsed: Date.now() };
         await idb.put(pack); S.packs.set(slug, pack);
+        writeActivePack(slug);
+        packSizeCache = null;
       }
       return { bundle: true, tracks: nT, heatmap: !!obj.heatmap, errs,
                bundleName, description: obj.description || '',
@@ -5481,70 +5585,112 @@ async function addFile(name, text, ctx) {
   const trk = processTrack(id, trkName, pts);
   trk.geomHash = h; trk.pack = (ctx && ctx.pack) || '';
   trk.mode = (ctx && ctx.mode) || null; // ride mode from the pack (adv/enduro/mtb) — picks the handling profile
+  // IDB key: pack-scoped for pack tracks. Two packs can carry the same ride
+  // (same stable ride id) — one shared record would be lost with either pack.
+  // The track id itself (tid) stays the ride id, so cue edits still re-attach.
+  trk.recId = trk.pack ? 'pk-' + trk.pack + '|' + id : id;
   S.tracks.push(trk);
-  await idb.put({ id, name: trkName, kind: 'gpx', pack: trk.pack, mode: trk.mode, text });
+  await idb.put({ id: trk.recId, tid: id, name: trkName, kind: 'gpx', pack: trk.pack, mode: trk.mode, text });
   return 'gpx';
 }
+/* Does this pack hold tracks on the phone? A record without them is only a
+   download link (after "Clear all data", or a failed first download). */
+function packHasData(p) { return !!(p && Array.isArray(p.trackIds) && p.trackIds.length); }
 /* Remove a pack's tracks + heatmap from memory and IDB. Cue-edit overlays are
    KEPT deliberately: they're tiny, keyed by stable ride id, and re-apply if
-   the pack comes back (which is exactly what a refresh does). */
-async function removePackData(slug) {
+   the pack comes back (which is exactly what a refresh does). The pack may
+   not be the ride pack — then its tracks are not in memory, and the record's
+   trackIds name them. keepTiles: a refresh re-points the tile refs itself. */
+async function removePackData(slug, { keepTiles = false } = {}) {
   const selId = S.sel >= 0 && S.tracks[S.sel] ? S.tracks[S.sel].id : null;
-  for (const t of S.tracks) {
-    if ((t.pack || '') !== slug) continue;
-    try { await idb.del(t.id); } catch (e) {}
-  }
+  const pack = S.packs.get(slug);
+  const recIds = new Set(pack && Array.isArray(pack.trackIds) ? pack.trackIds : []);
+  for (const t of S.tracks) if ((t.pack || '') === slug) recIds.add(t.recId || t.id);
+  for (const id of recIds) { try { await idb.del(id); } catch (e) {} }
   S.tracks = S.tracks.filter(t => (t.pack || '') !== slug);
   S.sel = selId ? S.tracks.findIndex(t => t.id === selId) : -1;
   if (selId && S.sel < 0) stopNav();
   try { await idb.del('heatmap-' + slug); } catch (e) {}
-  await dropTileRefs(slug); // shared-archive corridor tiles: unreference + GC
+  if (!keepTiles) await dropTileRefs(slug); // shared-archive corridor tiles: unreference + GC
   if (S.heatPack === slug) {
     S.heat = null;
     for (const t of S.tracks) t.alerts = null; // cues depend on heatmap
     document.getElementById('heatInfo').textContent = 'Heatmap: none';
   }
 }
-/* One active pack: wipe EVERY pack's tracks, heatmap, tiles and (unless asked
-   to keep them) provenance records. User-loaded tracks (pack === '') and all
-   cueov-* edit overlays survive — overlays are keyed by stable ride id and
-   re-attach when a pack comes back. Untagged basemap/hillshade (loaded by hand
-   or auto-downloaded) are user assets and are never purged. */
-async function purgeAllPacks({ keepProvenance = false } = {}) {
-  const slugs = new Set(S.packs.keys());
-  for (const t of S.tracks) if (t.pack) slugs.add(t.pack);
+/* A newly loaded pack becomes the ride pack: the other packs' tracks leave
+   MEMORY only — their records stay in IDB until the rider picks them again. */
+function unloadOtherPacks(slug) {
+  const selId = S.sel >= 0 && S.tracks[S.sel] ? S.tracks[S.sel].id : null;
+  S.tracks = S.tracks.filter(t => !t.pack || t.pack === slug);
+  S.sel = selId ? S.tracks.findIndex(t => t.id === selId) : -1;
+  if (selId && S.sel < 0) stopNav();
+  if (S.heatPack && S.heatPack !== slug) {
+    S.heat = null; S.heatPack = '';
+    for (const t of S.tracks) t.alerts = null; // cues depend on heatmap
+    document.getElementById('heatInfo').textContent = 'Heatmap: none';
+  }
+}
+/* Embedded map assets — a .dingonav zip can carry basemap / hillshade /
+   satellite / Strava tiles — have ONE slot each on the device: the last zip
+   that shipped them owns the slot. Each is tagged with its pack; initMap
+   ignores another pack's assets, and they go when their pack is removed. */
+const EMBED = { sat: [/^sattile-/, 'sat-meta'], stravaRide: [/^stravaridetile-/, 'strava-ride-meta'],
+  stravaHike: [/^stravahiketile-/, 'strava-hike-meta'] };
+async function clearEmbedded(kind) {
+  const [re, metaId] = EMBED[kind];
   let ids = [];
   try { ids = await idb.keys(); } catch (e) {}
-  for (const id of ids) {
-    if (id.startsWith('pack-')) slugs.add(id.slice(5));
-    else if (id.startsWith('heatmap-')) slugs.add(id.slice(8));
-  }
-  for (const slug of slugs) {
-    await removePackData(slug);
-    if (!keepProvenance) {
-      try { await idb.del('pack-' + slug); } catch (e) {}
-      S.packs.delete(slug);
-    }
-  }
-  // pack-shipped tiles: strava/sat tile pyramids + their metas, and any
-  // basemap/hillshade tagged with a pack slug
-  for (const id of ids) {
-    if (/^(stravaridetile|stravahiketile|sattile)-/.test(id) ||
-        id === 'strava-ride-meta' || id === 'strava-hike-meta' || id === 'sat-meta') {
-      try { await idb.del(id); } catch (e) {}
-    }
-  }
-  for (const id of ['basemap', 'hillshade']) {
-    try { const rec = await idb.get(id); if (rec && rec.pack) await idb.del(id); } catch (e) {}
-  }
-  stravaRideMeta = null; stravaHikeMeta = null; satMeta = null;
+  for (const id of ids) if (typeof id === 'string' && re.test(id)) { try { await idb.del(id); } catch (e) {} }
+  try { await idb.del(metaId); } catch (e) {}
 }
-/* Forget a pack entirely (the header ✕): its data plus the pack record. */
+async function dropEmbedded(slug) {
+  for (const id of ['basemap', 'hillshade']) {
+    try { const rec = await idb.get(id); if (rec && rec.pack === slug) await idb.del(id); } catch (e) {}
+  }
+  for (const kind in EMBED) {
+    try { const m = await idb.get(EMBED[kind][1]); if (m && m.pack === slug) await clearEmbedded(kind); } catch (e) {}
+  }
+}
+/* Remove a pack from the phone (the pack list's bin, the header ✕): tracks,
+   heatmap, tiles no other pack uses, and the pack record. Removing the ride
+   pack hands over to the most recently used pack still on the phone, or none. */
 async function removePack(slug) {
   await removePackData(slug);
+  await dropEmbedded(slug);
   try { await idb.del('pack-' + slug); } catch (e) {}
   S.packs.delete(slug);
+  packSizeCache = null;
+  if ((ACTIVE_PACK || '') === slug) {
+    writeActivePack('');
+    const next = [...S.packs.values()].filter(packHasData).sort((a, b) => packUsedAt(b) - packUsedAt(a))[0];
+    if (next) { setActivePack(next.slug); return; }
+  }
   refreshTrackList(); refreshEmpty(); updateBottomBar(); refreshMapData();
+}
+const packUsedAt = p => p.lastUsed || p.loadedAt || 0;
+/* Make a pack on the phone the ride pack. Pure local I/O — every held pack
+   keeps its tracks, heatmap and tiles on the device, so this works at camp
+   with no signal. The ride in progress is archived and stopped first, never
+   cleared; the breadcrumb has its own record and survives.
+   The pack is loaded by a reload, not an in-place swap: the local-metre
+   projection is anchored ONCE at the first track (setRef), so a pack some
+   hundreds of km away would be measured with the wrong east-west scale.
+   Boot re-anchors it, loads this pack only, and re-attaches the right
+   basemap for a pack that carries its own. */
+function setActivePack(slug) {
+  if (slug === (ACTIVE_PACK || '')) return;
+  const pack = S.packs.get(slug);
+  if (!packHasData(pack)) return;
+  if (S.nav) {
+    if (!confirm(`Stop this ride and change to "${pack.name}"? The ride so far is saved.`)) return;
+    stopNav(); // archives the ridden path
+  }
+  pack.lastUsed = Date.now();
+  idb.put(pack).catch(() => {});
+  writeActivePack(slug);
+  toast('Loading ' + pack.name + '…');
+  setTimeout(() => location.reload(), 350);
 }
 /* Re-fetch a pack from where it came from and replace its contents in place.
    ?b= packs re-resolve the shares repo at HEAD (fresh sha each time), so a
@@ -5597,8 +5743,8 @@ async function loadBundleZip(file, ctx) {
   }
   if (entries['basemap.pmtiles']) {
     const blob = new Blob([entries['basemap.pmtiles']], { type: 'application/octet-stream' });
-    // pack tag: lets purgeAllPacks tell a pack-shipped basemap from one the
-    // user loaded by hand (untagged assets are never purged)
+    // pack tag: tells a pack-shipped basemap from one the user loaded by hand
+    // (untagged assets are the user's own — never removed with a pack)
     await idb.put({ id: 'basemap', name: file.name.replace(/\.(dingonav|zip)$/i, '') + ' basemap', kind: 'basemap', pack: pack || '', blob });
     basemap = true;
   }
@@ -5612,6 +5758,8 @@ async function loadBundleZip(file, ctx) {
   for (const [owner, setKey] of [['ride', 'stravaRide'], ['hike', 'stravaHike']]) {
     let zmin = 99, zmax = 0, count = 0;
     const re = new RegExp('^strava-' + owner + '/(\\d+)/(\\d+)/(\\d+)\\.png$');
+    // one slot per device: this zip's tiles replace the last pack's, never mix
+    if (Object.keys(entries).some(path => re.test(path))) await clearEmbedded(owner === 'ride' ? 'stravaRide' : 'stravaHike');
     for (const path in entries) {
       const m = path.match(re);
       if (!m) continue;
@@ -5622,7 +5770,7 @@ async function loadBundleZip(file, ctx) {
       count++;
     }
     if (count) {
-      await idb.put({ id: `strava-${owner}-meta`, kind: `strava${owner}meta`, count, zmin, zmax });
+      await idb.put({ id: `strava-${owner}-meta`, kind: `strava${owner}meta`, count, zmin, zmax, pack: pack || '' });
       if (S.set[setKey] === undefined) { S.set[setKey] = true; saveSet(); } // show by default when first shipped
       stravaTiles += count;
     }
@@ -5632,20 +5780,22 @@ async function loadBundleZip(file, ctx) {
   // corridor + zoomed-out overview band; satellite-turns/ holds sparse
   // full-resolution patches around turns. `base` records where the continuous
   // band ends so buildStyle can overzoom it there and layer the patches above.
-  let szmin = 99, szmax = 0, sbase = 0, satTiles = 0;
+  let szmin = 99, szmax = 0, sbase = 0, satTiles = 0, satBytes = 0;
+  const SAT_RE = /^satellite(-turns)?\/(\d+)\/(\d+)\/(\d+)\.jpg$/;
+  if (Object.keys(entries).some(path => SAT_RE.test(path))) await clearEmbedded('sat'); // one slot, as above
   for (const path in entries) {
-    const m = path.match(/^satellite(-turns)?\/(\d+)\/(\d+)\/(\d+)\.jpg$/);
+    const m = path.match(SAT_RE);
     if (!m) continue;
     const z = +m[2];
     szmin = Math.min(szmin, z); szmax = Math.max(szmax, z);
     if (!m[1]) sbase = Math.max(sbase, z);
     await idb.put({ id: `sattile-${m[2]}-${m[3]}-${m[4]}`, kind: 'sattile',
       blob: new Blob([entries[path]], { type: 'image/jpeg' }) });
-    satTiles++;
+    satTiles++; satBytes += entries[path].length;
   }
   if (satTiles) {
     await idb.put({ id: 'sat-meta', kind: 'satmeta', count: satTiles, zmin: szmin, zmax: szmax,
-      base: sbase || szmax });
+      base: sbase || szmax, pack: pack || '', bytes: satBytes });
   }
   // Default ride name: the pack's baked rideName wins (canonical — everyone on the
   // pack converges on one channel no matter how the file was renamed in transit),
@@ -5772,6 +5922,7 @@ document.getElementById('aerialNswBtn').onclick = () => {
 document.getElementById('dtileClearBtn').onclick = async () => {
   if (!confirm('Clear all cached shared-archive tiles? Packs re-fetch their corridors next time you are online.')) return;
   try { await idb.tclear(); await idb.rclear(); } catch (e) {}
+  packSizeCache = null;
   updateDtileStatus(); toast('Shared tile cache cleared');
 };
 document.getElementById('baseBtn').onclick = () => document.getElementById('baseInput').click();
@@ -5797,7 +5948,12 @@ document.getElementById('clearBtn').onclick = async () => {
   let packRecs = [];
   try { packRecs = (await idb.all()).filter(r => r.kind === 'pack'); } catch (e) {}
   await idb.clear();
-  for (const r of packRecs) { try { await idb.put(r); } catch (e) {} }
+  try { await idb.tclear(); await idb.rclear(); } catch (e) {} // every pack's corridor tiles too
+  for (const r of packRecs) { // link only — the data is gone
+    delete r.trackIds; r.tracksBytes = 0; r.heatBytes = 0;
+    try { await idb.put(r); } catch (e) {}
+  }
+  writeActivePack(''); packSizeCache = null;
   S.tracks = []; S.heat = null; S.heatPack = ''; S.sel = -1;
   S.rides = []; S.trail = []; S.prog = null;
   S.packs = new Map(packRecs.map(r => [r.slug, r]));
@@ -5839,7 +5995,12 @@ function trackRow(i) {
   row.querySelector('.gm').onclick = ev => { ev.stopPropagation(); openInGoogleMaps(t); };
   row.querySelector('.del').onclick = async ev => {
     ev.stopPropagation();
-    await idb.del(t.id);
+    await idb.del(t.recId || t.id);
+    const tp = t.pack && S.packs.get(t.pack); // keep the pack's own track list true
+    if (tp && Array.isArray(tp.trackIds)) {
+      tp.trackIds = tp.trackIds.filter(id => id !== (t.recId || t.id));
+      idb.put(tp).catch(() => {});
+    }
     S.tracks.splice(i, 1);
     if (S.sel === i) { S.sel = -1; stopNav(); } else if (S.sel > i) S.sel--;
     refreshTrackList(); refreshEmpty(); updateBottomBar(); refreshMapData();
@@ -5891,10 +6052,11 @@ function refreshTrackList() {
   }
   if (!S.tracks.length) el.innerHTML = '<div class="hint">No tracks yet.</div>';
   else if (!shown) el.innerHTML = '<div class="hint">No tracks match "' + escHtml(q) + '".</div>';
-  // provenance-only packs (e.g. after "Clear all data" with loose files still
-  // loaded): show the header anyway so its ⟳ re-download stays reachable
+  // link-only packs (e.g. after "Clear all data" with loose files still
+  // loaded): show the header anyway so its ⟳ re-download stays reachable.
+  // Packs that are on the phone but not the ride pack live in ☰ → Packs.
   for (const [slug, pack] of S.packs) {
-    if (groups.has(slug)) continue;
+    if (groups.has(slug) || packHasData(pack)) continue;
     if (pack.srcSlug || pack.sourceUrl) el.appendChild(packHeader(slug, pack, pack.name, 0));
   }
 }
@@ -6305,16 +6467,20 @@ function refreshEmpty() {
   // the training ride is a first-visit offer — once you've seen it, an empty screen
   // shouldn't keep pitching it. Still reachable any time from ☰ → Demo.
   document.getElementById('emptyTrain').style.display = S.set.seenIntro ? 'none' : '';
-  // known packs (provenance survives "Clear all data") get a one-tap re-download
+  // packs still on the phone get a one-tap "ride this"; link-only packs
+  // (the link survives "Clear all data") a one-tap re-download
   const ep = document.getElementById('emptyPacks');
   ep.innerHTML = '';
   if (!on) return;
   for (const pack of S.packs.values()) {
-    if (!pack.srcSlug && !pack.sourceUrl) continue;
+    const has = packHasData(pack);
+    if (!has && !pack.srcSlug && !pack.sourceUrl) continue;
     const b = document.createElement('button');
     b.className = 'btn';
-    b.innerHTML = `<svg class="ic"><use href="#i-rotate-ccw"/></svg> Re-download ${escHtml(pack.name)}`;
-    b.onclick = () => refreshPack(pack.slug);
+    b.innerHTML = has
+      ? `<svg class="ic"><use href="#i-package"/></svg> Ride ${escHtml(pack.name)}`
+      : `<svg class="ic"><use href="#i-rotate-ccw"/></svg> Re-download ${escHtml(pack.name)}`;
+    b.onclick = () => has ? setActivePack(pack.slug) : refreshPack(pack.slug);
     ep.appendChild(b);
   }
 }
@@ -8027,7 +8193,8 @@ async function fetchSchemaFile(kind, id) {
    and what you're connected to, not look-and-feel (offerConfig's fromPack list,
    grown to device pairing + migration stamps) */
 const SCHEMA_KEEP = ['name', 'email', 'code', 'codeAuto', 'keys', 'varg', 'vargOwn', 'vargVin', 'vargPin', 'vargExtra',
-  'aerialUrl', 'seenIntro', 'seenZoomTip', '_v2', '_v3', '_v4', '_v5', '_packCfg'];
+  'aerialUrl', 'seenIntro', 'seenZoomTip', '_v2', '_v3', '_v4', '_v5', '_packCfg',
+  'packDetails', 'prevMapStyle']; // pack-list view + the way back from Aerial are not look-and-feel
 async function applySchema(schemeId, behaviorId) {
   const bhId = behaviorId === 'matched'
     ? (SCHEMA_BEHAVIORS.some(b => b.id === schemeId) ? schemeId : 'default') : behaviorId;
@@ -8052,19 +8219,174 @@ const schemaPickerEl = document.getElementById('schemaPicker');
 function openSchemaPicker() { renderSchemaPicker(); schemaPickerEl.classList.add('open'); }
 function closeSchemaPicker() { schemaPickerEl.classList.remove('open'); }
 document.getElementById('schemaClose').onclick = closeSchemaPicker;
+const AERIAL_LOOK = '__aerial'; // the Aerial tile's id in the Look row — not a .dingoscheme
 function renderSchemaPicker() {
   const tile = (x, cur) => '<div class="mtile' + (x.id === cur ? ' cur' : '') + '" data-id="' + x.id + '">'
     + '<div class="ml">' + x.label + '</div></div>';
-  document.getElementById('schSchemes').innerHTML = SCHEMA_SCHEMES.map(x => tile(x, SCHEMA.scheme)).join('');
+  // Aerial is one more look: imagery in place of the drawn map. While it is
+  // on, it is the current tile — the applied scheme still styles the chrome.
+  const sat = S.set.mapStyle === 'satellite';
+  document.getElementById('schSchemes').innerHTML = SCHEMA_SCHEMES.map(x => tile(x, sat ? null : SCHEMA.scheme)).join('')
+    + '<div class="mtile' + (sat ? ' cur' : '') + '" data-id="' + AERIAL_LOOK + '">'
+    + '<svg class="ic"><use href="#i-satellite"/></svg><div class="ml">Aerial</div></div>';
   document.getElementById('schBehaviors').innerHTML = SCHEMA_BEHAVIORS.map(x => tile(x, SCHEMA.behavior)).join('');
   const wire = (host, fn) => { for (const el of host.querySelectorAll('.mtile')) el.onclick = () => fn(el.dataset.id); };
-  wire(document.getElementById('schSchemes'), id => pickSchema(id, SCHEMA.behavior));
+  wire(document.getElementById('schSchemes'), id => id === AERIAL_LOOK ? pickAerial() : pickLook(id));
   wire(document.getElementById('schBehaviors'), id => pickSchema(SCHEMA.scheme, id));
+}
+/* Aerial changes the map base only — no settings reset (it has none of its own). */
+function pickAerial() {
+  closeSchemaPicker();
+  if (S.set.mapStyle === 'satellite') return;
+  if (!((satMeta && satMeta.count > 0) || aerialConfigured())) {
+    toast('No aerial imagery yet — set an aerial source in Settings, or bake tiles into a pack'); return;
+  }
+  S.set.prevMapStyle = S.set.mapStyle; // the way back (see pickLook)
+  setMapStyle('satellite');
+}
+function pickLook(id) {
+  // from Aerial back to the look that is already applied: only the map
+  // changes back — a tap must not wipe the rider's settings a second time
+  if (S.set.mapStyle === 'satellite' && id === SCHEMA.scheme) {
+    closeSchemaPicker();
+    const prev = S.set.prevMapStyle;
+    setMapStyle(MAP_STYLES.scheme ? 'scheme'
+      : (prev && prev !== 'satellite' && prev !== 'scheme' && MAP_STYLES[prev] ? prev : 'daylight'));
+    return;
+  }
+  pickSchema(id, SCHEMA.behavior);
 }
 function pickSchema(schemeId, behaviorId) {
   closeSchemaPicker();
   applySchema(schemeId, behaviorId).catch(e => toast('Schema failed: ' + e.message));
 }
+
+/* ---------------- pack picker: every pack on the phone, pick the ride pack ---------------- */
+const packPickerEl = document.getElementById('packPicker');
+let packSizeCache = null; // { per: slug → {map, aerial, tracks, shading, total}, total } — null = stale
+function fmtBytes(n) {
+  if (!n) return ''; // no value = blank, never "0 MB"
+  const mb = n / 1e6;
+  return mb >= 10 ? Math.round(mb) + ' MB' : mb >= 0.1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' kB';
+}
+/* Size on disk of each pack, by part. Corridor tiles are shared: every pack
+   counts each tile it references (so it shows what the pack needs), and the
+   device total counts each tile once (so it shows what is really used). */
+async function packSizes() {
+  if (packSizeCache) return packSizeCache;
+  const size = new Map(); // tile key → bytes, one cursor pass (Blob handles, no tile bytes read)
+  await new Promise((res, rej) => {
+    const q = idb.tx('readonly', 'tiles').openCursor();
+    q.onsuccess = () => {
+      const c = q.result;
+      if (!c) return res();
+      size.set(c.key, c.value && c.value.blob ? c.value.blob.size : 0);
+      c.continue();
+    };
+    q.onerror = () => rej(q.error);
+  });
+  let refs = [], base = null, hill = null, sat = null;
+  try { refs = await idb.rall(); } catch (e) {}
+  try { [base, hill, sat] = await idb.getMany(['basemap', 'hillshade', 'sat-meta']); } catch (e) {}
+  const PART = { basemap: 'map', hillshade: 'shading', aerial: 'aerial' };
+  const holders = new Map(); // tile key → how many packs reference it
+  for (const r of refs) for (const key of r.keys || []) holders.set(key, (holders.get(key) || 0) + 1);
+  const per = new Map(), counted = new Set();
+  let total = 0;
+  for (const p of S.packs.values()) {
+    // frees = what a removal really gives back: tiles ONLY this pack holds
+    const o = { map: 0, aerial: 0, tracks: (p.tracksBytes || 0) + (p.heatBytes || 0), shading: 0, frees: 0 };
+    for (const r of refs) {
+      if (r.pack !== p.slug || !PART[r.src]) continue;
+      for (const key of r.keys || []) {
+        const n = size.get(key) || 0;
+        o[PART[r.src]] += n;
+        if (holders.get(key) === 1) o.frees += n;
+        if (!counted.has(key)) { counted.add(key); total += n; }
+      }
+    }
+    // embedded assets a zip shipped (one slot each — see EMBED)
+    let own = 0;
+    if (base && base.blob && base.pack === p.slug) { o.map += base.blob.size; own += base.blob.size; }
+    if (hill && hill.blob && hill.pack === p.slug) { o.shading += hill.blob.size; own += hill.blob.size; }
+    if (sat && sat.pack === p.slug && sat.bytes) { o.aerial += sat.bytes; own += sat.bytes; }
+    o.total = o.map + o.aerial + o.tracks + o.shading;
+    o.frees += own + o.tracks;
+    total += own + o.tracks;
+    per.set(p.slug, o);
+  }
+  const out = { per, total };
+  if (!dtileFetching) packSizeCache = out; // a running corridor fetch is still growing the numbers
+  return out;
+}
+const PACK_PARTS = [['map', 'Map', 'map'], ['satellite', 'Aerial', 'aerial'], ['route', 'Tracks', 'tracks'], ['mountain', 'Shading', 'shading']];
+function renderPackPicker() {
+  const list = document.getElementById('packList');
+  const act = ACTIVE_PACK || '';
+  // the ride pack first, then the rest on the phone by last use, link-only packs last
+  const packs = [...S.packs.values()].sort((a, b) =>
+    (b.slug === act) - (a.slug === act) || packHasData(b) - packHasData(a) || packUsedAt(b) - packUsedAt(a));
+  list.innerHTML = '';
+  if (!packs.length)
+    list.innerHTML = '<div class="hint">No packs on this phone yet. Open a pack link, or load a .dingonav file from Settings.</div>';
+  for (const p of packs) {
+    const has = packHasData(p), cur = has && p.slug === act;
+    const n = has ? p.trackIds.length : 0;
+    const sub = has
+      ? [p.revision ? 'v' + p.revision : '', n + ' track' + (n === 1 ? '' : 's'), cur ? 'in use' : ''].filter(Boolean).join(' · ')
+      : 'Not on this phone · tap to download';
+    const row = document.createElement('div');
+    row.className = 'pkRow' + (cur ? ' cur' : '');
+    row.dataset.slug = p.slug;
+    row.innerHTML = `<div class="pkTop"><svg class="ic"><use href="#i-${has ? 'package' : 'download'}"/></svg>`
+      + `<div class="pkNm"><b>${escHtml(p.name)}</b><span>${escHtml(sub)}</span></div>`
+      + '<span class="pkTot"></span>'
+      + `<button class="pkBin" title="${has ? 'Remove this pack from the phone' : 'Forget this pack'}" aria-label="Remove ${escHtml(p.name)}"><svg class="ic"><use href="#i-trash"/></svg></button></div>`
+      + (has ? '<div class="pkParts">' + PACK_PARTS.map(([ic, label, k]) =>
+          `<div><svg class="ic"><use href="#i-${ic}"/></svg>${label}<em data-k="${k}"></em></div>`).join('') + '</div>' : '');
+    row.onclick = () => {
+      closePackPicker();
+      if (!has) refreshPack(p.slug); // link-only: download it (it becomes the ride pack)
+      else if (!cur) setActivePack(p.slug);
+    };
+    row.querySelector('.pkBin').onclick = async ev => {
+      ev.stopPropagation(); // the row behind selects — a bin tap must never do both
+      const sz = packSizeCache && packSizeCache.per.get(p.slug);
+      const rel = has && sz && sz.frees ? ' This frees ' + fmtBytes(sz.frees) + '.' : '';
+      if (!confirm(has ? `Remove "${p.name}" from this phone?${rel}` : `Forget "${p.name}"? Its download link is removed.`)) return;
+      await removePack(p.slug);
+      renderPackPicker();
+    };
+    list.appendChild(row);
+  }
+  const nOn = packs.filter(packHasData).length;
+  const sum = document.getElementById('packSum');
+  sum.textContent = nOn + ' pack' + (nOn === 1 ? '' : 's');
+  packSizes().then(sz => {
+    if (sz.total) sum.textContent = nOn + ' pack' + (nOn === 1 ? '' : 's') + ' · ' + fmtBytes(sz.total) + ' used';
+    for (const row of list.querySelectorAll('.pkRow')) {
+      const o = sz.per.get(row.dataset.slug);
+      if (!o) continue;
+      row.querySelector('.pkTot').textContent = fmtBytes(o.total);
+      for (const em of row.querySelectorAll('.pkParts em')) em.textContent = fmtBytes(o[em.dataset.k]);
+    }
+  }).catch(e => console.warn('pack sizes failed', e));
+}
+function packPickerFlags(edit) {
+  packPickerEl.classList.toggle('det', !!S.set.packDetails);
+  packPickerEl.classList.toggle('edit', edit);
+  document.getElementById('packDet').setAttribute('aria-checked', S.set.packDetails ? 'true' : 'false');
+  document.getElementById('packEdit').setAttribute('aria-pressed', edit ? 'true' : 'false');
+}
+// edit mode never survives a close: the bins must not be up by accident
+function openPackPicker() { packPickerFlags(false); renderPackPicker(); packPickerEl.classList.add('open'); }
+function closePackPicker() { packPickerEl.classList.remove('open'); }
+document.getElementById('packClose').onclick = closePackPicker;
+document.getElementById('packDet').onclick = () => {
+  S.set.packDetails = !S.set.packDetails; saveSet();
+  packPickerFlags(packPickerEl.classList.contains('edit'));
+};
+document.getElementById('packEdit').onclick = () => packPickerFlags(!packPickerEl.classList.contains('edit'));
 
 /* Apply a config over S.set — always behind a confirm, never silently.
    fromPack strips identity + device-specific keys: a pack may carry the trip
@@ -8072,7 +8394,7 @@ function pickSchema(schemeId, behaviorId) {
 function offerConfig(cfg, src, fromPack) {
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) { toast('No usable config in ' + src); return false; }
   cfg = { ...cfg };
-  if (fromPack) for (const k of ['name', 'email', 'code', 'keys']) delete cfg[k];
+  if (fromPack) for (const k of ['name', 'email', 'code', 'keys', 'packDetails', '_packCfg']) delete cfg[k];
   const n = Object.keys(cfg).length;
   if (!n) { toast('No usable config in ' + src); return false; }
   if (!confirm(`Apply ${n} setting${n === 1 ? '' : 's'} from ${src}?\nThis overwrites your current setup (tracks and maps are untouched).`)) return false;
@@ -8547,30 +8869,84 @@ async function boot() {
   let scanned = [];
   try {
     const keys = (await idb.keys()).filter(k => typeof k === 'string' && !BOOT_SKIP.test(k));
-    scanned = (await idb.getMany(keys)).filter(Boolean);
+    // Pack records first. Many packs live on the phone and ONE is the ride
+    // pack: each record names its own tracks, so boot never reads (let alone
+    // parses) the tracks and heatmap of a pack that is not being ridden.
+    const packKeys = keys.filter(k => k.startsWith('pack-'));
+    for (const r of (await idb.getMany(packKeys)).filter(Boolean)) if (r.kind === 'pack') S.packs.set(r.slug, r);
+    // no pointer yet but packs with track lists are here (site settings were
+    // cleared, the store was not): ride the most recently used one
+    if (ACTIVE_PACK === null) {
+      const next = [...S.packs.values()].filter(packHasData).sort((a, b) => packUsedAt(b) - packUsedAt(a))[0];
+      if (next) writeActivePack(next.slug);
+    }
+    const skip = new Set(packKeys);
+    for (const p of S.packs.values()) {
+      if (p.slug === ACTIVE_PACK || !Array.isArray(p.trackIds)) continue;
+      for (const id of p.trackIds) skip.add(id);
+      skip.add('heatmap-' + p.slug);
+    }
+    scanned = (await idb.getMany(keys.filter(k => !skip.has(k)))).filter(Boolean);
   } catch (e) { console.warn('record scan failed', e); }
-  const recs = scanned.filter(r => r.kind === 'gpx' || r.kind === 'heatmap' || r.kind === 'pack' || !r.kind);
+  const recs = scanned.filter(r => r.kind === 'gpx' || r.kind === 'heatmap' || !r.kind);
   S.rides = scanned.filter(r => r.kind === 'ride').sort((a, b) => a.ts - b.ts);
   recs.sort((a, b) => (a.kind === 'heatmap' ? -1 : 1) - (b.kind === 'heatmap' ? -1 : 1));
-  let heatLoaded = false;
+  // Stores written before packs were kept side by side hold one pack and no
+  // track lists. Adopt that pack as the ride pack, tag its embedded tiles,
+  // and write the track list + sizes so the next boot can skip by name.
+  const byPack = new Map();
+  for (const r of recs) {
+    if (r.kind !== 'gpx' || !r.pack) continue;
+    if (!byPack.has(r.pack)) byPack.set(r.pack, []);
+    byPack.get(r.pack).push(r);
+  }
+  if (ACTIVE_PACK === null && byPack.size) {
+    const at = slug => (S.packs.get(slug) || {}).loadedAt || 0;
+    writeActivePack([...byPack.keys()].sort((a, b) => at(b) - at(a))[0]);
+    for (const kind in EMBED) {
+      try {
+        const m = await idb.get(EMBED[kind][1]);
+        if (m && m.pack === undefined) { m.pack = ACTIVE_PACK; await idb.put(m); }
+      } catch (e) {}
+    }
+  }
+  // the ride pack went missing (removed in another tab, an interrupted
+  // removal): fall back to the most recently used pack still here, or none
+  if (ACTIVE_PACK && !packHasData(S.packs.get(ACTIVE_PACK)) && !byPack.has(ACTIVE_PACK)) {
+    const next = [...S.packs.values()].filter(packHasData).sort((a, b) => packUsedAt(b) - packUsedAt(a))[0];
+    writeActivePack(next ? next.slug : '');
+    if (next) { location.reload(); return; } // its tracks were skipped above — boot again on the right pack
+  }
+  for (const [slug, rs] of byPack) {
+    const p = S.packs.get(slug);
+    if (!p || Array.isArray(p.trackIds)) continue;
+    p.trackIds = rs.map(r => r.id);
+    p.tracksBytes = rs.reduce((n, r) => n + (r.text ? r.text.length : 0), 0);
+    const h = recs.find(r => r.kind === 'heatmap' && r.pack === slug);
+    p.heatBytes = h && h.text ? h.text.length : 0;
+    idb.put(p).catch(() => {});
+  }
+  const activePack = ACTIVE_PACK || '';
+  // one heatmap in memory: the ride pack's own, else the loose one
+  const heatRec = (activePack && recs.find(r => r.kind === 'heatmap' && r.pack === activePack))
+    || recs.find(r => r.kind === 'heatmap' && !r.pack);
   if (recs.length) bootPhase('tracks');
   let yieldAt = performance.now() + 24, restored = 0;
   for (const r of recs) {
     try {
-      if (r.kind === 'pack') {
-        S.packs.set(r.slug, r);
-      } else if (r.kind === 'heatmap') {
-        // one heatmap active at a time; the others swap in when a track from
-        // their pack is selected (swapHeatToPack)
-        if (heatLoaded) continue;
-        heatLoaded = true;
+      if (r.kind === 'heatmap') {
+        if (r !== heatRec) continue;
         S.heat = processHeatmap(JSON.parse(r.text));
         S.heatPack = r.pack || '';
         document.getElementById('heatInfo').textContent = 'Heatmap: ' + r.name + ' — ' + S.heat.count + ' tracks';
       } else {
+        // a legacy pack's tracks were read above (no track list to skip by) —
+        // still only the ride pack and loose tracks go into memory
+        if (r.pack && r.pack !== activePack && S.packs.has(r.pack)) continue;
         const { name, pts } = parseGPX(r.text, r.name);
-        const trk = processTrack(r.id, name, pts);
+        const trk = processTrack(r.tid || r.id, name, pts); // tid: the track id; r.id may be pack-scoped
         trk.geomHash = textHash(r.text); trk.pack = r.pack || ''; trk.mode = r.mode || null;
+        trk.recId = r.id;
         S.tracks.push(trk);
       }
     } catch (e) { console.warn('restore failed', r.name, e); }
@@ -8632,14 +9008,14 @@ async function boot() {
       if (!isZip && r && r.pack) prefetchCorridor(r.pack).catch(() => {}); // JSON packs never embed tiles
       // strip the param only AFTER a successful import — a failed/interrupted
       // download keeps ?b= in the URL so the next open retries automatically
-      // (the import is idempotent: purge + stable ids make a re-run harmless)
+      // (the import is idempotent: a pack replaces its own copy, ids are stable)
       history.replaceState(null, '', location.pathname + location.hash);
       if (r && r.bundle) {
         const extras = [r.basemap && 'map', r.satTiles && 'satellite', r.stravaTiles && 'Strava'].filter(Boolean);
         const notes = r.description ? ` — “${r.description}”` : '';
         toast(`${r.bundleName || 'Shared ride'} loaded — ${r.tracks} track${r.tracks === 1 ? '' : 's'}${r.heatmap ? ' + heatmap' : ''}${extras.length ? ' + ' + extras.join(' + ') : ''}${r.errs ? ' · ' + r.errs + ' failed' : ''}${notes}`);
         // The pack's track order is meaningful: tracks[0] is the default —
-        // find it by pack field (the import purged all previous pack tracks).
+        // find it by pack field (only the ride pack's tracks are in memory).
         if (r.tracks) S.sel = Math.max(0, S.tracks.findIndex(t => (t.pack || '') === (r.pack || '')));
       } else toast('Shared file loaded');
     } catch (e) {
