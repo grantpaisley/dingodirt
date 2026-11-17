@@ -671,6 +671,9 @@
     body.navving.portrait #baseRow .ctl{width:auto; height:64px}
     body.navving:not(.portrait) #baseRow #dotBtn{width:72px; height:72px}
     #startBtn, #revToggle{height:52px; font-size:18px; padding:0 22px; bottom:calc(var(--chromeB,0px) + 68px)}
+    /* the portrait float rule (chromeB + 112) outranks the line above — without this START
+       sits 44px higher than its FORWARD twin on a short portrait/split-screen window */
+    body.portrait #startBtn{bottom:calc(var(--chromeB,0px) + 68px)}
     #hud{left:74px; right:74px}
     #gloveBtn{width:88px; height:88px; border-radius:22px; font-size:38px}
     #banner{top:62px; font-size:16px; padding:7px 16px}
@@ -3174,7 +3177,7 @@ let camOffX = 0, camOffY = 0;
 function camTargetOff() {
   // landscape: the controls own the left edge, so the ride happens on the right —
   // a steady rightward bias keeps the rider clear of the button column
-  const bias = innerWidth > innerHeight ? Math.round(innerWidth * 0.13) : 0;
+  const bias = loOrient() === 'landscape' ? Math.round(innerWidth * 0.13) : 0;
   if (S.snapZoom) return [bias, Math.round(innerHeight * 0.18)]; // snap zoom: junction fills the view ahead
   const o = effOrient();
   if (o === 'north') {
@@ -4147,7 +4150,8 @@ const prog = document.getElementById('progress'), progCanvas = document.getEleme
 const progDone = document.getElementById('progDone'), progTogo = document.getElementById('progTogo');
 const progNext = document.getElementById('progNext');
 /* portrait vs landscape: ONE predicate for CSS and JS — the same width>height test the
-   layout editor keys its saved slots by (loOrient, hoisted). 720×720 counts as portrait. */
+   layout editor keys its saved slots by (loOrient, hoisted). 720×720 counts as portrait,
+   and so does any window too narrow for the landscape layout (split-screen halves). */
 function applyOrientClass() { document.body.classList.toggle('portrait', loOrient() === 'portrait'); }
 applyOrientClass();
 function placeProgress() {
@@ -7834,6 +7838,9 @@ document.documentElement.style.setProperty('--navOp', ADV('btnOp'));
 document.body.classList.toggle('daymode', !isNightStyle()); // boot: bar/panel scheme follows the saved map style
 syncDayTokens();
 placeProgress(); // boot: seed --chromeB before the first paint settles
+// the idle bar changes height with its content (the cue-edit button adds 20px once a track
+// with cues is selected) — re-anchor, or the base row sits that far into the bar
+if (window.ResizeObserver) new ResizeObserver(() => placeProgress()).observe(document.getElementById('bottom'));
 /* turn-point contribution export: the whole outbox as JSON — paste into Dingo to bake
    the edits into the pack, so every future download carries them */
 document.getElementById('turnExportBtn').onclick = async () => {
@@ -8151,7 +8158,15 @@ function loPanel(open) { // the dock target is the ride panel (glove overlay) �
   gloveOverlay.classList.toggle('on', open);
 }
 
-function loOrient() { return innerWidth > innerHeight ? 'landscape' : 'portrait'; }
+/* 'landscape' only when the window is wide enough to HOLD the landscape layout: its
+   bottom rank (☰ − + · FORWARD · START) is fixed-pitch and needs ~750px with full-size
+   buttons, ~700px on a short window (the max-height:500 shrink trims FORWARD/START).
+   A split-screen half is wider than tall but far narrower than that — it takes the
+   portrait/square layout instead, whose corners + quarter-width row fit any width. */
+function loOrient() {
+  const minW = innerHeight > 500 ? 760 : 700;
+  return innerWidth > innerHeight && innerWidth >= minW ? 'landscape' : 'portrait';
+}
 function loMap() { const o = loOrient(); return S.set.layout[o] = S.set.layout[o] || {}; }
 function loSlotXY(slot) {
   const [c, r] = slot.split('-').map(Number);
