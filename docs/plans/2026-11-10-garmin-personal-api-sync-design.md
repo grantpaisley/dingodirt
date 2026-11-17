@@ -44,17 +44,18 @@ CLI command.
 
 | Route | What it does |
 |---|---|
-| `GET /api/settings/garmin` | `{ connected, key_suffix, synced_through }`. It does not call Garmin. |
+| `GET /api/settings/garmin` | `{ connected, key_suffix, newest_ride }`. It does not call Garmin. |
 | `PUT /api/settings/garmin` `{ key }` | Gets a token with the key first. If Garmin accepts it, the key goes into `app_settings` (`garmin_api_key`). `null` disconnects. |
-| `POST /api/settings/garmin/sync` `{ since?, limit? }` | Pulls new activities and ingests them. |
+| `POST /api/settings/garmin/sync` (no body) | Pulls the activities after the newest own ride and ingests them. |
 
 Sync steps:
 
 1. Get a fresh access token (one call per sync; no token cache).
-2. Find the watermark: `since` if given, else `garmin_synced_through` from
-   `app_settings`, else the start time of the newest own ride in the database.
-3. Page the list, newest first, until an activity starts at or before the
-   watermark. Reverse to oldest first and take `limit` (default 50, maximum 200).
+2. Find the start time of the newest own ride in the database (any source).
+   There is no stored watermark and no "from" date: the rides themselves say
+   how far the library goes.
+3. Page the list, newest first, until an activity starts at or before that
+   time. Reverse to oldest first and take a batch of 50.
 4. For each activity: skip it if it has no GPS start point; else download the
    zip, unpack it with `dingo_ingest::extract_tracks`, and ingest each member
    with `dingo_ingest::ingest_file` (origin own). The file hash dedupes
@@ -62,9 +63,8 @@ Sync steps:
 5. Tag new rides `source = 'garmin'`, then run the same post-ingest pipeline
    as a web upload (`import::postprocess_new_rides`: elevation, clean, name,
    turn cues, library placement, heat harvest).
-6. Move the watermark forward only through the activities that succeeded in
-   order. A failed activity holds the watermark, so the next sync tries it
-   again. A 429 stops the run and reports it.
+6. A 429 stops the run and reports it. The next refresh starts again from
+   the newest ride, so it continues where this one stopped.
 
 `GARMIN_API_URL` overrides the base URL. The tests and the browser check use
 it to point the daemon at a mock.
@@ -73,8 +73,8 @@ it to point the daemon at a mock.
 
 A card under the dingodirt.com card in Settings, in the same style:
 status line, **Connect / Replace key / Disconnect**, a password field for the
-key, a **Sync now** button with an optional "from" date, and a one-line
-result (`3 imported · 1 duplicate · 2 indoor skipped`). After a sync it
+key, a **Refresh** button, the time it pulls from, and a one-line result
+(`3 imported · 1 already here · 2 without GPS skipped`). After a refresh it
 invalidates the same queries as the import dialog, so the new rides show.
 
 ## Decisions taken without the owner (overnight)
@@ -82,9 +82,16 @@ invalidates the same queries as the import dialog, so the new rides show.
 | Decision | Reason | Easy to change? |
 |---|---|---|
 | Key in `app_settings`, like the dingodirt.com token | Same pattern as the existing token. No migration. | Yes |
-| Manual **Sync now**, no timer | Simplest. A timer in the daemon is ~20 lines when wanted. | Yes |
+| Manual **Refresh**, no timer | Simplest. A timer in the daemon is ~20 lines when wanted. | Yes |
 | No CLI command | The daemon is the desktop path. `dingo strava sync` stays as it is. | Yes |
-| First sync starts at the newest ride in the database | It does not pull years of history by surprise. Use the "from" date to backfill. | Yes |
+| Every refresh starts at the newest ride in the database | It does not pull years of history by surprise. The file hash does not catch an old ride that came in from another source (a Strava export, a GPX), so no backfill. Owner decision 2026-11-11: no date field, only Refresh. | Yes |
+
+### Known limits
+
+- An activity that fails to import and is older than a later import is not
+  tried again (it is now before the newest ride). Upload its file by hand.
+- Activities with no GPS (indoor) that are newer than the newest ride are
+  listed and skipped on each refresh. They cost no download.
 
 ## Risks
 
@@ -92,7 +99,9 @@ invalidates the same queries as the import dialog, so the new rides show.
   (the same as the dingodirt.com token). The key is read-only and expires.
 - **Undocumented token body.** Handled by the lenient parser; the first real
   key will confirm the shape.
-- **Rate limits are not documented.** A 429 stops the run cleanly; the
-  watermark makes the next run continue.
+- **Rate limits are not documented.** A 429 stops the run cleanly; the next
+  refresh continues from the newest ride.
+- **TLS 1.3 only.** Garmin's API refuses TLS 1.2, which is the maximum of
+  macOS native TLS, so the Garmin client uses rustls.
 - **Not tested against the real Garmin API.** No key was available overnight.
   The mock follows the published OpenAPI spec.

@@ -7,14 +7,14 @@ const KEY_PAGE = 'https://connect.garmin.com/app/settings/personalApiToken'
 /**
  * Pull your own Garmin Connect activities (original FIT files) with a
  * personal API key. The daemon stores the key and does the sync; this card
- * only sees the paste, a "…abcd" suffix and the sync result.
+ * only sees the paste, a "…abcd" suffix and the refresh result. A refresh
+ * pulls only activities newer than the newest own ride.
  */
 export function GarminConnect() {
     const queryClient = useQueryClient()
     const { data: status } = useGarminStatus()
     const [open, setOpen] = useState(false)
     const [key, setKey] = useState('')
-    const [since, setSince] = useState('')
     const [busy, setBusy] = useState<'key' | 'sync' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [result, setResult] = useState<GarminSyncResult | null>(null)
@@ -39,9 +39,8 @@ export function GarminConnect() {
         setError(null)
         setResult(null)
         try {
-            const r = await syncGarmin(since || undefined)
+            const r = await syncGarmin()
             setResult(r)
-            setSince('')
             queryClient.invalidateQueries({ queryKey: ['garmin-status'] })
             if (r.imported > 0) {
                 // The same queries the import dialog refreshes.
@@ -106,20 +105,11 @@ export function GarminConnect() {
 
             {connected && !open && (
                 <div style={{ marginTop: 6 }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input
-                            type="date"
-                            value={since}
-                            onChange={e => setSince(e.target.value)}
-                            title="Optional: pull from this day (backfill). Empty = only new activities."
-                            style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
-                        />
-                        <button onClick={sync} disabled={busy !== null} style={{ ...primaryBtn(busy !== null), width: 'auto', padding: '5px 10px' }}>
-                            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
-                        </button>
-                    </div>
+                    <button onClick={sync} disabled={busy !== null} style={primaryBtn(busy !== null)}>
+                        {busy === 'sync' ? 'Refreshing…' : 'Refresh'}
+                    </button>
                     <div style={{ color: 'var(--text-secondary)', fontSize: 10, marginTop: 3 }}>
-                        {status?.synced_through ? `Synced through ${status.synced_through} UTC` : 'Not synced yet'}
+                        {status?.newest_ride ? `Gets activities after ${status.newest_ride} UTC` : 'Gets all activities'}
                     </div>
                     {result && <div style={{ color: 'var(--text-primary)', fontSize: 10, marginTop: 3 }}>{summary(result)}</div>}
                     {result?.failed.slice(0, 3).map(f => (
@@ -138,7 +128,7 @@ function summary(r: GarminSyncResult): string {
     if (r.skipped_no_gps) parts.push(`${r.skipped_no_gps} without GPS skipped`)
     if (r.failed.length) parts.push(`${r.failed.length} failed`)
     if (r.rate_limited) parts.push('stopped by the Garmin rate limit')
-    if (r.remaining) parts.push(`${r.remaining} more — sync again`)
+    if (r.remaining) parts.push(`${r.remaining} more — refresh again`)
     return parts.join(' · ')
 }
 
