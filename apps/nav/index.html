@@ -32,11 +32,17 @@
   #map{position:fixed; inset:0; background:var(--bg)}
   .maplibregl-ctrl-scale{background:rgba(14,18,22,.6)!important; color:var(--fg)!important;
     border-color:rgba(232,238,244,.5)!important; font-size:11px}
-  /* whole attribution follows the chrome vars — the non-link text kept
-     MapLibre's default black, invisible on the dark plate (sweep finding) */
-  .maplibregl-ctrl-attrib{background:color-mix(in srgb, var(--bg) 60%, transparent)!important;
-    color:var(--dim)!important; font-size:10px}
-  .maplibregl-ctrl-attrib a{color:var(--dim)!important}
+  /* map credit (OSMF attribution guidelines 2021): plain text in the lower-right corner,
+     just above the bottom stack. Open at start; after 5 s or the first map touch it rolls
+     into the © — the © never moves, the text rolls out to its LEFT on a tap. */
+  #mapCredit{position:fixed; right:10px; bottom:calc(var(--chromeB,0px) + 4px); z-index:15;
+    display:flex; align-items:baseline; padding:6px 0 6px 10px; font-size:11px; line-height:1;
+    color:var(--fg); white-space:nowrap; cursor:pointer;
+    text-shadow:0 0 3px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8)}
+  #mcText{overflow:hidden; max-width:0; transition:max-width .45s ease}
+  #mapCredit.open #mcText{max-width:80vw}
+  #mcC{padding-left:3px}
+  body.daymode:not(.schemed) #mapCredit{text-shadow:0 0 3px #fff, 0 0 2px #fff}
   /* scale + attribution sit just above the bottom stack (--chromeB, set by placeProgress) */
   #map .maplibregl-ctrl-bottom-left, #map .maplibregl-ctrl-bottom-right{bottom:calc(var(--chromeB,0px) + 4px)}
 
@@ -49,10 +55,12 @@
   body.navving{--barH:104px}
   .bar{display:flex; align-items:stretch; overflow:hidden; border-radius:18px;
     border:1.5px solid color-mix(in srgb, var(--fg) 55%, transparent)}
-  .bar > *{border-left:1px solid color-mix(in srgb, var(--fg) 28%, transparent)}
-  .bar > *:first-child{border-left:none}
   .bar .ctl{width:auto; height:auto; border:none; border-radius:0; flex:1 1 0; min-width:0;
     background:color-mix(in srgb, var(--panel) 82%, transparent)}
+  /* a light divider between every pair of cells, on at all times (dot hidden or not) */
+  .bar > * + *, .bar > .ctl + .ctl, body.daymode:not(.schemed) .bar > .ctl + .ctl{
+    border-left:1.5px solid rgba(255,255,255,.6)}
+  #revToggle:not(.on) + #startBtn{border-left:none} /* START alone: no divider at the frame edge */
   #topBar{position:fixed; top:calc(env(safe-area-inset-top) + 10px); left:10px; right:10px;
     height:var(--topH); z-index:16}
   #topBar .ctl{flex:none; width:var(--cornerW); font-size:40px}
@@ -536,7 +544,6 @@
   body.daymode:not(.schemed){--navOp:1}
   body.daymode:not(.schemed) .ctl{background:var(--panel); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg)}
   body.daymode:not(.schemed) .ctl:active{background:color-mix(in srgb, var(--fg) 8%, var(--panel))}
-  body.daymode:not(.schemed) #dotBtn{background:color-mix(in srgb, var(--panel) 92%, transparent); border-color:color-mix(in srgb, var(--fg) 22%, transparent); color:var(--fg)}
   body.daymode:not(.schemed) #hudSpeed, body.daymode:not(.schemed) #vargModeBig{color:var(--fg);
     text-shadow:0 1px 8px rgba(255,255,255,.85), 0 0 3px rgba(255,255,255,.7)}
   body.daymode:not(.schemed) #hudSpeed small, body.daymode:not(.schemed) #vargModeDetail .l{color:var(--dim)}
@@ -955,6 +962,7 @@
   </div>
 </div>
 <div id="progLine"><i id="progFill"></i></div>
+<div id="mapCredit" class="open" title="map data credits"><span id="mcText"></span><span id="mcC">©</span></div>
 <div id="markPicker">
   <div id="markPickerHead"><b id="markPickerTitle">Add mark here</b>
     <button id="markPickerClose"><svg class="ic"><use href="#i-x"/></svg></button></div>
@@ -2580,8 +2588,13 @@ async function initMap() {
     container: 'map', style,
     center: [151.3, -33.3], zoom: 9,
     // pitch is mode-driven (compass leans, north-up stays flat) — never a gesture
-    maxPitch: 60, pitchWithRotate: false, dragRotate: false, attributionControl: { compact: true },
+    maxPitch: 60, pitchWithRotate: false, dragRotate: false, attributionControl: false, // #mapCredit instead
   });
+  map.on('styledata', creditText);
+  map.once('load', creditOpen);
+  map.on('dragstart', creditClose);
+  map.on('zoomstart', e => { if (e.originalEvent) creditClose(); });
+  map.on('click', creditClose);
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
   map.on('dragstart', () => { setFollow(false); S.dotFit = false; trainEvent('drag'); }); // any drag = away from centre, the dot appears
@@ -4216,6 +4229,28 @@ function placeProgress() {
   document.documentElement.style.setProperty('--chromeB', h + 'px');
   document.getElementById('gloveBtn').style.bottom = S.nav ? (h + 14) + 'px' : '';
 }
+/* map credit: the attribution of every source in the style, "©" stripped, one line */
+let creditT = null;
+function creditText() {
+  const st = map && map.getStyle && map.getStyle(); if (!st) return;
+  const parts = [];
+  for (const src of Object.values(st.sources || {}))
+    for (const p of String(src.attribution || '').replace(/©/g, '').split(','))
+      if (p.trim() && !parts.includes(p.trim())) parts.push(p.trim());
+  const t = parts.join(' · ');
+  const el = document.getElementById('mcText');
+  if (el.textContent !== t) el.textContent = t;
+}
+function creditClose() { clearTimeout(creditT); document.getElementById('mapCredit').classList.remove('open'); }
+function creditOpen() {
+  document.getElementById('mapCredit').classList.add('open');
+  clearTimeout(creditT); creditT = setTimeout(creditClose, 5000);
+}
+document.getElementById('mapCredit').onclick = e => {
+  e.stopPropagation();
+  document.getElementById('mapCredit').classList.contains('open') ? creditClose() : creditOpen();
+};
+// open at start (markup class): the 5 s begin when the map is on screen (map 'load')
 window.addEventListener('resize', () => {
   applyOrientClass(); placeProgress(); drawProgress(true);
   // media-query flips (bar hide/show, canvas height) can apply after this event — settle once more

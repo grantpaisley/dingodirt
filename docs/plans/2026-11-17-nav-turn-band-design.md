@@ -190,7 +190,20 @@ state for the turn cell and for the telltales.
 - `node --test apps/nav/tests` (39 pass, 7 new) and the contrast sweep
   (8 of 8 pass, enforcing).
 
-## 8. Delivery
+## 8. Map credit and cell dividers (2026-11-18, mockups)
+
+- MapLibre's attribution pill is gone. The credit is plain 11 px text in the
+  lower-right corner, just above the bottom stack: "OpenStreetMap ·
+  Protomaps ©" (built from the attribution of every source in the style, so
+  Aerial adds its own). It is open at start; 5 s after the map loads, or at
+  the first map touch (drag, pinch, tap), the text rolls into the ©. The ©
+  never moves; a tap rolls the text out to its left again. This follows the
+  OSMF attribution guidelines (2021): a menu-only credit is not allowed, a
+  collapse after 5 s or on map interaction is.
+- Every pair of bar cells has a light divider, on at all times (also between
+  + and the hidden dot).
+
+## 9. Delivery
 
 One branch, `feat/nav-turn-band`, one pull request, the usual sequence
 (branch, verify in the browser, PR, green CI, squash merge).
