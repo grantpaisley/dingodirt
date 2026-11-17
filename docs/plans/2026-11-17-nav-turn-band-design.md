@@ -116,8 +116,10 @@ Hazard cues keep their own icons: danger and obstacle in the danger
 colour, gate and creek in the turn-arrow colour.
 
 **Source.** The Nav icon set (Lucide) has no sharp-turn and no U-turn
-image. Four symbols come from the Tabler set (MIT licence): bear, corner,
-sharp turn, U-turn. The left images are the same symbols mirrored.
+image. As built, Nav draws its own five symbols (straight, slight, turn,
+sharp, U-turn) in the Lucide 24-unit style, so no second icon set and no
+second licence come in. They are right-handed; a left turn shows the same
+symbol mirrored.
 
 **Not included:** roundabout and fork images (Nav does not detect those),
 and a "then" image for a second turn that follows closely.
@@ -131,7 +133,7 @@ and a "then" image for a second turn that follows closely.
 | Bike indicators (Stark Varg) | The flashing telltale stays. Indicator on the side of the turn: the turn image flashes. Other side: the plain arrow flashes there |
 | Turn complete | A green edge on the turn cell, with the same chime |
 | Schemes | `hud.arrow` and `hud.arrowOp` for the image, `hud.accent` and `hud.warn` for the burn-down, `hud.text` for the frames. The fixed colours in the canvas drawing code go away |
-| Layout editor | The two bars are fixed. The editor keeps their zones clear, as `#editReserve` keeps the top 64 px clear today |
+| Layout editor | The two bars are fixed. The editor moves and sizes the readouts only (speed, Varg pill, mode digit, telltales); the bar buttons no longer move or dock into the ☰ grid. Saved slots for those buttons are ignored. The reserve zones follow the bar heights |
 | Training ride | The lesson steps that point at `#hudBox` ("Top strip: the next turn") and at the loose buttons change to the turn cell and the bars |
 
 There is no setting to get the old layout back.
@@ -146,7 +148,8 @@ There is no setting to get the old layout back.
 | START bar | `#revToggle` and `#startBtn` move into one framed bar, shown when stopped |
 | Progress line | `#progress` becomes the 4 px line; `#progLabels` and the progress tap go. The expanded profile keeps its canvas, placed above the bottom bar |
 | ☰ menu | New tiles: Profile, Edit cues (stopped only) |
-| Removed | `#hud` markup and styles, `setHud`'s strip rendering, the strip tap, `#hudSpeed.cd` and `cdMain`, `#muteBtn`, `#bottom` (its text moves into the turn cell) |
+| Removed | `#hud` markup and styles, the strip tap, the canvas countdown (`drawCountdown`), the amber countdown in `#hudSpeed`, `#bottom` (its text moves into the turn cell), the old progress labels (km done, km to go, time) |
+| Kept hidden | `#muteBtn` was already hidden by CSS before this change; its markup stays because the keyboard M binding calls it |
 | Image choice | One pure function: cue type + turn angle + riding direction → image name and side. Its own file, `apps/nav/manoeuvre.js`, in the pattern of `corridor.js` and `tracklock.js` |
 | Symbols | Four new symbols in the inline sprite |
 | Offline cache | `manoeuvre.js` joins the service worker shell list. The cache version goes above the version on `main` |
@@ -168,7 +171,26 @@ state for the turn cell and for the telltales.
    stopped, no turn near, turn near; portrait, half phone and landscape; a
    short screen; a light map and a dark map; each scheme; Profile on.
 
-## 7. Delivery
+## 7. As built (2026-11-18)
+
+- The turn cell puts the image and the number on line 1 and the road name
+  on line 2, across the full cell width. In the first browser run the road
+  name was cut ("Middle …") when it shared line 1 with them.
+- The burn-down fill shrinks toward the side of the turn image.
+- With Edit cues on, the turn cell's second line reads "Editing cues · ☰ →
+  Edit cues to finish".
+- The ☰ grid takes a fourth row when ten tiles show (stopped, with a track).
+- The Profile setting is in `S.set` as before, so a schema change still
+  resets it.
+- Verified in the browser (dev server, training ride and plain demo):
+  portrait 375×812, landscape 844×390, half phone 400×430, tablet
+  1280×800; each turn image, straight, reverse, danger and creek; pale,
+  countdown and near states; factory day look and DMD2; Profile on; Edit
+  cues on and off; a tap on the turn cell opens the track picker.
+- `node --test apps/nav/tests` (39 pass, 7 new) and the contrast sweep
+  (8 of 8 pass, enforcing).
+
+## 8. Delivery
 
 One branch, `feat/nav-turn-band`, one pull request, the usual sequence
 (branch, verify in the browser, PR, green CI, squash merge).
