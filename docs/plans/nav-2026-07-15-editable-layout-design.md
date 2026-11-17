@@ -70,6 +70,9 @@ S.set.layout = {
 
 - Orientation = `innerWidth > innerHeight ? 'landscape' : 'portrait'`
   (aspect-ratio, **not** `screen.orientation` — split-screen lies).
+  Since 2026-11-17 landscape also needs the width to hold its fixed-pitch
+  bottom rank (760px; 700px when the window is ≤500px tall) — a narrower
+  window, such as a split-screen half, keys to 'portrait'.
 - Slot id `"<col>-<row>"` on a **5 col × 6 row** grid, or `"panel"`
   (docked).
 - An absent key = the stylesheet default. An empty orientation = fully
