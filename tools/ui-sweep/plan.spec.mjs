@@ -14,13 +14,19 @@ const ENFORCE = process.env.CONTRAST_ENFORCE === '1';
 mkdirSync(new URL('./artifacts', import.meta.url).pathname, { recursive: true });
 
 async function boot(page) {
-  // no daemon in the sweep: API calls fail fast and the app shows its
-  // empty/error states — those are exactly the texts worth measuring.
-  await page.route('**/api/**', (r) => r.abort());
+  // no daemon in the sweep: every API call answers an empty list, so the app
+  // shows its empty states. (Aborted calls left the list pane on "Loading..."
+  // through the query retries, so the list tabs never rendered — 2026-11-18.)
+  await page.route('**/api/**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  // (the last matching route wins) — endpoints that answer an object, not a list
+  await page.route(/\/api\/packs(\?|$)/, (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '{"packs":[]}' }));
   await page.route(/https?:\/\/(?!localhost)/, (r) => r.abort());
   await page.goto(PLAN);
   await page.waitForSelector('.left-pane', { timeout: 20_000 });
-  await page.waitForTimeout(800);
+  await page.waitForSelector('.list-toggle', { timeout: 20_000 });
+  await page.waitForTimeout(300);
 }
 
 async function measure(page, state, results) {
@@ -33,26 +39,58 @@ async function measure(page, state, results) {
   console.log(`  ${state}: ${measured} measured, ${skipped} over-map skipped, ${failures.length} failing`);
 }
 
-test('plan chrome readable — main, tabs, settings', async ({ page }) => {
-  const results = [];
-  await boot(page);
+/* every list view, the import dialog and every map-toolbar pane (2026-11-18, Grant:
+   "check all screens, all modes, all settings"). The old settings step looked for a
+   button with the TEXT "settings" — the toolbar buttons are icon-only with a title,
+   so it never ran. Toolbar buttons are found by the start of their title. */
+// Basket last: its view swaps the tab row (and the import button) out
+const LIST_VIEWS = ['Map area', 'Places', 'Tracks', 'Packs', 'Basket'];
+const TOOL_PANES = [
+  ['track-types', 'Track types'], ['layers', 'Map layers'], ['heatmap-style', 'Heatmap style'],
+  ['colour', 'Colour tracks by'], ['view-options', 'View options'], ['filters', 'Filter by HR'],
+  ['colour-scale', 'Colour scale boundaries'],
+];
+const SIZES = { desktop: { width: 1280, height: 800 }, laptop: { width: 1024, height: 640 } };
 
-  await measure(page, 'main', results);
+for (const [size, vp] of Object.entries(SIZES)) {
+  test(`plan chrome readable — every view, dialog and pane · ${size}`, async ({ page }) => {
+    const results = [];
+    await page.setViewportSize(vp);
+    await boot(page);
+    await measure(page, `${size}-main`, results);
 
-  // list-view tabs (Places / Tracks) — bone-fill actives per Rule 7
-  await page.locator('.list-toggle', { hasText: 'Tracks' }).first().click();
-  await page.waitForTimeout(300);
-  await measure(page, 'tracks-view', results);
+    const imp = page.locator('button[title^="Import external"]').first();
+    if (await imp.isVisible().catch(() => false)) {
+      await imp.click();
+      await page.waitForTimeout(300);
+      await measure(page, `${size}-import-dialog`, results);
+      await page.keyboard.press('Escape');
+      const cancel = page.locator('button').filter({ hasText: /^(Cancel|Close)$/ }).first();
+      if (await cancel.isVisible().catch(() => false)) await cancel.click();
+      await page.waitForTimeout(200);
+    } else results.push(`[${size}] import button not found`);
 
-  // settings panel via the map toolbar gear
-  const gear = page.locator('.map-toolbar button, [class*="toolbar"] button').filter({ hasText: /settings/i });
-  const gearIcon = (await gear.count()) ? gear.first() : page.locator('button[title*="ettings"]').first();
-  if (await gearIcon.isVisible().catch(() => false)) {
-    await gearIcon.click();
-    await page.waitForTimeout(300);
-    await measure(page, 'settings', results);
-  }
+    for (const v of LIST_VIEWS) {
+      const tab = page.locator('.list-toggle').filter({ hasText: new RegExp(`^${v}`) }).first();
+      if (!(await tab.isVisible().catch(() => false))) { results.push(`[${size}] list tab "${v}" not found`); continue; }
+      await tab.click();
+      // the Tracks view refetches and shows "Loading..." without the tab row for a moment
+      await page.waitForSelector('.list-toggle', { timeout: 20_000 });
+      await page.waitForTimeout(300);
+      await measure(page, `${size}-list-${v.replace(/ /g, '-').toLowerCase()}`, results);
+    }
 
-  if (ENFORCE) expect(results, results.join('\n')).toEqual([]);
-  else if (results.length) console.warn(`WARN (report-only):\n${results.join('\n')}`);
-});
+    for (const [key, title] of TOOL_PANES) {
+      const btn = page.locator(`button[title^="${title}"]`).first();
+      if (!(await btn.isVisible().catch(() => false))) { results.push(`[${size}] toolbar "${title}" not found`); continue; }
+      await btn.click();
+      await page.waitForTimeout(300);
+      await measure(page, `${size}-pane-${key}`, results);
+      await btn.click(); // close it again
+      await page.waitForTimeout(150);
+    }
+
+    if (ENFORCE) expect(results, results.join('\n')).toEqual([]);
+    else if (results.length) console.warn(`WARN (report-only):\n${results.join('\n')}`);
+  });
+}

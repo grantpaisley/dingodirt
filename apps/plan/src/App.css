@@ -509,7 +509,7 @@ select.export-input {
 .export-btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--dd-on-accent, #2b1305); /* white on clay was 3.35:1 (sweep 2026-11-18) */
 }
 
 .export-btn:disabled {
@@ -628,6 +628,8 @@ select.export-input {
 
 .list-header {
   display: flex;
+  flex-wrap: wrap; /* five views + import overflowed a default-width pane: Packs was cut and
+                      Import sat under the map (sweep 2026-11-18) */
   gap: 8px;
   margin-bottom: 12px;
 }

@@ -22,6 +22,7 @@
     --fg:var(--dd-text); --dim:var(--dd-text-dim);
     --accent:var(--dd-accent); --own:#ff7a00; --plan:#3390ff; --other:#ff2d2d;
     --ok:var(--dd-alert-ok); --warn:var(--dd-alert-warn); --bad:var(--dd-alert-bad);
+    --haloRGB:0 0 0; /* the glow behind text drawn over the map; syncInks flips it to white for dark text */
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   /* Lucide icons: sized by the parent's font-size, coloured by currentColor */
@@ -38,7 +39,7 @@
   #mapCredit{position:fixed; right:10px; bottom:calc(var(--chromeB,0px) + 4px); z-index:15;
     display:flex; align-items:baseline; padding:6px 0 6px 10px; font-size:11px; line-height:1;
     color:var(--fg); white-space:nowrap; cursor:pointer;
-    text-shadow:0 0 3px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8)}
+    text-shadow:0 0 3px rgb(var(--haloRGB) / .9), 0 0 2px rgb(var(--haloRGB) / .8)}
   #mcText{overflow:hidden; max-width:0; transition:max-width .45s ease}
   #mapCredit.open #mcText{max-width:80vw}
   #mcC{padding-left:3px}
@@ -68,7 +69,7 @@
      over the map (a light wash only); text in the scheme text colour with a dark halo */
   #turnCell{flex:1 1 auto; min-width:0; position:relative; overflow:hidden; display:flex; align-items:center;
     background:color-mix(in srgb, var(--panel) 35%, transparent); color:var(--fg); cursor:pointer;
-    text-shadow:0 1px 6px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)}
+    text-shadow:0 1px 6px rgb(var(--haloRGB) / .85), 0 0 3px rgb(var(--haloRGB) / .7)}
   #turnCell.commit{box-shadow:inset 0 0 0 4px var(--ok)}
   #tcFill{position:absolute; top:0; bottom:0; right:0; width:0; display:none; pointer-events:none;
     background:color-mix(in srgb, var(--accent) 55%, transparent)}
@@ -90,7 +91,10 @@
   #trackSub{font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     color:color-mix(in srgb, var(--fg) 82%, transparent)}
   #tcImg{width:46px; height:46px; color:var(--arrowFill, var(--warn)); line-height:0}
-  #tcImg svg.ic{width:100%; height:100%; stroke-width:2.6; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+  /* a firm outline in the halo tone: the scheme's arrow colour can match the countdown
+     fill (Waze blue on blue, DMD2 orange on orange) — the outline keeps the shape (2026-11-18) */
+  #tcImg svg.ic{width:100%; height:100%; stroke-width:2.6;
+    filter:drop-shadow(0 0 1px rgb(var(--haloRGB))) drop-shadow(0 0 1px rgb(var(--haloRGB))) drop-shadow(0 1px 3px rgb(var(--haloRGB) / .8))}
   #tcImg.mirror svg.ic{transform:scaleX(-1)}
   #tcImg.danger{color:var(--bad)}
   #turnCell.pale #tcImg{opacity:.45}
@@ -107,7 +111,7 @@
      top-centre is the direction of travel. The turn count lives in the turn cell only. */
   #hudSpeed{position:fixed; top:calc(env(safe-area-inset-top) + 12px); left:12px; z-index:10;
     background:none; padding:0 6px; font-size:138px; font-weight:800; white-space:nowrap; pointer-events:none;
-    text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.7); display:none; font-variant-numeric:tabular-nums}
+    text-shadow:0 2px 14px rgb(var(--haloRGB) / .9), 0 0 5px rgb(var(--haloRGB) / .7); display:none; font-variant-numeric:tabular-nums}
   #hudSpeed.on{display:block} #hudSpeed small{font-size:50px; color:var(--fg); font-weight:600}
   #hudSpeed.low{color:var(--bad)}
   /* riding: N owns the top-left corner — the speed readout sits below it, slightly inboard */
@@ -123,7 +127,7 @@
     font-size:26px; font-weight:700; display:none; align-items:center; gap:8px;
     font-variant-numeric:tabular-nums; cursor:pointer}
   #vargPill.on{display:flex}
-  #vargPill .vm{font-size:15px; font-weight:800; color:var(--accent)}
+  #vargPill .vm{font-size:15px; font-weight:800; color:var(--accentInk,var(--accent))}
   #vargPill .u{font-size:15px; font-weight:600; color:var(--dim)}
   #vargPill.low{border-color:var(--bad); color:var(--bad)}
   #vargPill.wait{color:var(--dim)} #vargPill.wait .vm{color:var(--dim)}
@@ -138,19 +142,20 @@
   #vargOver text{font:900 16vw system-ui,sans-serif; letter-spacing:.02em}
   @keyframes vgPulse{0%,100%{opacity:1}50%{opacity:.55}}
   /* full-page telemetry (tap the pill) — sits UNDER the reverse/crawl takeover (z26) */
-  #vargPage{position:fixed; inset:0; z-index:25; display:none; background:rgba(9,14,20,.94);
+  /* follows the look: a fixed night plate put day ink on near-black (sweep 2026-11-18) */
+  #vargPage{position:fixed; inset:0; z-index:25; display:none; background:color-mix(in srgb, var(--bg) 96%, transparent);
     padding:calc(env(safe-area-inset-top) + 22px) 18px calc(env(safe-area-inset-bottom) + 18px); overflow:auto}
   #vargPage.on{display:block}
   #vargPage .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; max-width:760px; margin:0 auto}
-  #vargPage .cell{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:14px;
+  #vargPage .cell{background:color-mix(in srgb, var(--fg) 6%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius:14px;
     padding:14px 10px; text-align:center}
   #vargPage .cell .v{font-size:42px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums}
   #vargPage .cell .v small{font-size:19px; font-weight:600; color:var(--dim)}
   #vargPage .cell .l{font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin-top:4px}
   #vargPage .cell.soc{grid-column:span 2}
   #vargPage .cell.soc .v{font-size:76px}
-  #vargPage .cell.low .v{color:var(--bad)}
-  #vargPage .cell.alert{border-color:var(--warn)} #vargPage .cell.alert .l{color:var(--warn); font-size:14px; text-transform:none}
+  #vargPage .cell.low .v{color:var(--badInk,var(--bad))}
+  #vargPage .cell.alert{border-color:var(--warn)} #vargPage .cell.alert .l{color:var(--warnInk,var(--warn)); font-size:14px; text-transform:none}
   #vargPage .btnRow{max-width:760px; margin:16px auto 0; display:flex; gap:10px; flex-wrap:wrap}
   #vargPage .btnRow .btn{flex:1; min-width:150px; min-height:52px}
   /* mode digit: a bare number on the opposite edge to the main one — the centre stays clear.
@@ -158,7 +163,7 @@
   /* now the digit is resident it must clear the box button on BOTH screens, not just while riding */
   #vargModeBig{position:fixed; right:16px; top:calc(env(safe-area-inset-top) + 202px); z-index:10; background:none;
     padding:0 6px; font-size:138px; font-weight:800; display:none; pointer-events:none; text-align:right;
-    text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.7);
+    text-shadow:0 2px 14px rgb(var(--haloRGB) / .9), 0 0 5px rgb(var(--haloRGB) / .7);
     font-variant-numeric:tabular-nums}
   #vargModeBig.on{display:block}
   /* the digit alone takes the tap — the map keeps the rest of the corner */
@@ -177,7 +182,7 @@
      nothing shows unless a blinker/beam is actually on. */
   #vargInd{position:fixed; top:calc(env(safe-area-inset-top) + 110px); left:0; right:0; z-index:13;
     display:flex; justify-content:center; align-items:center; gap:30px; pointer-events:none}
-  #vargInd .ind{display:none; font-weight:900; line-height:1; text-shadow:0 2px 14px rgba(0,0,0,.75)}
+  #vargInd .ind{display:none; font-weight:900; line-height:1; text-shadow:0 2px 14px rgb(var(--haloRGB) / .75)}
   #vargInd .ind.on{display:block}
   #vargInd .blink{display:none !important} /* blinkers now show as the giant side arrows */
   #vargInd .beam{font-size:34px; letter-spacing:3px}
@@ -195,7 +200,7 @@
     letter-spacing:.06em; text-align:center; width:70px; display:none; pointer-events:none}
   body.navving #orientLabel{display:block}
   #banner{position:fixed; top:110px; left:50%; transform:translateX(-50%); z-index:11;
-    background:var(--bad); color:#fff; font-weight:800; font-size:20px; padding:10px 22px;
+    background:var(--bad); color:var(--onBad,#fff); font-weight:800; font-size:20px; padding:10px 22px;
     border-radius:12px; display:none; box-shadow:0 4px 20px rgba(0,0,0,.5)}
   #banner.on{display:block}
   #toast{position:fixed; bottom:calc(var(--chromeB,0px) + 12px); left:50%; transform:translateX(-50%); z-index:30;
@@ -218,9 +223,9 @@
   #dlg.on{display:block}
   #dlg h2{font-size:18px}
   #dlgMsg{font-size:15px; color:var(--fg); line-height:1.55}
-  #dlgMsg b{color:var(--accent)}
+  #dlgMsg b{color:var(--accentInk,var(--accent))}
   #dlgOk{margin-top:18px; width:100%; padding:13px; border:none; border-radius:12px;
-    background:var(--accent); color:var(--dd-on-accent); font-size:16px; font-weight:800; cursor:pointer}
+    background:var(--accent); color:var(--onAccent,var(--dd-on-accent)); font-size:16px; font-weight:800; cursor:pointer}
   /* first-visit capture lives in the startup card now (#suIntro) — see the block there */
   /* track picker — one card, two modes (rider-asked 'pick' / Follow-mode 'off') */
   /* Track picker = the Sheet frame (Rule 4 docking: side when wide,
@@ -228,17 +233,17 @@
   #trkPick{position:fixed; z-index:41; display:none; box-shadow:0 8px 40px rgba(0,0,0,.6); padding:0 16px 16px}
   #trkPick.on{display:flex}
   #trkPick header{font-size:17px}
-  #trkPick.off header{color:var(--bad)}
+  #trkPick.off header{color:var(--badInk,var(--bad))}
   #tpSub{font-size:12px; color:var(--dim); margin-bottom:12px}
   #tpList{display:flex; flex-direction:column; gap:6px; max-height:44vh; overflow-y:auto}
   .tpRow{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
     border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); cursor:pointer}
-  .tpRow.sel{border-color:var(--accent); background:rgba(0,229,255,.08)}
+  .tpRow.sel{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent)}
   .tpRow .dot{width:10px; height:10px; border-radius:50%; flex:none; background:var(--dim)}
   .tpRow.on .dot{background:var(--ok)} .tpRow.left .dot{background:var(--bad)}
   .tpName{font-size:15px; color:var(--fg)}
   .tpMeta{font-size:12px; color:var(--dim)}
-  .tpRow.on .tpMeta{color:var(--ok)} .tpRow.left .tpMeta{color:var(--bad)}
+  .tpRow.on .tpMeta{color:var(--okInk,var(--ok))} .tpRow.left .tpMeta{color:var(--badInk,var(--bad))}
   #tpRev{display:flex; align-items:center; justify-content:space-between; margin-top:14px;
     padding-top:12px; border-top:1px solid #2a3540; font-size:14px; color:var(--dim)}
   #tpRevSw{width:52px; height:30px; border-radius:15px; background:#2a3540; position:relative; cursor:pointer; flex:none}
@@ -248,32 +253,35 @@
   #tpBtns{display:flex; gap:10px; margin-top:14px}
   #tpBtns button{flex:1; padding:12px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px;
     background:var(--panel2); color:var(--fg); font-size:15px; font-weight:700; cursor:pointer}
-  #tpBtns button.go{background:var(--ok); border-color:var(--ok); color:#04240f; font-weight:800}
+  #tpBtns button.go{background:var(--ok); border-color:var(--ok); color:var(--onOk,#04240f); font-weight:800}
   /* ride briefing — the last thing between the rider and moving, so it reads at a glance */
   #briefDlg{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
     width:min(90vw,380px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
   #briefDlg.on{display:block}
   #briefName{font-size:21px; font-weight:800; line-height:1.2}
-  #briefMode{font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px}
+  #briefMode{font-size:13px; color:var(--accentInk,var(--accent)); text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px}
   #briefRows{display:grid; grid-template-columns:auto 1fr; gap:8px 14px; font-size:15px}
   #briefRows .bl{color:var(--dim)}
   #briefRows .bv{text-align:right; font-variant-numeric:tabular-nums}
-  #briefRows .bv.warn{color:var(--warn); font-weight:700}
+  #briefRows .bv.warn{color:var(--warnInk,var(--warn)); font-weight:700}
   #briefBtns{display:flex; gap:10px; margin-top:18px}
   #briefBtns button{flex:1; padding:14px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px;
     background:var(--panel2); color:var(--fg); font-size:16px; font-weight:700; cursor:pointer}
-  #briefBtns button.go{background:var(--ok); border-color:var(--ok); color:#04240f; font-weight:800}
+  #briefBtns button.go{background:var(--ok); border-color:var(--ok); color:var(--onOk,#04240f); font-weight:800}
 
   /* ---------- training ride: demo chooser + coach cards + spotlight (2026-07-19 design)
      (#colourPick shares the chooser look — ☰ Track colour tile) ---------- */
   #demoPick, #colourPick{position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(88vw,380px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6)}
+    width:min(88vw,380px); display:none; box-shadow:0 8px 40px rgba(0,0,0,.6);
+    max-height:calc(100dvh - 16px); overflow-y:auto; overscroll-behavior:contain}
+  /* short screens (landscape, split screen): five colour choices did not fit, and Cancel
+     sat below the screen edge with no way to reach it (sweep 2026-11-18) */
   #demoPick.on, #colourPick.on{display:block}
   #demoPick h2, #colourPick h2{font-size:18px; margin-bottom:14px}
   .dpBtn{display:flex; flex-direction:column; gap:4px; width:100%; padding:14px; margin-bottom:10px;
     border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); border-radius:12px; background:var(--panel2); color:var(--fg);
     font-size:16px; text-align:left; cursor:pointer}
-  .dpBtn b{color:var(--accent)}
+  .dpBtn b{color:var(--accentInk,var(--accent))}
   .dpBtn span{font-size:13px; color:var(--dim)}
   .dpBtn:disabled{opacity:.4; cursor:default}
   #dpCancel, #cpCancel{width:100%; padding:10px; border:none; background:none; color:var(--dim); font-size:14px; cursor:pointer}
@@ -288,11 +296,11 @@
   #trainExit{cursor:pointer}
   #trainCard h4{font-size:17px; margin-bottom:6px}
   #trainMsg{font-size:14px; line-height:1.5}
-  #trainMsg b{color:var(--accent)}
+  #trainMsg b{color:var(--accentInk,var(--accent))}
   #trainBtns{display:flex; align-items:center; gap:14px; margin-top:12px}
   #trainBtns:not(:has(.on)){display:none}
   #trainOk{flex:1; padding:11px; border:none; border-radius:12px; background:var(--accent);
-    color:#00252b; font-size:15px; font-weight:800; cursor:pointer; display:none}
+    color:var(--onAccent,#00252b); font-size:15px; font-weight:800; cursor:pointer; display:none}
   #trainOk.on{display:block}
   #trainSkip{font-size:13px; color:var(--dim); cursor:pointer; display:none; text-decoration:underline}
   #trainSkip.on{display:block}
@@ -306,7 +314,7 @@
   .ctl{width:var(--dd-control-size); height:var(--dd-control-size); border-radius:14px; background:color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     color:var(--fg); font-size:26px; display:flex; align-items:center; justify-content:center; cursor:pointer}
   .ctl:active{background:var(--panel2)}
-  .ctl.active{border-color:var(--accent); color:var(--accent)}
+  .ctl.active{border-color:var(--accent); color:var(--accentInk,var(--accent))}
   .bar .ctl:active{background:color-mix(in srgb, var(--panel2) 92%, transparent)}
   /* red needle riding the N button's edge — counter-rotates with the map so it ALWAYS
      points at true north (straight up in north-up mode) */
@@ -332,14 +340,14 @@
   /* START bar: stopped only. Direction shows with a track; with none, START fills the bar */
   #startBar{height:var(--startH); display:none}
   body:not(.navving) #startBar.on{display:flex}
-  #startBtn{flex:1 1 0; border:none; background:var(--ok); color:#04240f;
+  #startBtn{flex:1 1 0; border:none; background:var(--ok); color:var(--onOk,#04240f);
     font-size:24px; font-weight:800; letter-spacing:.03em; cursor:pointer; display:none}
   #startBtn.on{display:block}
   #revToggle{flex:1 1 0; border:none; background:color-mix(in srgb, var(--panel) 82%, transparent); color:var(--fg);
     font-size:20px; font-weight:800; letter-spacing:.03em; cursor:pointer; display:none;
     align-items:center; justify-content:center; gap:10px}
   #revToggle.on{display:flex}
-  #revToggle.rev{background:var(--warn); color:#231a00}
+  #revToggle.rev{background:var(--warn); color:var(--onWarn,#231a00)}
   /* retired chrome: the standalone rose, top-right mute and the rose's mode label */
   #north{display:none !important} #muteBtn{display:none !important} #orientLabel{display:none !important}
   /* riding: the cells rest dimmed like the rest of the ride chrome — except ☰ (a visibility
@@ -411,13 +419,13 @@
   #baseRow #menuBtn{background:color-mix(in srgb, var(--panel2) 85%, transparent)}
   #baseRow #menuBtn:active{background:color-mix(in srgb, var(--fg) 10%, var(--panel2))}
   #navBtn{flex:none; height:56px; padding:0 26px; border-radius:14px; border:none; font-size:19px; font-weight:800;
-    background:var(--ok); color:#04240f; cursor:pointer}
-  #navBtn.stop{background:var(--bad); color:#fff}
+    background:var(--ok); color:var(--onOk,#04240f); cursor:pointer}
+  #navBtn.stop{background:var(--bad); color:var(--onBad,#fff)}
   #navBtn:disabled{background:#2a3540; color:#5a6a78}
   /* START/STOP is one plain-tap tile in the ☰ grid — the menu is already a deliberate
      two-tap path, so a mid-ride brush can't stop navigation. Green start, red stop. */
   .gtile.stop{background:var(--bad); border-color:var(--bad)}
-  .gtile.stop .gi,.gtile.stop .gl{color:#fff}
+  .gtile.stop .gi,.gtile.stop .gl{color:var(--onBad,#fff)}
   .gtile.stop:active{background:#d32f2f}
   /* explicit way out of the glove grid: a ☰ in the same bottom-left spot that opened it */
   #gloveClose{position:fixed; left:10px; bottom:calc(env(safe-area-inset-bottom) + 10px);
@@ -442,7 +450,7 @@
   .mtile.del{border-color:var(--bad)}
   .mtile.del .ml{color:var(--bad)}
   .mtile.restore{border-color:var(--ok)}
-  .mtile.restore .ml{color:var(--ok)}
+  .mtile.restore .ml{color:var(--okInk,var(--ok))}
   .mtile{background:var(--panel2); border:1px solid color-mix(in srgb, var(--fg) 16%, transparent); border-radius:14px; padding:16px 6px 12px;
     text-align:center; cursor:pointer; color:var(--fg)}
   .mtile:active{background:color-mix(in srgb, var(--fg) 10%, var(--panel))}
@@ -451,7 +459,8 @@
   .mtile .ml{font-size:14px; margin-top:7px}
   .mtile .ms{font-size:11.5px; color:var(--dim); margin-top:2px; min-height:14px}
   #dirChip{display:inline-block; margin-top:2px; padding:2px 10px; border-radius:999px;
-    background:color-mix(in srgb, var(--fg) 10%, var(--panel)); font-size:12px; color:var(--accent)}
+    background:color-mix(in srgb, var(--fg) 10%, var(--panel)); font-size:12px; color:var(--fg);
+    border:1px solid var(--accent)} /* accent ink failed 4.5:1 on light looks (sweep) — accent ring, fg text */
 
   /* SCHEMA PICKER: full-screen like the mark picker — Look (.dingoscheme) and
      Behaviour (.dingobehavior) tile rows; tap = reset-then-apply, glove-sized */
@@ -551,11 +560,10 @@
   /* daymode text is dark: the turn cell takes a light halo and a firmer bone wash */
   body.daymode:not(.schemed) #turnCell{background:color-mix(in srgb, var(--panel) 62%, transparent);
     text-shadow:0 1px 6px rgba(255,255,255,.85), 0 0 3px rgba(255,255,255,.7)}
-  body.daymode:not(.schemed) #tcImg svg.ic{filter:drop-shadow(0 1px 3px rgba(255,255,255,.8))}
   body.daymode:not(.schemed) #panel .btn{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
   body.daymode:not(.schemed) #panel .row input[type=text]{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
   body.daymode:not(.schemed) #panel .seg button{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
-  body.daymode:not(.schemed) #panel .seg button.active{background:var(--accent); border-color:var(--accent); color:#fff}
+  body.daymode:not(.schemed) #panel .seg button.active{background:var(--accent); border-color:var(--accent); color:var(--onAccent,#fff)}
   body.daymode:not(.schemed) #panel .sw span{background:color-mix(in srgb, var(--fg) 16%, var(--panel))}
   body.daymode:not(.schemed) #panel .sw span::before{background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25)}
   body.daymode:not(.schemed) #panel .sw input:checked + span{background:var(--ok)}
@@ -565,7 +573,7 @@
   #setTabs{display:flex; gap:5px; margin:14px 0 4px}
   #setTabs button{flex:1; padding:10px 0; border-radius:10px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--dim); font-size:13px; font-weight:700; cursor:pointer}
-  #setTabs button.active{border-color:var(--accent); color:var(--accent)}
+  #setTabs button.active{border-color:var(--accent); color:var(--accentInk,var(--accent))}
   #trackSearch{width:100%; margin:8px 0 4px; background:var(--bg); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg);
     border-radius:10px; padding:11px 12px; font-size:15px}
   .tabSec{display:none}
@@ -588,13 +596,13 @@
   .packHdr:first-child{border-top:none; margin-top:0}
   .packHdr .nm{flex:1; min-width:0; font-size:13px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
     color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .packHdr .rev{font-size:12px; color:var(--accent); font-weight:700; flex:none}
+  .packHdr .rev{font-size:12px; color:var(--accentInk,var(--accent)); font-weight:700; flex:none}
   .packHdr .act{flex:none; color:var(--dim); font-size:17px; padding:4px 8px; cursor:pointer}
   .btnRow{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap}
   .btn{flex:1; min-width:130px; padding:13px; border-radius:12px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--fg); font-size:15px; font-weight:600; cursor:pointer; text-align:center}
-  .btn.primary{background:var(--accent); color:#00252b; border:none}
-  .btn.danger{color:var(--bad)}
+  .btn.primary{background:var(--accent); color:var(--onAccent,#00252b); border:none}
+  .btn.danger{color:var(--badInk,var(--bad))}
   .row{display:flex; align-items:center; justify-content:space-between; padding:11px 4px; gap:10px}
   .row label{font-size:15px}
   .row input[type=text]{background:var(--bg); border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); color:var(--fg); border-radius:10px;
@@ -609,7 +617,7 @@
   .seg{display:flex; gap:6px}
   .seg button{padding:9px 13px; border-radius:10px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
     color:var(--dim); font-size:14px; font-weight:700; cursor:pointer}
-  .seg button.active{border-color:var(--accent); color:var(--accent)}
+  .seg button.active{border-color:var(--accent); color:var(--accentInk,var(--accent))}
   .hint{font-size:12.5px; color:var(--dim); margin-top:6px; line-height:1.45}
   /* pairing pre-flight / recovery box — walks the rider through Android's permission prompt */
   .callout{margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--panel2);
@@ -787,7 +795,7 @@
   body.editing #editCtls{display:flex; position:fixed; right:10px; bottom:10px; z-index:27; gap:10px}
   .edbtn{padding:9px 18px; border-radius:999px; border:1px solid color-mix(in srgb, var(--fg) 15%, transparent);
     background:var(--panel2); color:var(--fg); font-size:15px; font-weight:800; cursor:pointer; flex:none}
-  #editDone{background:var(--accent); color:#00252b; border:none}
+  #editDone{background:var(--accent); color:var(--onAccent,#00252b); border:none}
   body.editing #slotDots{display:block; position:fixed; inset:0; z-index:16; pointer-events:none}
   #slotDots i{position:absolute; width:10px; height:10px; border-radius:50%;
     background:rgba(143,160,176,.4); transform:translate(-50%,-50%)}
@@ -1234,7 +1242,58 @@ const syncDayTokens = () => {
   const light = document.body.classList.contains('daymode') && !document.body.classList.contains('schemed');
   if (light) document.documentElement.setAttribute('data-mode', 'light');
   else document.documentElement.removeAttribute('data-mode');
+  syncOnColours();
 };
+/* text ON a filled control (START, Ride, Load files…, the reverse toggle): the fill
+   follows the look (factory day/night, every scheme), so a fixed dark ink fails on the
+   darker fills (sweep 2026-11-18: #04240f on day --ok = 3.1:1). Resolve each fill to
+   rgb through a probe and pick near-black or white, whichever reads better. */
+function syncOnColours() {
+  const probe = syncOnColours.p || (syncOnColours.p = Object.assign(document.createElement('i'), { hidden: true }));
+  if (!probe.isConnected) document.body.appendChild(probe);
+  const lum = c => {
+    const m = c.match(/[\d.]+/g); if (!m) return 0;
+    const ch = m.slice(0, 3).map(v => { v = (c.startsWith('color(') ? +v : +v / 255); return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  };
+  for (const [fill, on] of [['--accent', '--onAccent'], ['--ok', '--onOk'], ['--warn', '--onWarn'], ['--bad', '--onBad']]) {
+    probe.style.color = `var(${fill})`;
+    const L = lum(getComputedStyle(probe).color);
+    // contrast vs white (L=1) against vs near-black #0c0a05 (L≈0.003)
+    const vsWhite = 1.05 / (L + 0.05), vsBlack = (L + 0.05) / 0.053;
+    document.body.style.setProperty(on, vsBlack >= vsWhite ? '#0c0a05' : '#ffffff');
+  }
+  syncInks(probe, lum);
+}
+/* text INKS on the panels (muted labels, accent and status words): every scheme brings
+   its own --dim / --accent / --bad, and many of them miss 4.5:1 on their own light or
+   dark panels (sweep 2026-11-18: Locus orange on #e6e6e6 = 2.9:1, OziExplorer muted on
+   #bbb7b0 = 3.5:1). Read the look's values from <html> (where the factory tokens and a
+   mounted scheme both live), then pull each ink toward --fg in 5 % steps until it
+   reaches 4.8:1 on the worst of --bg / --panel / --panel2. The fills keep the look's own
+   colour; only text uses the -Ink copies (and --dim, which is only ever text). */
+function syncInks(probe, lum) {
+  const root = getComputedStyle(document.documentElement);
+  const raw = v => root.getPropertyValue(v).trim();
+  const res = c => { probe.style.color = c; return getComputedStyle(probe).color; };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const fg = raw('--fg');
+  if (!fg) return;
+  // text over the map wears a halo of the OPPOSITE tone: a black glow behind dark scheme
+  // text (Waze, OziExplorer, Locus…) smeared it (sweep 2026-11-18)
+  document.body.style.setProperty('--haloRGB', lum(res(fg)) < 0.18 ? '255 255 255' : '0 0 0');
+  const surf = ['--bg', '--panel', '--panel2'].map(raw).filter(Boolean).map(res);
+  const worst = c => Math.min(...surf.map(s => ratio(c, s)));
+  for (const [src, out] of [['--dim', '--dim'], ['--accent', '--accentInk'], ['--ok', '--okInk'],
+                            ['--warn', '--warnInk'], ['--bad', '--badInk']]) {
+    const base = raw(src);
+    if (!base) continue;
+    let ink = res(base);
+    for (let p = 5; p <= 100 && worst(ink) < 4.8; p += 5)
+      ink = res(`color-mix(in srgb, ${base} ${100 - p}%, ${fg})`);
+    document.body.style.setProperty(out, ink);
+  }
+}
 
 /* ---------------- tiny IndexedDB wrapper ---------------- */
 const idb = {

@@ -84,6 +84,24 @@ export function collectTextStyles(rootSelector) {
         overCanvas = true;
       }
     }
+    // Halo model (2026-11-18): text drawn straight over the map (the turn cell,
+    // the map credit, the big readouts) carries a text-shadow halo instead of a
+    // plate. The halo IS its local background: whatever the map shows, the glyph
+    // edge sits on the halo colour. Measure fg against an opaque-enough halo —
+    // a scheme whose dark text gets a dark halo fails here.
+    let halo = false, bgHalo = null;
+    if (cs.textShadow && cs.textShadow !== 'none') {
+      const m = cs.textShadow.match(/(rgba?\([^)]*\)|color\([^)]*\)|#[0-9a-f]{3,8})/i);
+      const hc = m && parse(m[1].startsWith('#')
+        ? `rgb(${parseInt(m[1].slice(1, 3), 16)}, ${parseInt(m[1].slice(3, 5), 16)}, ${parseInt(m[1].slice(5, 7), 16)})`
+        : m[1]);
+      if (hc && hc[3] >= 0.6) {
+        // over the map: the halo is the background. On a plate: the glyph edge still
+        // sits on the halo, so the halo is judged too (dark text in a black glow smears)
+        if (overCanvas) { bg = [hc[0], hc[1], hc[2], 1]; bgLo = null; overCanvas = false; halo = true; }
+        else bgHalo = [hc[0], hc[1], hc[2], 1];
+      }
+    }
     // fg with alpha composites over the resolved bg before measuring
     const fgFlat = fg[3] < 1 && bg[3] >= 0.999 ? composite(fg, bg) : fg;
 
@@ -93,9 +111,11 @@ export function collectTextStyles(rootSelector) {
       fg: hex(fgFlat),
       bg: bg[3] >= 0.999 ? hex(bg) : null,
       bg2: bgLo ? hex(bgLo) : null,
+      bgHalo: bgHalo ? hex(bgHalo) : null,
       px: parseFloat(cs.fontSize),
       bold: +cs.fontWeight >= 600,
       overCanvas,
+      halo,
     });
   }
   return out;
@@ -117,9 +137,14 @@ export function contrastFailures(samples, state) {
       const r2 = contrastRatio(s.fg, s.bg2);
       if (r2 < ratio) { ratio = r2; bg = s.bg2; }
     }
+    let haloHit = s.halo;
+    if (s.bgHalo) {
+      const r3 = contrastRatio(s.fg, s.bgHalo);
+      if (r3 < ratio) { ratio = r3; bg = s.bgHalo; haloHit = true; }
+    }
     if (ratio < need) {
       failures.push(
-        `[${state}] ${s.sel} "${s.text}" — ${s.fg} on ${bg} = ${ratio.toFixed(2)}:1 (needs ${need}:1)`);
+        `[${state}] ${s.sel} "${s.text}" — ${s.fg} on ${bg}${haloHit ? ' (halo)' : ''} = ${ratio.toFixed(2)}:1 (needs ${need}:1)`);
     }
   }
   return { failures, skipped, measured: samples.length - skipped };
