@@ -144,3 +144,14 @@ Findings from the Dingo side, so the groundwork is not repeated:
 Open question if picked up: does usage telemetry belong in a
 trail-knowledge database at all, or in something separate that only shares
 the email as a key?
+
+## Off-grid pack comms (friends and marks without signal)
+
+**Reviewed 2026-11-17, parked.** Grant asked whether Reticulum could connect
+Nav to other riders' phones out of coverage. It cannot, inside a PWA — the
+reasoning, the capacity arithmetic, and three cheaper options are in
+`nav-2026-11-17-offgrid-pack-comms-design.md`. Short version: Reticulum needs
+a gateway daemon a browser cannot provide, and real range needs a LoRa radio
+per rider, so "use Reticulum" means a native app plus hardware. If this gets
+picked up, start with the QR-at-a-regroup option — it fixes the mark loss that
+has lasting consequences, works on iOS, and needs no hardware.
