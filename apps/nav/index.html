@@ -22,6 +22,7 @@
     --fg:var(--dd-text); --dim:var(--dd-text-dim);
     --accent:var(--dd-accent); --own:#ff7a00; --plan:#3390ff; --other:#ff2d2d;
     --ok:var(--dd-alert-ok); --warn:var(--dd-alert-warn); --bad:var(--dd-alert-bad);
+    --haloRGB:0 0 0; /* the glow behind text drawn over the map; syncInks flips it to white for dark text */
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   /* Lucide icons: sized by the parent's font-size, coloured by currentColor */
@@ -38,7 +39,7 @@
   #mapCredit{position:fixed; right:10px; bottom:calc(var(--chromeB,0px) + 4px); z-index:15;
     display:flex; align-items:baseline; padding:6px 0 6px 10px; font-size:11px; line-height:1;
     color:var(--fg); white-space:nowrap; cursor:pointer;
-    text-shadow:0 0 3px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8)}
+    text-shadow:0 0 3px rgb(var(--haloRGB) / .9), 0 0 2px rgb(var(--haloRGB) / .8)}
   #mcText{overflow:hidden; max-width:0; transition:max-width .45s ease}
   #mapCredit.open #mcText{max-width:80vw}
   #mcC{padding-left:3px}
@@ -68,7 +69,7 @@
      over the map (a light wash only); text in the scheme text colour with a dark halo */
   #turnCell{flex:1 1 auto; min-width:0; position:relative; overflow:hidden; display:flex; align-items:center;
     background:color-mix(in srgb, var(--panel) 35%, transparent); color:var(--fg); cursor:pointer;
-    text-shadow:0 1px 6px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)}
+    text-shadow:0 1px 6px rgb(var(--haloRGB) / .85), 0 0 3px rgb(var(--haloRGB) / .7)}
   #turnCell.commit{box-shadow:inset 0 0 0 4px var(--ok)}
   #tcFill{position:absolute; top:0; bottom:0; right:0; width:0; display:none; pointer-events:none;
     background:color-mix(in srgb, var(--accent) 55%, transparent)}
@@ -90,7 +91,10 @@
   #trackSub{font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     color:color-mix(in srgb, var(--fg) 82%, transparent)}
   #tcImg{width:46px; height:46px; color:var(--arrowFill, var(--warn)); line-height:0}
-  #tcImg svg.ic{width:100%; height:100%; stroke-width:2.6; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+  /* a firm outline in the halo tone: the scheme's arrow colour can match the countdown
+     fill (Waze blue on blue, DMD2 orange on orange) — the outline keeps the shape (2026-11-18) */
+  #tcImg svg.ic{width:100%; height:100%; stroke-width:2.6;
+    filter:drop-shadow(0 0 1px rgb(var(--haloRGB))) drop-shadow(0 0 1px rgb(var(--haloRGB))) drop-shadow(0 1px 3px rgb(var(--haloRGB) / .8))}
   #tcImg.mirror svg.ic{transform:scaleX(-1)}
   #tcImg.danger{color:var(--bad)}
   #turnCell.pale #tcImg{opacity:.45}
@@ -107,7 +111,7 @@
      top-centre is the direction of travel. The turn count lives in the turn cell only. */
   #hudSpeed{position:fixed; top:calc(env(safe-area-inset-top) + 12px); left:12px; z-index:10;
     background:none; padding:0 6px; font-size:138px; font-weight:800; white-space:nowrap; pointer-events:none;
-    text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.7); display:none; font-variant-numeric:tabular-nums}
+    text-shadow:0 2px 14px rgb(var(--haloRGB) / .9), 0 0 5px rgb(var(--haloRGB) / .7); display:none; font-variant-numeric:tabular-nums}
   #hudSpeed.on{display:block} #hudSpeed small{font-size:50px; color:var(--fg); font-weight:600}
   #hudSpeed.low{color:var(--bad)}
   /* riding: N owns the top-left corner — the speed readout sits below it, slightly inboard */
@@ -159,7 +163,7 @@
   /* now the digit is resident it must clear the box button on BOTH screens, not just while riding */
   #vargModeBig{position:fixed; right:16px; top:calc(env(safe-area-inset-top) + 202px); z-index:10; background:none;
     padding:0 6px; font-size:138px; font-weight:800; display:none; pointer-events:none; text-align:right;
-    text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 5px rgba(0,0,0,.7);
+    text-shadow:0 2px 14px rgb(var(--haloRGB) / .9), 0 0 5px rgb(var(--haloRGB) / .7);
     font-variant-numeric:tabular-nums}
   #vargModeBig.on{display:block}
   /* the digit alone takes the tap — the map keeps the rest of the corner */
@@ -178,7 +182,7 @@
      nothing shows unless a blinker/beam is actually on. */
   #vargInd{position:fixed; top:calc(env(safe-area-inset-top) + 110px); left:0; right:0; z-index:13;
     display:flex; justify-content:center; align-items:center; gap:30px; pointer-events:none}
-  #vargInd .ind{display:none; font-weight:900; line-height:1; text-shadow:0 2px 14px rgba(0,0,0,.75)}
+  #vargInd .ind{display:none; font-weight:900; line-height:1; text-shadow:0 2px 14px rgb(var(--haloRGB) / .75)}
   #vargInd .ind.on{display:block}
   #vargInd .blink{display:none !important} /* blinkers now show as the giant side arrows */
   #vargInd .beam{font-size:34px; letter-spacing:3px}
@@ -556,7 +560,6 @@
   /* daymode text is dark: the turn cell takes a light halo and a firmer bone wash */
   body.daymode:not(.schemed) #turnCell{background:color-mix(in srgb, var(--panel) 62%, transparent);
     text-shadow:0 1px 6px rgba(255,255,255,.85), 0 0 3px rgba(255,255,255,.7)}
-  body.daymode:not(.schemed) #tcImg svg.ic{filter:drop-shadow(0 1px 3px rgba(255,255,255,.8))}
   body.daymode:not(.schemed) #panel .btn{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
   body.daymode:not(.schemed) #panel .row input[type=text]{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
   body.daymode:not(.schemed) #panel .seg button{border-color:color-mix(in srgb, var(--fg) 22%, transparent)}
@@ -1276,6 +1279,9 @@ function syncInks(probe, lum) {
   const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const fg = raw('--fg');
   if (!fg) return;
+  // text over the map wears a halo of the OPPOSITE tone: a black glow behind dark scheme
+  // text (Waze, OziExplorer, Locus…) smeared it (sweep 2026-11-18)
+  document.body.style.setProperty('--haloRGB', lum(res(fg)) < 0.18 ? '255 255 255' : '0 0 0');
   const surf = ['--bg', '--panel', '--panel2'].map(raw).filter(Boolean).map(res);
   const worst = c => Math.min(...surf.map(s => ratio(c, s)));
   for (const [src, out] of [['--dim', '--dim'], ['--accent', '--accentInk'], ['--ok', '--okInk'],

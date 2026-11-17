@@ -91,6 +91,8 @@ async function selectSweepTrack(page) {
     await addFile('sweep.gpx',
       `<?xml version="1.0"?><gpx version="1.1"><trk><name>Sweep track with a long name for the cell</name><trkseg>${pts.join('')}</trkseg></trk></gpx>`);
     selectTrack(S.tracks.findIndex((t) => t.name.startsWith('Sweep track')));
+    // the same refreshes a real file load runs (else the empty card stays up)
+    refreshTrackList(); refreshEmpty(); updateBottomBar(); refreshMapData();
   });
 }
 
