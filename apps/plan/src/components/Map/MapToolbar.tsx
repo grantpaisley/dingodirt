@@ -186,6 +186,13 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
+            // ten buttons + the zoom readout are ~600 px: on a short map (a laptop,
+            // a tall graph pane) the column ran under the legend and off the map's
+            // bottom edge (sweep 2026-11-18). Stop above the legend and wrap into a
+            // second column; panes open at the root's right edge, past both columns.
+            maxHeight: 'calc(100% - 64px)',
+            flexWrap: 'wrap',
+            alignContent: 'flex-start',
         }}>
             <ToolButton
                 icon={<Bike size={ICON_SIZE} />}
@@ -248,7 +255,8 @@ export function MapToolbar({ lassoActive, onToggleLasso, drawActive, onToggleDra
                                         border: '1px solid var(--border-color)',
                                         cursor: 'pointer',
                                         fontSize: 12,
-                                        background: gradeFilter[g] ? '#4f7cff' : 'transparent',
+                                        // white on #4f7cff was 3.7:1 (sweep 2026-11-18); same hue, darker = 5.0:1
+                                        background: gradeFilter[g] ? '#3b66e6' : 'transparent',
                                         color: gradeFilter[g] ? 'white' : 'var(--text-secondary)',
                                     }}
                                 >
