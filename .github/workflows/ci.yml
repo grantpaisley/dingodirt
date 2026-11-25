@@ -32,8 +32,8 @@ jobs:
       site: ${{ steps.filter.outputs.site }}
       ui: ${{ steps.filter.outputs.ui }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           # Written out longhand rather than with YAML anchors: an anchor on a
@@ -84,8 +84,8 @@ jobs:
     name: Repo — preset drift guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       # No dependencies at the repo root, so no npm ci — node --test is built in.
@@ -131,7 +131,7 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Apply migrations with psql (preinstalled on the runner) rather than
       # sqlx-cli, so we don't pay to compile the CLI just to create the schema.
@@ -164,8 +164,8 @@ jobs:
       run:
         working-directory: apps/plan
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -187,8 +187,8 @@ jobs:
     if: needs.changes.outputs.studio == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       # Studio has no dependencies — vendored libs, no build step, on purpose.
@@ -207,8 +207,8 @@ jobs:
     if: needs.changes.outputs.nav == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - run: node --test apps/nav/tests/*.test.mjs
@@ -231,8 +231,8 @@ jobs:
       run:
         working-directory: apps/site
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -250,8 +250,8 @@ jobs:
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -264,7 +264,7 @@ jobs:
         working-directory: apps/plan
       - run: npm ci
         working-directory: tools/ui-sweep
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('tools/ui-sweep/package-lock.json') }}
@@ -274,7 +274,7 @@ jobs:
         working-directory: tools/ui-sweep
         env:
           CONTRAST_ENFORCE: '1'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-sweep-screenshots
