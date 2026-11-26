@@ -1467,8 +1467,8 @@ export interface GarminStatus {
     connected: boolean
     /** "…abcd" — enough to recognise the key, never the whole thing */
     key_suffix: string | null
-    /** startTimeGMT of the newest activity synced in order */
-    synced_through: string | null
+    /** Start of the newest own ride (UTC); a refresh pulls only after it */
+    newest_ride: string | null
 }
 
 export interface GarminSyncResult {
@@ -1478,7 +1478,6 @@ export interface GarminSyncResult {
     failed: { name: string, error: string }[]
     remaining: number
     rate_limited: boolean
-    synced_through: string | null
 }
 
 export function useGarminStatus() {
@@ -1504,12 +1503,11 @@ export async function setGarminKey(key: string | null): Promise<GarminStatus> {
     return res.json()
 }
 
-/** Pull new Garmin activities; `since` (YYYY-MM-DD) backfills from that day. */
-export async function syncGarmin(since?: string): Promise<GarminSyncResult> {
+/** Pull the Garmin activities newer than the newest own ride. */
+export async function syncGarmin(): Promise<GarminSyncResult> {
     const res = await fetch(`${API_BASE}/settings/garmin/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...WEB_HEADER },
-        body: JSON.stringify(since ? { since } : {}),
+        headers: WEB_HEADER,
     })
     if (!res.ok) throw new Error(await res.text())
     return res.json()
