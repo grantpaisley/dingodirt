@@ -357,12 +357,11 @@ async function loadPack(files, filename) {
    - EMBEDDED: the scheme.json goes inside the zip, so the pack is
      self-contained offline (Nav prefers this copy when present).
    - REFERENCE: bundle.json gains { "scheme": { "name", "url"? } } — the URL
-     is optional and only useful once the scheme is published (dingo-shares /
-     dingodirt); Nav's importer offers the scheme once per pack either way. */
+     is optional and only useful once the scheme is published (dingodirt.com); Nav's importer offers the scheme once per pack either way. */
 export function exportPack() {
   if (!ED.pack) return;
   const url = window.prompt(
-    'Optional URL for "' + ED.scheme.name + '" (a raw .dingoscheme link, e.g. from dingo-shares/schemes/).\n' +
+    'Optional URL for "' + ED.scheme.name + '" (a raw .dingoscheme link published on dingodirt.com).\n' +
     'The scheme is embedded in the pack either way — the URL just lets apps offer updates.\n' +
     'Leave empty for embedded-only.',
     (ED.pack.bundle.scheme && ED.pack.bundle.scheme.url) || '');
