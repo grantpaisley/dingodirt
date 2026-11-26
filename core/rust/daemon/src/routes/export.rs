@@ -1494,10 +1494,20 @@ pub(crate) struct Corridor {
     pub(crate) bbox: [f64; 4],
 }
 
-/// Build the corridor polygon in PostGIS. The ride collection is simplified
-/// (~100 m) before the geography buffer so it stays cheap at 29k-ride scale,
-/// and the buffer polygon is simplified after so region files / SQL clips /
-/// the UI preview carry hundreds of vertices, not hundreds of thousands.
+/// Build the corridor polygon in PostGIS: one light line per ride, one buffer
+/// per line, then a union of the per-ride polygons. Buffering the whole
+/// selection as ONE collection made GEOS node every ride's offset curves in a
+/// single pass — about 200 scattered rides took over 1.2 GB and the kernel
+/// OOM-killed the backend, which restarts Postgres for every client. Per-ride
+/// buffers keep each GEOS call small: the full 4k-ride library builds in
+/// ~15 s at ~300 MB. A side effect: each ride is buffered in its own local
+/// projection, so a selection that spans states gets the true 1.5 km width
+/// (the single-collection buffer fell back to a world projection and came
+/// out ~10 % narrow at Sydney's latitude).
+/// The buffer polygon is simplified after the union so region files / SQL
+/// clips / the UI preview carry hundreds of vertices, not hundreds of
+/// thousands. Do NOT simplify the per-ride polygons before the union: that
+/// makes invalid rings and ST_Union throws a TopologyException.
 /// Privacy cuts the zone out of the BUFFERED polygon, not the source lines:
 /// differencing the lines first shatters home-crossing rides into thousands
 /// of fragments whose buffer OOM-kills PostGIS, and the 1.5 km buffer bled
@@ -1512,25 +1522,33 @@ async fn selection_corridor(
 ) -> Result<Option<Corridor>, ApiError> {
     let row = sqlx::query(
         r#"
-        WITH g AS MATERIALIZED (
-            SELECT ST_Collect(cleaned_geometry) AS geom
-            FROM rides
-            WHERE id = ANY($1) AND cleaned_geometry IS NOT NULL AND superseded_by IS NULL
+        WITH l AS MATERIALIZED (
+            -- One line per ride: Douglas-Peucker to ~100 m, snap to the
+            -- shared 100 m grid, then Douglas-Peucker again to drop the
+            -- stair-steps the snap leaves. Plain ST_Simplify, not
+            -- ST_SimplifyPreserveTopology: on an out-and-back track the
+            -- topology-preserving variant keeps most vertices, and the dense
+            -- line made the buffer ~7x slower. DISTINCT collapses rides that
+            -- land on the same grid line (a route ridden or imported twice).
+            -- A ride shorter than one grid cell snaps to nothing; it keeps
+            -- its start point so it still gets a 1.5 km disc.
+            SELECT DISTINCT
+                CASE WHEN s IS NULL OR ST_IsEmpty(s) THEN ST_StartPoint(geom) ELSE s END AS line
+            FROM (
+                SELECT cleaned_geometry AS geom,
+                       ST_Simplify(ST_SnapToGrid(
+                           ST_Simplify(cleaned_geometry, 0.001), 0.001), 0.001) AS s
+                FROM rides
+                WHERE id = ANY($1) AND cleaned_geometry IS NOT NULL AND superseded_by IS NULL
+            ) r
         ), c AS MATERIALIZED (
-            -- Snap + dedupe before buffering: local-lap selections stack the
-            -- same trail dozens of times, and GEOS unioning all those
-            -- overlapping buffer rings dominated the query (~6 s for a 6-ride
-            -- lap pack; ~1 s with the stack collapsed to the shared 100 m
-            -- grid). quad_segs 2 is plenty for a 1.5 km buffer that gets
-            -- simplified to ~100 m right after anyway.
+            -- quad_segs 2 is plenty for a 1.5 km buffer that gets simplified
+            -- to ~100 m right after anyway.
             SELECT ST_Multi(ST_MakeValid(ST_SimplifyPreserveTopology(
-                ST_Buffer(
-                    ST_RemoveRepeatedPoints(ST_SnapToGrid(
-                        ST_SimplifyPreserveTopology(geom, 0.001), 0.001), 0.001)::geography,
-                    $3, 2)::geometry,
+                ST_Union(ST_Buffer(line::geography, $3, 2)::geometry),
                 0.001))) AS poly
-            FROM g
-            WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)
+            FROM l
+            WHERE line IS NOT NULL AND NOT ST_IsEmpty(line)
         ), p AS MATERIALIZED (
             SELECT CASE WHEN $2 THEN
                 ST_Multi(ST_CollectionExtract(ST_Difference(poly,
