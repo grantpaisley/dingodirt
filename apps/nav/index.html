@@ -226,6 +226,10 @@
   #dlgMsg b{color:var(--accentInk,var(--accent))}
   #dlgOk{margin-top:18px; width:100%; padding:13px; border:none; border-radius:12px;
     background:var(--accent); color:var(--onAccent,var(--dd-on-accent)); font-size:16px; font-weight:800; cursor:pointer}
+  /* the "no" of a two-button question (askDialog) — hidden for the one-button explainers */
+  #dlgNo{display:none; margin-top:10px; width:100%; padding:13px; border-radius:12px;
+    border:1px solid color-mix(in srgb, var(--fg) 15%, transparent); background:var(--panel2);
+    color:var(--fg); font-size:16px; font-weight:700; cursor:pointer}
   /* first-visit capture lives in the startup card now (#suIntro) — see the block there */
   /* track picker — one card, two modes (rider-asked 'pick' / Follow-mode 'off') */
   /* Track picker = the Sheet frame (Rule 4 docking: side when wide,
@@ -901,7 +905,7 @@
 <div id="toast"></div>
 <div id="updBar"><span id="updTxt">New version ready</span><button class="btn" id="updGo">Update</button><button class="btn" id="updLater">Later</button></div>
 <div id="dlgShade"></div>
-<div id="dlg" class="dd-dialog"><h2 id="dlgTitle"></h2><div id="dlgMsg"></div><button id="dlgOk">Got it</button></div>
+<div id="dlg" class="dd-dialog"><h2 id="dlgTitle"></h2><div id="dlgMsg"></div><button id="dlgOk">Got it</button><button id="dlgNo"></button></div>
 <!-- first visit only (who you are) now lives inside the startup card as #suIntro,
      so the cold-boot download is spent on setup instead of a bare progress bar -->
 <!-- track picker: tap the bottom bar, or Follow mode noticing you
@@ -1099,7 +1103,7 @@
     <h3>Group ride (needs signal)</h3>
     <div data-reg="ride"></div>
     <div id="friendStatus">off — enter a shared ride name to see friends</div>
-    <div class="hint">Everyone with the same ride name sees each other's position (updates ~20 s via ntfy.sh when online; silently off without signal). It defaults to the bundle name when you load a .dingonav — use one others can't guess.</div>
+    <div class="hint">Everyone with the same ride name sees each other's position (updates ~20 s via ntfy.sh when online; silently off without signal). It defaults to the bundle name when you load a .dingonav, and Nav asks before a new pack changes a name you already have — use one others can't guess.</div>
   </div>
 
   <div class="tabSec on" id="tabTracks">
@@ -3456,18 +3460,43 @@ setInterval(bankUse, 60000); // survive a kill that never fires pagehide
 
 /* one-off dialog helper + the first-use explainer for the favourite-zoom presets */
 function showDialog(title, html) {
+  endAsk(null); // a question still on screen is dismissed, not answered
   document.getElementById('dlgTitle').textContent = title;
   document.getElementById('dlgMsg').innerHTML = html;
   document.getElementById('dlgShade').classList.add('on');
   document.getElementById('dlg').classList.add('on');
 }
+/* two-button question on the same frame: resolves true (yes), false (no) or null
+   (dismissed — backdrop tap, or another dialog took the frame). Never blocks the caller
+   unless it awaits. */
+let dlgAsk = null;
+function askDialog(title, html, yes, no) {
+  showDialog(title, html);
+  const nb = document.getElementById('dlgNo');
+  document.getElementById('dlgOk').textContent = yes;
+  nb.textContent = no; nb.style.display = 'block';
+  return new Promise(res => { dlgAsk = res; });
+}
+function endAsk(v) {
+  const res = dlgAsk; if (!res) return false;
+  dlgAsk = null;
+  document.getElementById('dlgOk').textContent = 'Got it';
+  document.getElementById('dlgNo').style.display = 'none';
+  document.getElementById('dlg').classList.remove('on');
+  // the shade is shared — leave it for a picker/briefing that is still open underneath
+  if (!document.getElementById('trkPick').classList.contains('on') && !document.getElementById('briefDlg').classList.contains('on'))
+    document.getElementById('dlgShade').classList.remove('on');
+  res(v); return true;
+}
 function closeDialog() {
+  if (endAsk(null)) return; // backdrop on a question = dismissed, neither yes nor no
   // the first-visit intro used to live here and needed a backdrop=Skip rule; it is part
   // of the startup card now, which has its own shade and is deliberately not tap-to-dismiss
   if (document.getElementById('trkPick').classList.contains('on')) { closeTrackPicker(false); return; } // backdrop = leave things alone
   if (document.getElementById('briefDlg').classList.contains('on')) { closeBrief(false); return; } // backdrop never starts a ride
   document.getElementById('dlgShade').classList.remove('on'); document.getElementById('dlg').classList.remove('on'); document.getElementById('demoPick').classList.remove('on'); document.getElementById('colourPick').classList.remove('on'); }
-document.getElementById('dlgOk').onclick = closeDialog;
+document.getElementById('dlgOk').onclick = () => { if (!endAsk(true)) closeDialog(); };
+document.getElementById('dlgNo').onclick = () => endAsk(false);
 document.getElementById('dlgShade').onclick = closeDialog;
 // first tap/hold of min or max explains favourite zoom; the gesture that triggered it is consumed
 function zoomTipGate() {
@@ -5574,6 +5603,10 @@ async function addFile(name, text, ctx) {
           // them without loading the pack) and its text sizes for the pack list
           trackIds: S.tracks.filter(t => t.pack === slug).map(t => t.recId || t.id),
           tracksBytes, heatBytes: heatText.length,
+          // the ride-code offer: the baked ride name (asked about on a switch to this
+          // pack) and the name the rider answered "keep mine" to — both survive a refresh
+          rideName: obj.rideName || (prev && prev.rideName) || '',
+          rideAsked: (prev && prev.rideAsked) || '',
           loadedAt: Date.now(), lastUsed: Date.now() };
         await idb.put(pack); S.packs.set(slug, pack);
         writeActivePack(slug);
@@ -5708,6 +5741,7 @@ function setActivePack(slug) {
   pack.lastUsed = Date.now();
   idb.put(pack).catch(() => {});
   writeActivePack(slug);
+  try { sessionStorage.setItem('dingonav-pack-switched', slug); } catch (e) {} // boot makes the ride-code offer
   toast('Loading ' + pack.name + '…');
   setTimeout(() => location.reload(), 350);
 }
@@ -5816,19 +5850,13 @@ async function loadBundleZip(file, ctx) {
     await idb.put({ id: 'sat-meta', kind: 'satmeta', count: satTiles, zmin: szmin, zmax: szmax,
       base: sbase || szmax, pack: pack || '', bytes: satBytes });
   }
-  // Default ride name: the pack's baked rideName wins (canonical — everyone on the
-  // pack converges on one channel no matter how the file was renamed in transit),
-  // the filename is the fallback. A code the rider typed themselves is never
-  // touched; one we auto-set (codeAuto) upgrades to the canonical name.
-  if ((nT || nH) && (!S.set.code || (S.set.codeAuto && rideName))) {
+  // Ride name: the pack's baked rideName is canonical (everyone on the pack converges on
+  // one channel no matter how the file was renamed in transit); the filename is the
+  // fallback. A fetched pack with no baked name only has its share slug to offer — good
+  // enough to fill an empty ride name, not worth a question. See offerPackRideName.
+  if (nT || nH) {
     const fromFile = file.name.replace(/\.(dingonav|zip)$/i, '');
-    const next = (rideName || fromFile).toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 24);
-    if (next && next !== S.set.code) {
-      S.set.code = next; S.set.codeAuto = 1;
-      saveSet();
-      const ce = document.getElementById('rideCode'); if (ce) ce.value = S.set.code;
-      startFriends();
-    }
+    if (!S.set.code || rideName || !ctx) offerPackRideName(rideName || fromFile, bundleName || fromFile, pack && S.packs.get(pack));
   }
   // v2 packs ship no tiles — fetch the ride corridor from the shared archive
   if (pack && !basemap) prefetchCorridor(pack).catch(e => console.warn('corridor prefetch', e));
@@ -6454,12 +6482,52 @@ function suHandOff(force) {
 function setRideCode(v) {
   v = String(v || '').trim();
   if (v === (S.set.code || '')) return;   // unchanged -> no socket churn
-  S.set.code = v; S.set.codeAuto = 0;     // typed by hand: bundle loads stop overriding it
+  S.set.code = v; S.set.codeAuto = 0;     // typed by hand
   saveSet();
   const ce = document.getElementById('rideCode'); if (ce) ce.value = v;   // Settings row
   const se = suEl('suName'); if (se) se.value = v;                        // this card
   S.friends.clear(); if (mapReady) refreshFriends(); // old topic's dots must not linger
   startFriends();                          // safe re-entry: connectFriendWS disarms the old socket
+}
+/* The ride-code offer (2026-08-18 multiple-packs design §3; built 2026-11-17). When a
+   pack is opened — loaded, or switched to in the pack list — and its ride name differs
+   from the one set: no ride name yet -> take the pack's; otherwise ASK, never switch
+   silently. "Keep mine" is remembered on the pack record, so the same pack does not ask
+   twice. Nothing waits for the answer. */
+function offerPackRideName(name, packName, pack) {
+  const next = String(name || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 24);
+  if (!next || next === S.set.code) return;
+  if (!S.set.code) { usePackRideName(next); return; }
+  if (pack && pack.rideAsked === next) return;
+  askPackRideName(next, packName, pack);
+}
+/* a pack's ride name, taken automatically (none set) or by the rider's yes — codeAuto
+   marks it as not typed by hand. Both inputs follow, or the startup card's hand-off
+   would commit the old name straight back. */
+function usePackRideName(next) {
+  S.set.code = next; S.set.codeAuto = 1;
+  saveSet();
+  const ce = document.getElementById('rideCode'); if (ce) ce.value = next;
+  const se = suEl('suName'); if (se) se.value = next;
+  S.friends.clear(); if (mapReady) refreshFriends();
+  startFriends();
+}
+async function askPackRideName(next, packName, pack) {
+  const yes = await askDialog('Ride name',
+    'Change your ride name to <b>' + escHtml(next) + '</b>, the name of the pack <b>' + escHtml(packName) + '</b>?<br>' +
+    'Everyone on this pack shares it, and riders with the same ride name see each other on the map.<br><br>' +
+    'Your ride name now is <b>' + escHtml(S.set.code) + '</b>.',
+    'Use pack name', 'Keep mine');
+  if (yes) { usePackRideName(next); toast('Ride name: ' + next); }
+  else if (yes === false && pack) { pack.rideAsked = next; idb.put(pack).catch(() => {}); }
+}
+/* boot, after a switch in the pack list reloaded the app onto the new ride pack */
+function packSwitchOffer() {
+  let slug = '';
+  try { slug = sessionStorage.getItem('dingonav-pack-switched') || ''; sessionStorage.removeItem('dingonav-pack-switched'); } catch (e) {}
+  const pack = slug && slug === ACTIVE_PACK ? S.packs.get(slug) : null;
+  // a pack stored before the record kept its baked name offers its display name
+  if (pack) offerPackRideName(pack.rideName || pack.name, pack.name, pack);
 }
 function suCommitName() { const i = suEl('suName'); if (i) setRideCode(i.value); }
 {
@@ -9083,6 +9151,9 @@ async function boot() {
   } catch (e) {}
   // boot: nothing pre-selected — all tracks show on the map, tap one to pick it
   refreshTrackList(); refreshEmpty(); updateBottomBar();
+  // the rider just changed ride pack — ask about its ride name now, over the startup
+  // card, so the answer is in before the map is (startFriends below uses it)
+  packSwitchOffer();
   bootPhase('map');
   // returns as soon as the map is on screen; the basemap may still be coming.
   // If it throws before arming baseSettle, settle here — boot awaits baseReady

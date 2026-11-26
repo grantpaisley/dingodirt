@@ -86,7 +86,27 @@ built.
 
 1. The z8–11 tile tier fix (August design, step 1).
 2. `navigator.storage.persist()` and the storage report (step 2).
-3. The switch offer and the ride-code offer (step 4).
+3. The switch offer (step 4). The ride-code offer is built — see below.
+
+## The ride-code offer (added 2026-11-17)
+
+Grant's request: "when you select a new pack, on opening, ask if to override
+the ride name with the pack name."
+
+| Point | August design | As built |
+|---|---|---|
+| When | After a switch, when the new pack bakes a different ride name | The same, and also when a pack file is loaded |
+| A code the rider typed | Never touched, no offer | Asked too. Nothing changes without a yes |
+| A code Nav set itself | The offer | Asked. Before, a load replaced it with no question |
+| No ride name yet | Not covered | The pack's name is taken with no question, as before |
+| "No" | Once per pack | `rideAsked` on the pack record; a refresh keeps it |
+| A pack stored before the record kept `rideName` | Not covered | Offers the pack's display name, made into a ride name |
+| Wording | "Join the **Dorrigo 2026** group?" | "Change your ride name to **x**, the name of the pack **X**?" with **Use pack name** / **Keep mine** |
+
+The switch reloads the app, so `setActivePack` leaves a note in
+`sessionStorage` (`dingonav-pack-switched`) and boot makes the offer before
+the map starts. A tap on the backdrop dismisses the question with no answer
+recorded.
 
 ## Tests
 
