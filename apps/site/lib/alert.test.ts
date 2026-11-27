@@ -90,3 +90,85 @@ describe("reportOutage", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("reportStorageFault", () => {
+  const fault = {
+    packId: "pk1",
+    version: 1,
+    blobUrl: "https://s.public.blob.vercel-storage.com/packs/pk1/v1-x.dingonav",
+    status: 403,
+    detail: "Forbidden",
+  };
+
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.RESEND_API_KEY = "re_test";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.RESEND_API_KEY;
+  });
+
+  async function freshModule() {
+    vi.resetModules();
+    return await import("./alert");
+  }
+
+  it("mails the blob URL and Blob's status", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const { reportStorageFault } = await freshModule();
+
+    await reportStorageFault("/api/packs/t/download", fault);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.subject).toContain("pack file unreadable");
+    expect(body.text).toContain(fault.blobUrl);
+    expect(body.text).toContain("HTTP 403");
+    expect(body.text).toContain("pk1 v1");
+  });
+
+  it("says when the fetch threw instead of answering", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const { reportStorageFault } = await freshModule();
+
+    await reportStorageFault("/api/packs/t/download", {
+      ...fault,
+      status: null,
+      detail: "TypeError: fetch failed",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).text).toContain("fetch threw");
+  });
+
+  it("is throttled apart from database outages", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const { reportOutage, reportStorageFault } = await freshModule();
+
+    await reportOutage("/p/abc", new Error("boom"));
+    await reportStorageFault("/api/packs/t/download", fault);
+    await reportStorageFault("/api/packs/u/download", fault);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("never throws when the mail transport is down", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    );
+    const { reportStorageFault } = await freshModule();
+
+    await expect(
+      reportStorageFault("/api/packs/t/download", fault),
+    ).resolves.toBeUndefined();
+  });
+});

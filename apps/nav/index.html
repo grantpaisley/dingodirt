@@ -1357,9 +1357,26 @@ const BOOT_SKIP = /^(basemap|hillshade|trail|prog|sat-meta|strava-ride-meta|stra
    "indeterminate" — a gzipping host reports the COMPRESSED length, so an overrun
    drops to indeterminate mid-flight rather than reporting >100%. Returns a Blob, so
    the callers' idb.put path is byte-identical to the resp.blob() it replaces. */
+/* A non-2xx answer as an Error carrying .status and, when the server sent its
+   JSON { error }, .serverMsg — so callers can tell "the server failed" (5xx)
+   from "the link is dead" (404) from "no signal" (fetch threw, no .status). */
+async function httpError(resp) {
+  const e = new Error('HTTP ' + resp.status);
+  e.status = resp.status;
+  try { const j = await resp.json(); if (j && typeof j.error === 'string') e.serverMsg = j.error; } catch (x) {}
+  return e;
+}
+/* Toast text for a failed pack download (share link or ⟳ refresh). */
+function packFetchFailMsg(e, offline) {
+  const st = e && e.status;
+  if (st === 404) return 'This pack was removed (or the link is stale) — anything loaded earlier is still on the device';
+  if (st >= 500) return `dingodirt.com couldn't serve this pack (HTTP ${st}) — a server fault, not your signal. Try again later.`;
+  if (st) return `Pack download refused (HTTP ${st})${e.serverMsg ? ' — ' + e.serverMsg : ''}`;
+  return offline;
+}
 async function fetchBlobProgress(url, onProg) {
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  if (!resp.ok) throw await httpError(resp);
   const cl = parseInt(resp.headers.get('content-length') || '0', 10);
   const total = isFinite(cl) && cl > 0 ? cl : 0;
   const type = resp.headers.get('content-type') || 'application/octet-stream';
@@ -5723,7 +5740,7 @@ async function refreshPack(slug) {
   try {
     const url = pack.srcSlug ? await resolveShareUrl(pack.srcSlug) : pack.sourceUrl;
     const resp = await fetch(url, { cache: 'no-store' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) throw await httpError(resp);
     const blob = await resp.blob();
     const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
     const isZip = head[0] === 0x50 && head[1] === 0x4B; // 'PK'
@@ -5739,7 +5756,7 @@ async function refreshPack(slug) {
     if (r && (r.basemap || r.stravaTiles || r.satTiles)) setTimeout(() => location.reload(), 1100);
   } catch (e) {
     console.warn('pack refresh failed', e);
-    toast('Refresh failed — are you online?');
+    toast(packFetchFailMsg(e, 'Refresh failed — are you online?'));
   }
   refreshTrackList(); refreshEmpty(); updateBottomBar(); refreshMapData();
 }
@@ -9056,9 +9073,7 @@ async function boot() {
         try { await idb.put(stub); } catch (e2) {}
         S.packs.set(slug, stub);
       }
-      toast(String(e).includes('HTTP 404')
-        ? 'This pack was removed (or the link is stale) — anything loaded earlier is still on the device'
-        : 'Could not load the shared link — are you online?');
+      toast(packFetchFailMsg(e, 'Could not load the shared link — are you online?'));
     }
   }
   // ?share=<text> / ?url=<link> — the Android share sheet → the installed PWA
