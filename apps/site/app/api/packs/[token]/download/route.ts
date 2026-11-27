@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { packByToken, currentVersionOf, countDownload } from "@/lib/packs";
-import { outageJson, reportOutage } from "@/lib/alert";
+import { outageJson, reportOutage, reportStorageFault } from "@/lib/alert";
 
 export const runtime = "nodejs";
 
@@ -33,11 +33,45 @@ export async function GET(
     );
   }
 
-  const upstream = await fetch(version.blobUrl);
-  if (!upstream.ok || !upstream.body) {
+  // A blob that will not answer is a storage fault, not a dead link: the
+  // pack row exists, so log Blob's own reply and mail the operator — the
+  // rider only ever sees the 502.
+  let upstream: Response | null = null;
+  let thrown: unknown = null;
+  try {
+    upstream = await fetch(version.blobUrl, { cache: "no-store" });
+  } catch (err) {
+    thrown = err;
+  }
+  if (!upstream || !upstream.ok || !upstream.body) {
+    const status = upstream ? upstream.status : null;
+    const detail = upstream
+      ? (await upstream.text().catch(() => "")).slice(0, 300) ||
+        (upstream.ok ? "empty body" : upstream.statusText)
+      : thrown instanceof Error
+        ? `${thrown.name}: ${thrown.message}`
+        : String(thrown);
+    await reportStorageFault(`/api/packs/${token}/download`, {
+      packId: pack.id,
+      version: version.version,
+      blobUrl: version.blobUrl,
+      status,
+      detail,
+    });
     return NextResponse.json(
-      { ok: false, error: "Download failed — try again." },
-      { status: 502, headers: { "Access-Control-Allow-Origin": "*" } },
+      {
+        ok: false,
+        error:
+          "dingodirt.com couldn't read this pack's file from storage — the operator has been told.",
+        storageStatus: status,
+      },
+      {
+        status: 502,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-store",
+        },
+      },
     );
   }
 
